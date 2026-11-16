@@ -4,11 +4,20 @@ import re
 
 def convert_percent_to_decimal(percent):
     try:
-        # Remove the '%' sign and convert to float
-        decimal_value = float(percent)
+        if percent is None:
+            return None
 
-        # Convert to decimal (e.g., 20% -> 0.20)
-        return decimal_value
+        decimal_value = float(str(percent).strip().rstrip("%"))
+
+        # Accept decimal fractions, percentages, and 0-1000 normalized values.
+        if 0 <= decimal_value <= 1:
+            return decimal_value
+        if 1 < decimal_value <= 100:
+            return decimal_value / 100
+        if 100 < decimal_value <= 1000:
+            return decimal_value / 1000
+
+        raise ValueError(f"coordinate out of range: {percent}")
     except ValueError as e:
         print(f"[convert_percent_to_decimal] error: {e}")
         return None

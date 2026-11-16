@@ -8,6 +8,8 @@ import traceback
 import easyocr
 import ollama
 import pkg_resources
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
 from PIL import Image
 from ultralytics import YOLO
 
@@ -27,45 +29,30 @@ from operate.utils.ocr import get_text_coordinates, get_text_element
 from operate.utils.screenshot import capture_screen_with_cursor, compress_screenshot
 from operate.utils.style import ANSI_BRIGHT_MAGENTA, ANSI_GREEN, ANSI_RED, ANSI_RESET
 
+load_dotenv()
+
 # Load configuration
 config = Config()
 
 
-async def get_next_action(model, messages, objective, session_id):
+async def get_next_action(model, messages, objective, session_id, scale=1.0):
+    model = os.getenv("MODEL", model)
+    model_lower = model.lower()
     if config.verbose:
         print("[Self-Operating Computer][get_next_action]")
         print("[Self-Operating Computer][get_next_action] model", model)
-    if model == "gpt-4":
-        return call_gpt_4o(messages), None
-    if model == "qwen-vl":
-        operation = await call_qwen_vl_with_ocr(messages, objective, model)
-        return operation, None
-    if model == "gpt-4-with-som":
-        operation = await call_gpt_4o_labeled(messages, objective, model)
-        return operation, None
-    if model == "gpt-4-with-ocr":
-        operation = await call_gpt_4o_with_ocr(messages, objective, model)
-        return operation, None
-    if model == "gpt-4.1-with-ocr":
-        operation = await call_gpt_4_1_with_ocr(messages, objective, model)
-        return operation, None
-    if model == "o1-with-ocr":
-        operation = await call_o1_with_ocr(messages, objective, model)
-        return operation, None
-    if model == "agent-1":
-        return "coming soon"
-    if model == "gemini-pro-vision":
-        return call_gemini_pro_vision(messages, objective), None
-    if model == "llava":
-        operation = call_ollama_llava(messages)
-        return operation, None
-    if model == "claude-3":
-        operation = await call_claude_3_with_ocr(messages, objective, model)
-        return operation, None
-    raise ModelNotRecognizedException(model)
+    if "deepseek-vl" in model_lower:
+        operation = await call_deepseek_vl(messages, objective, model, scale)
+        return (operation, None)
+    elif "qwen" in model_lower and "vl" in model_lower:
+        operation = await call_qwen25_vl(messages, objective, model, scale)
+        return (operation, None)
+    else:
+        operation = await gpt_4_fallback(messages, objective, model, scale)
+        return (operation, None)
 
 
-def call_gpt_4o(messages):
+def call_gpt_4o(messages, scale=1.0):
     if config.verbose:
         print("[call_gpt_4_v]")
     time.sleep(1)
@@ -77,7 +64,7 @@ def call_gpt_4o(messages):
 
         screenshot_filename = os.path.join(screenshots_dir, "screenshot.png")
         # Call the function to capture the screen with the cursor
-        capture_screen_with_cursor(screenshot_filename)
+        capture_screen_with_cursor(screenshot_filename, scale=scale)
 
         with open(screenshot_filename, "rb") as img_file:
             img_base64 = base64.b64encode(img_file.read()).decode("utf-8")
@@ -139,10 +126,10 @@ def call_gpt_4o(messages):
         )
         if config.verbose:
             traceback.print_exc()
-        return call_gpt_4o(messages)
+        return call_gpt_4o(messages, scale)
 
 
-async def call_qwen_vl_with_ocr(messages, objective, model):
+async def call_qwen_vl_with_ocr(messages, objective, model, scale=1.0):
     if config.verbose:
         print("[call_qwen_vl_with_ocr]")
 
@@ -158,9 +145,9 @@ async def call_qwen_vl_with_ocr(messages, objective, model):
 
         # Call the function to capture the screen with the cursor
         raw_screenshot_filename = os.path.join(screenshots_dir, "raw_screenshot.png")
-        capture_screen_with_cursor(raw_screenshot_filename)
+        capture_screen_with_cursor(raw_screenshot_filename, scale=scale)
 
-        # Compress screenshot image to make size be smaller
+        # Qwen receives one JPEG-encoded image. Do not compress it again later.
         screenshot_filename = os.path.join(screenshots_dir, "screenshot.jpeg")
         compress_screenshot(raw_screenshot_filename, screenshot_filename)
 
@@ -257,9 +244,10 @@ async def call_qwen_vl_with_ocr(messages, objective, model):
         if config.verbose:
             print("[Self-Operating Computer][Operate] error", e)
             traceback.print_exc()
-        return gpt_4_fallback(messages, objective, model)
+        return await gpt_4_fallback(messages, objective, model, scale)
 
-def call_gemini_pro_vision(messages, objective):
+
+def call_gemini_pro_vision(messages, objective, scale=1.0):
     """
     Get the next action for Self-Operating Computer using Gemini Pro Vision
     """
@@ -276,7 +264,7 @@ def call_gemini_pro_vision(messages, objective):
 
         screenshot_filename = os.path.join(screenshots_dir, "screenshot.png")
         # Call the function to capture the screen with the cursor
-        capture_screen_with_cursor(screenshot_filename)
+        capture_screen_with_cursor(screenshot_filename, scale=scale)
         # sleep for a second
         time.sleep(1)
         prompt = get_system_prompt("gemini-pro-vision", objective)
@@ -308,10 +296,10 @@ def call_gemini_pro_vision(messages, objective):
         if config.verbose:
             print("[Self-Operating Computer][Operate] error", e)
             traceback.print_exc()
-        return call_gpt_4o(messages)
+        return call_gpt_4o(messages, scale)
 
 
-async def call_gpt_4o_with_ocr(messages, objective, model):
+async def call_gpt_4o_with_ocr(messages, objective, model, scale=1.0):
     if config.verbose:
         print("[call_gpt_4o_with_ocr]")
 
@@ -327,7 +315,7 @@ async def call_gpt_4o_with_ocr(messages, objective, model):
 
         screenshot_filename = os.path.join(screenshots_dir, "screenshot.png")
         # Call the function to capture the screen with the cursor
-        capture_screen_with_cursor(screenshot_filename)
+        capture_screen_with_cursor(screenshot_filename, scale=scale)
 
         with open(screenshot_filename, "rb") as img_file:
             img_base64 = base64.b64encode(img_file.read()).decode("utf-8")
@@ -421,10 +409,10 @@ async def call_gpt_4o_with_ocr(messages, objective, model):
         if config.verbose:
             print("[Self-Operating Computer][Operate] error", e)
             traceback.print_exc()
-        return gpt_4_fallback(messages, objective, model)
+        return await gpt_4_fallback(messages, objective, model, scale)
 
 
-async def call_gpt_4_1_with_ocr(messages, objective, model):
+async def call_gpt_4_1_with_ocr(messages, objective, model, scale=1.0):
     if config.verbose:
         print("[call_gpt_4_1_with_ocr]")
 
@@ -438,7 +426,7 @@ async def call_gpt_4_1_with_ocr(messages, objective, model):
             os.makedirs(screenshots_dir)
 
         screenshot_filename = os.path.join(screenshots_dir, "screenshot.png")
-        capture_screen_with_cursor(screenshot_filename)
+        capture_screen_with_cursor(screenshot_filename, scale=scale)
 
         with open(screenshot_filename, "rb") as img_file:
             img_base64 = base64.b64encode(img_file.read()).decode("utf-8")
@@ -527,10 +515,10 @@ async def call_gpt_4_1_with_ocr(messages, objective, model):
         if config.verbose:
             print("[Self-Operating Computer][Operate] error", e)
             traceback.print_exc()
-        return gpt_4_fallback(messages, objective, model)
+        return await gpt_4_fallback(messages, objective, model, scale)
 
 
-async def call_o1_with_ocr(messages, objective, model):
+async def call_o1_with_ocr(messages, objective, model, scale=1.0):
     if config.verbose:
         print("[call_o1_with_ocr]")
 
@@ -546,7 +534,7 @@ async def call_o1_with_ocr(messages, objective, model):
 
         screenshot_filename = os.path.join(screenshots_dir, "screenshot.png")
         # Call the function to capture the screen with the cursor
-        capture_screen_with_cursor(screenshot_filename)
+        capture_screen_with_cursor(screenshot_filename, scale=scale)
 
         with open(screenshot_filename, "rb") as img_file:
             img_base64 = base64.b64encode(img_file.read()).decode("utf-8")
@@ -640,10 +628,10 @@ async def call_o1_with_ocr(messages, objective, model):
         if config.verbose:
             print("[Self-Operating Computer][Operate] error", e)
             traceback.print_exc()
-        return gpt_4_fallback(messages, objective, model)
+        return await gpt_4_fallback(messages, objective, model, scale)
 
 
-async def call_gpt_4o_labeled(messages, objective, model):
+async def call_gpt_4o_labeled(messages, objective, model, scale=1.0):
     time.sleep(1)
 
     try:
@@ -658,7 +646,7 @@ async def call_gpt_4o_labeled(messages, objective, model):
 
         screenshot_filename = os.path.join(screenshots_dir, "screenshot.png")
         # Call the function to capture the screen with the cursor
-        capture_screen_with_cursor(screenshot_filename)
+        capture_screen_with_cursor(screenshot_filename, scale=scale)
 
         with open(screenshot_filename, "rb") as img_file:
             img_base64 = base64.b64encode(img_file.read()).decode("utf-8")
@@ -749,7 +737,7 @@ async def call_gpt_4o_labeled(messages, objective, model):
                     print(
                         f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_RED}[Error] Failed to get click position in percent. Trying another method {ANSI_RESET}"
                     )
-                    return call_gpt_4o(messages)
+                    return call_gpt_4o(messages, scale)
 
                 x_percent = f"{click_position_percent[0]:.2f}"
                 y_percent = f"{click_position_percent[1]:.2f}"
@@ -784,10 +772,10 @@ async def call_gpt_4o_labeled(messages, objective, model):
         if config.verbose:
             print("[Self-Operating Computer][Operate] error", e)
             traceback.print_exc()
-        return call_gpt_4o(messages)
+        return call_gpt_4o(messages, scale)
 
 
-def call_ollama_llava(messages):
+def call_ollama_llava(messages, scale=1.0):
     if config.verbose:
         print("[call_ollama_llava]")
     time.sleep(1)
@@ -799,7 +787,7 @@ def call_ollama_llava(messages):
 
         screenshot_filename = os.path.join(screenshots_dir, "screenshot.png")
         # Call the function to capture the screen with the cursor
-        capture_screen_with_cursor(screenshot_filename)
+        capture_screen_with_cursor(screenshot_filename, scale=scale)
 
         if len(messages) == 1:
             user_prompt = get_user_first_message_prompt()
@@ -862,10 +850,10 @@ def call_ollama_llava(messages):
         )
         if config.verbose:
             traceback.print_exc()
-        return call_ollama_llava(messages)
+        return call_ollama_llava(messages, scale)
 
 
-async def call_claude_3_with_ocr(messages, objective, model):
+async def call_claude_3_with_ocr(messages, objective, model, scale=1.0):
     if config.verbose:
         print("[call_claude_3_with_ocr]")
 
@@ -879,35 +867,20 @@ async def call_claude_3_with_ocr(messages, objective, model):
             os.makedirs(screenshots_dir)
 
         screenshot_filename = os.path.join(screenshots_dir, "screenshot.png")
-        capture_screen_with_cursor(screenshot_filename)
+        capture_screen_with_cursor(screenshot_filename, scale=scale)
 
-        # downsize screenshot due to 5MB size limit
+        # Claude preprocessing is independent: convert once and encode as JPEG,
+        # without resizing the already-scaled screenshot a second time.
         with open(screenshot_filename, "rb") as img_file:
             img = Image.open(img_file)
 
-            # Convert RGBA to RGB
-            if img.mode == "RGBA":
+            if img.mode != "RGB":
                 img = img.convert("RGB")
 
-            # Calculate the new dimensions while maintaining the aspect ratio
-            original_width, original_height = img.size
-            aspect_ratio = original_width / original_height
-            new_width = 2560  # Adjust this value to achieve the desired file size
-            new_height = int(new_width / aspect_ratio)
-            if config.verbose:
-                print("[call_claude_3_with_ocr] resizing claude")
-
-            # Resize the image
-            img_resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-
-            # Save the resized and converted image to a BytesIO object for JPEG format
             img_buffer = io.BytesIO()
-            img_resized.save(
-                img_buffer, format="JPEG", quality=85
-            )  # Adjust the quality parameter as needed
+            img.save(img_buffer, format="JPEG", quality=85)
             img_buffer.seek(0)
 
-            # Encode the resized image as base64
             img_data = base64.b64encode(img_buffer.getvalue()).decode("utf-8")
 
         if len(messages) == 1:
@@ -1057,7 +1030,176 @@ async def call_claude_3_with_ocr(messages, objective, model):
                     {"role": "assistant", "content": message["content"]}
                 )
 
-        return gpt_4_fallback(gpt4_messages, objective, model)
+        return await gpt_4_fallback(gpt4_messages, objective, model, scale)
+
+
+async def call_deepseek_vl(messages, objective, model, scale=1.0):
+    content = {}
+    print(f"[call_deepseek_vl] Using model: {model}")
+    if config.verbose:
+        print("[call_deepseek_vl]")
+
+    try:
+        time.sleep(1)
+        client = AsyncOpenAI(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            base_url=os.getenv("OPENAI_BASE_URL"),
+            timeout=60.0,
+        )
+        deepseek_model = (
+            os.getenv("DEEPSEEK_MODEL") or os.getenv("MODEL") or "deepseek-chat"
+        )
+
+        confirm_system_prompt(messages, objective, model)
+        screenshots_dir = "screenshots"
+        if not os.path.exists(screenshots_dir):
+            os.makedirs(screenshots_dir)
+
+        screenshot_filename = os.path.join(
+            screenshots_dir, "deepseek_screenshot.png"
+        )
+        capture_screen_with_cursor(screenshot_filename, scale=scale)
+
+        with open(screenshot_filename, "rb") as img_file:
+            img_base64 = base64.b64encode(img_file.read()).decode("utf-8")
+
+        if len(messages) == 1:
+            user_prompt = get_user_first_message_prompt()
+        else:
+            user_prompt = get_user_prompt()
+
+        vision_message = {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": user_prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{img_base64}"
+                    },
+                },
+            ],
+        }
+        messages.append(vision_message)
+
+        response = await client.chat.completions.create(
+            model=model,
+            messages=messages,
+        )
+        print(
+            "[call_deepseek_vl] Raw response:",
+            response.choices[0].message.content,
+        )
+
+        response_content = clean_json(response.choices[0].message.content)
+        messages.append({"role": "assistant", "content": response_content})
+        parsed_content = json.loads(response_content)
+        content = parsed_content
+
+    except Exception as e:
+        print(f"[call_deepseek_vl] Exception detail: {repr(e)}")
+        print(
+            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
+        )
+        if config.verbose:
+            print("[Self-Operating Computer][Operate] error", e)
+            traceback.print_exc()
+        content = {}
+
+    return content
+
+
+def compact_vision_messages(messages):
+    """Keep recent text history and remove screenshots sent in earlier turns."""
+    if not messages:
+        return
+
+    compacted = [messages[0]]
+    for message in messages[1:][-4:]:
+        content = message.get("content")
+        if message.get("role") == "user" and isinstance(content, list):
+            text_parts = [
+                part for part in content if part.get("type") != "image_url"
+            ]
+            message = {
+                **message,
+                "content": text_parts or "Previous screenshot omitted.",
+            }
+        compacted.append(message)
+    messages[:] = compacted
+
+
+async def call_qwen25_vl(messages, objective, model, scale=1.0):
+    content = {}
+    print(f"[call_qwen25_vl] Using model: {model}")
+    if config.verbose:
+        print("[call_qwen25_vl]")
+
+    try:
+        client = AsyncOpenAI(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            base_url=os.getenv("OPENAI_BASE_URL"),
+            timeout=30.0,
+        )
+
+        compact_vision_messages(messages)
+        confirm_system_prompt(messages, objective, model)
+        screenshots_dir = "screenshots"
+        if not os.path.exists(screenshots_dir):
+            os.makedirs(screenshots_dir)
+
+        screenshot_filename = os.path.join(
+            screenshots_dir, "qwen_screenshot.png"
+        )
+        capture_screen_with_cursor(screenshot_filename, scale=scale)
+
+        with open(screenshot_filename, "rb") as img_file:
+            img_base64 = base64.b64encode(img_file.read()).decode("utf-8")
+
+        if len(messages) == 1:
+            user_prompt = get_user_first_message_prompt()
+        else:
+            user_prompt = get_user_prompt()
+
+        vision_message = {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": user_prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{img_base64}"
+                    },
+                },
+            ],
+        }
+        messages.append(vision_message)
+
+        response = await client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0.0,
+        )
+        print(
+            "[call_qwen25_vl] Raw response:",
+            response.choices[0].message.content,
+        )
+
+        response_content = clean_json(response.choices[0].message.content)
+        messages.append({"role": "assistant", "content": response_content})
+        content = json.loads(response_content)
+
+    except Exception as e:
+        print(f"[call_qwen25_vl] Exception detail: {repr(e)}")
+        print(
+            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
+        )
+        if config.verbose:
+            print("[Self-Operating Computer][Operate] error", e)
+            traceback.print_exc()
+        content = {}
+
+    return content
 
 
 def get_last_assistant_message(messages):
@@ -1074,7 +1216,7 @@ def get_last_assistant_message(messages):
     return None  # Return None if no assistant message is found
 
 
-def gpt_4_fallback(messages, objective, model):
+async def gpt_4_fallback(messages, objective, model, scale=1.0):
     if config.verbose:
         print("[gpt_4_fallback]")
     system_prompt = get_system_prompt("gpt-4o", objective)
@@ -1087,7 +1229,7 @@ def gpt_4_fallback(messages, objective, model):
         print("[gpt_4_fallback][updated]")
         print("[gpt_4_fallback][updated] len(messages)", len(messages))
 
-    return call_gpt_4o(messages)
+    return call_gpt_4o(messages, scale)
 
 
 def confirm_system_prompt(messages, objective, model):

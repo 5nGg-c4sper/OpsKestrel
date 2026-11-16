@@ -20,7 +20,7 @@
 
 ## Key Features
 - **Compatibility**: Designed for various multimodal models.
-- **Integration**: Currently integrated with **GPT-4o, GPT-4.1, o1, Gemini Pro Vision, Claude 3, Qwen-VL and LLaVa.**
+- **Integration**: Includes OpenAI-compatible vision branches for **Qwen3-VL, DeepSeek-VL and GPT-4o**.
 - **Future Plans**: Support for additional models.
 
 ## Demo
@@ -54,7 +54,7 @@ operate
 
 #### OpenAI models
 
-The default model for the project is gpt-4o which you can use by simply typing `operate`. To try running OpenAI's new `o1` model, use the command below.
+The active model is read from `MODEL` in `.env`. If `MODEL` is not set, the command-line default is `gpt-4-with-ocr`.
 
 ```
 operate -m o1-with-ocr
@@ -82,11 +82,21 @@ Use Claude 3 with Vision to see how it stacks up to GPT-4-Vision at operating a 
 operate -m claude-3
 ```
 
-#### Try qwen `-m qwen-vl`
-Use Qwen-vl with Vision to see how it stacks up to GPT-4-Vision at operating a computer. Navigate to the [Qwen dashboard](https://bailian.console.aliyun.com/) to get an API key and run the command below to try it. 
+#### Try Qwen3-VL with SiliconFlow
 
+Create an API key in the [SiliconFlow dashboard](https://cloud.siliconflow.cn/), then configure the project root `.env` file:
+
+```env
+MODEL=Qwen/Qwen3-VL-8B-Instruct
+OPENAI_API_KEY='your SiliconFlow API key'
+OPENAI_BASE_URL=https://api.siliconflow.cn/v1
 ```
-operate -m qwen-vl
+
+`Qwen/Qwen3-VL-32B-Instruct` can be used instead of the 8B model when higher visual reasoning quality is more important than latency.
+When `MODEL` is set in `.env`, it takes precedence over the `-m` command-line argument.
+
+```bash
+./venv/bin/operate --verbose --prompt "打开备忘录"
 ```
 
 #### Try LLaVa Hosted Through Ollama `-m llava`
