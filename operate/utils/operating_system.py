@@ -3,14 +3,71 @@ import platform
 import time
 import math
 import pyperclip
+import subprocess
+import os
 
 from operate.utils.misc import convert_percent_to_decimal
 
 
 class OperatingSystem:
+    def open_app(self, app_name):
+        try:
+            if platform.system() == "Darwin":
+                normalized_name = app_name.strip().lower()
+                app_paths = {
+                    "calculator": "/System/Applications/Calculator.app",
+                    "计算器": "/System/Applications/Calculator.app",
+                    "textedit": "/System/Applications/TextEdit.app",
+                    "text editor": "/System/Applications/TextEdit.app",
+                    "文本编辑": "/System/Applications/TextEdit.app",
+                    "safari": "/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app",
+                    "safari浏览器": "/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app",
+                    "notes": "/System/Applications/Notes.app",
+                    "备忘录": "/System/Applications/Notes.app",
+                    "finder": "/System/Library/CoreServices/Finder.app",
+                    "访达": "/System/Library/CoreServices/Finder.app",
+                }
+                app_path = app_paths.get(normalized_name)
+                command = (
+                    ["open", app_path]
+                    if app_path and os.path.exists(app_path)
+                    else ["open", "-a", app_name]
+                )
+                subprocess.run(
+                    command,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            else:
+                raise RuntimeError("open_app is currently supported on macOS only")
+        except Exception as e:
+            print("[OperatingSystem][open_app] error:", e)
+
     def write(self, content):
         try:
             content = content.replace("\\n", "\n")
+
+            normalized_math = content.translate(
+                str.maketrans(
+                    {
+                        "×": "*",
+                        "÷": "/",
+                        "−": "-",
+                        "–": "-",
+                        "＝": "=",
+                    }
+                )
+            )
+            if (
+                normalized_math != content
+                and normalized_math.isascii()
+                and all(
+                    char in "0123456789+-*/().,= \t\r\n%"
+                    for char in normalized_math
+                )
+            ):
+                content = normalized_math
 
             # PyAutoGUI can only type characters present in the keyboard map.
             # On macOS, post native Unicode keyboard events for non-ASCII text.
@@ -57,11 +114,9 @@ class OperatingSystem:
 
     def press(self, keys):
         try:
-            for key in keys:
-                pyautogui.keyDown(key)
-            time.sleep(0.1)
-            for key in keys:
-                pyautogui.keyUp(key)
+            # PyAutoGUI releases combination keys in reverse order, which is
+            # required for shortcuts such as Command+Tab.
+            pyautogui.hotkey(*keys, interval=0.05)
         except Exception as e:
             print("[OperatingSystem][press] error:", e)
 

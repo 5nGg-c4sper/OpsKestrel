@@ -34,8 +34,8 @@ operating_system = OperatingSystem()
 
 SCREENSHOT_SCALE = 0.5
 ACTION_SETTLE_DELAY = 0.6
-MAX_LOOPS = 6
-MAX_RUNTIME_SECONDS = 90
+MAX_LOOPS = 12
+MAX_RUNTIME_SECONDS = 120
 
 
 def finish_run(message):
@@ -215,15 +215,6 @@ def main(model, terminal_prompt, voice_mode=False, verbose_mode=False):
                         ),
                     }
                 )
-                loop_count += 1
-                if loop_count >= MAX_LOOPS:
-                    print(
-                        f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_RED}"
-                        f"[Error] Maximum loop count ({MAX_LOOPS}) reached."
-                        f"{ANSI_RESET}"
-                    )
-                    finish_run(f"Task stopped after {MAX_LOOPS} steps.")
-                    break
                 continue
 
             if repeated_action_count >= 2:
@@ -237,7 +228,7 @@ def main(model, terminal_prompt, voice_mode=False, verbose_mode=False):
                 )
                 break
 
-            stop = operate(operations, model)
+            stop = operate(operations, model, objective)
             if stop:
                 break
 
@@ -264,7 +255,7 @@ def main(model, terminal_prompt, voice_mode=False, verbose_mode=False):
             break
 
 
-def operate(operations, model):
+def operate(operations, model, objective=""):
     if config.verbose:
         print("[Self Operating Computer][operate]")
     for operation in operations:
@@ -279,7 +270,38 @@ def operate(operations, model):
         if operate_type == "press" or operate_type == "hotkey":
             keys = operation.get("keys")
             operate_detail = keys
+            lowered_keys = {str(key).lower() for key in keys}
+            requests_close = any(
+                keyword in objective.lower()
+                for keyword in ("关闭", "退出", "close", "quit")
+            )
+            command_suffix = (
+                "command" in lowered_keys or "cmd" in lowered_keys
+            )
+            if command_suffix and "q" in lowered_keys:
+                print(
+                    f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_YELLOW}"
+                    "[Warning] Blocked Command+Q to protect the running agent."
+                    f"{ANSI_RESET}"
+                )
+                continue
+            if (
+                command_suffix
+                and "w" in lowered_keys
+                and not requests_close
+            ):
+                print(
+                    f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_YELLOW}"
+                    "[Warning] Blocked an app-close shortcut not requested by the objective."
+                    f"{ANSI_RESET}"
+                )
+                continue
             operating_system.press(keys)
+            time.sleep(ACTION_SETTLE_DELAY)
+        elif operate_type == "open_app":
+            app_name = operation.get("app")
+            operate_detail = app_name
+            operating_system.open_app(app_name)
             time.sleep(ACTION_SETTLE_DELAY)
         elif operate_type == "write":
             content = operation.get("content")
