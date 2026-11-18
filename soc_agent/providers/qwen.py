@@ -1,0 +1,1 @@
+"""SiliconFlow Qwen vision provider."""
