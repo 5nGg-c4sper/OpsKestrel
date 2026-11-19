@@ -8,6 +8,38 @@
   Using the same inputs and outputs as a human operator, the model views the screen and decides on a series of mouse and keyboard actions to reach an objective. Released Nov 2023, the Self-Operating Computer Framework was one of the first examples of full computer-use. 
 </p>
 
+## SOC Agent: deterministic macOS automation
+
+This repository also contains a secondary-development runtime named `soc_agent`.
+It executes versioned JSON tasks through deterministic desktop actions and uses a
+vision model only for screenshot verification.
+
+Documentation:
+
+- [Product roadmap](docs/ROADMAP.md)
+- [Architecture](docs/ARCHITECTURE.md)
+
+Configure the project root `.env` from [.env.example](.env.example).
+
+Run one task:
+
+```bash
+./venv/bin/python -m soc_agent.cli run tasks/calculator_17x23.json
+```
+
+Run all JSON tasks in a directory:
+
+```bash
+./venv/bin/python -m soc_agent.cli suite tasks/
+```
+
+Each task produces a JSON report under `reports/`. Verification screenshots are
+archived under `reports/artifacts/<report-name>/`. Reports and screenshots are
+ignored by Git because they may contain sensitive desktop content.
+
+The project keeps the original MIT license and remains a derivative of the
+OthersideAI Self-Operating Computer project.
+
 <div align="center">
   <img src="https://github.com/OthersideAI/self-operating-computer/blob/main/readme/self-operating-computer.png" width="750"  style="margin: 10px;"/>
 </div>
