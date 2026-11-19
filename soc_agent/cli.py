@@ -15,6 +15,7 @@ from soc_agent.providers.qwen import QwenVisionProvider
 from soc_agent.reporting.report import ReportWriter
 from soc_agent.runner import TaskRunner
 from soc_agent.safety.policy import SafetyPolicy
+from soc_agent.suite import SuiteResult, SuiteRunner
 from soc_agent.task_models import (
     ActionType,
     StepStatus,
@@ -32,34 +33,53 @@ def build_parser() -> argparse.ArgumentParser:
 
     run_parser = subparsers.add_parser("run", help="Run a task JSON file")
     run_parser.add_argument("task", help="Path to the task JSON file")
-    run_parser.add_argument(
+    add_execution_options(run_parser)
+
+    suite_parser = subparsers.add_parser(
+        "suite",
+        help="Run all JSON tasks in a directory",
+    )
+    suite_parser.add_argument(
+        "suite_path",
+        help="Directory or JSON file containing tasks",
+    )
+    add_execution_options(suite_parser)
+    suite_parser.add_argument(
+        "--stop-on-failure",
+        action="store_true",
+        help="Stop after the first unsuccessful task",
+    )
+    return parser
+
+
+def add_execution_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
         "--reports-dir",
         default=None,
         help="Directory for JSON execution reports",
     )
-    run_parser.add_argument(
+    parser.add_argument(
         "--scale",
         type=float,
         default=None,
         help="Screenshot scale passed to the macOS environment",
     )
-    run_parser.add_argument(
+    parser.add_argument(
         "--settle-delay",
         type=float,
         default=None,
         help="Delay after application, key, and click actions",
     )
-    run_parser.add_argument(
+    parser.add_argument(
         "--model",
         default=None,
         help="Override the Qwen vision model name",
     )
-    run_parser.add_argument(
+    parser.add_argument(
         "--non-interactive",
         action="store_true",
         help="Cancel steps that require manual confirmation",
     )
-    return parser
 
 
 def run_task(
@@ -196,18 +216,64 @@ def main(
         )
 
     try:
+        if args.command == "run":
+            result = run_task(
+                args.task,
+                environment,
+                executor,
+                vision_provider,
+                reporter,
+                confirmation_handler=confirmation_handler,
+            )
+        else:
+            suite_result = run_suite(
+                args.suite_path,
+                environment,
+                executor,
+                vision_provider,
+                reporter,
+                confirmation_handler=confirmation_handler,
+                stop_on_failure=args.stop_on_failure,
+            )
+            print_suite_result(suite_result)
+            return 0 if suite_result.successful else 1
+    except Exception as error:
+        print(f"Task execution failed: {error}")
+        return 1
+
+    print_result(result)
+    return exit_code_for_status(result.status)
+
+
+def run_suite(
+    suite_path,
+    environment,
+    executor,
+    vision_provider,
+    reporter,
+    confirmation_handler=None,
+    stop_on_failure=False,
+) -> SuiteResult:
+    def execute_task(task_path):
+        print(f"Running: {task_path.name}")
         result = run_task(
-            args.task,
+            task_path,
             environment,
             executor,
             vision_provider,
             reporter,
             confirmation_handler=confirmation_handler,
         )
-    except Exception as error:
-        print(f"Task execution failed: {error}")
-        return 1
+        print(f"Status: {result.status.value.upper()}")
+        return result
 
+    return SuiteRunner(
+        execute_task,
+        stop_on_failure=stop_on_failure,
+    ).run(suite_path)
+
+
+def print_result(result: TaskResult) -> None:
     print(f"Task: {result.task_name}")
     print(f"Status: {result.status.value.upper()}")
     print(f"Duration: {result.duration_seconds:.2f} seconds")
@@ -216,7 +282,16 @@ def main(
     if result.error:
         print(f"Error: {result.error}")
 
-    return exit_code_for_status(result.status)
+
+def print_suite_result(result: SuiteResult) -> None:
+    print(f"Total: {result.total}")
+    print(f"Passed: {result.passed}")
+    print(f"Failed: {result.failed}")
+    print(f"Timed out: {result.timed_out}")
+    print(f"Cancelled: {result.cancelled}")
+    print(f"Duration: {result.duration_seconds:.2f} seconds")
+    if result.stopped_early:
+        print("Stopped early: yes")
 
 
 if __name__ == "__main__":

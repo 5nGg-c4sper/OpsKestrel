@@ -91,6 +91,21 @@ class CLITests(unittest.TestCase):
 
         self.assertTrue(args.non_interactive)
 
+    def test_parser_supports_suite_mode(self):
+        args = build_parser().parse_args(
+            [
+                "suite",
+                "tasks",
+                "--stop-on-failure",
+                "--non-interactive",
+            ]
+        )
+
+        self.assertEqual(args.command, "suite")
+        self.assertEqual(args.suite_path, "tasks")
+        self.assertTrue(args.stop_on_failure)
+        self.assertTrue(args.non_interactive)
+
     def test_exit_code_for_status(self):
         self.assertEqual(exit_code_for_status(TaskStatus.PASSED), 0)
         self.assertEqual(exit_code_for_status(TaskStatus.FAILED), 1)
