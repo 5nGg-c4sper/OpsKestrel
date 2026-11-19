@@ -1,0 +1,33 @@
+{
+  "name": "calculator_125_div_5",
+  "description": "计算 125/5 并确认结果为 25",
+  "app": "计算器",
+  "max_steps": 8,
+  "max_duration_seconds": 60,
+  "steps": [
+    {
+      "type": "open_app",
+      "app": "计算器"
+    },
+    {
+      "type": "press",
+      "keys": ["escape"]
+    },
+    {
+      "type": "write",
+      "content": "125/5"
+    },
+    {
+      "type": "press",
+      "keys": ["enter"]
+    },
+    {
+      "type": "verify_vision",
+      "prompt": "计算器是否显示结果 25？只返回 true 或 false。"
+    },
+    {
+      "type": "done",
+      "summary": "125 / 5 = 25"
+    }
+  ]
+}
