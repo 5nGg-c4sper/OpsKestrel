@@ -1,6 +1,7 @@
 """Command-line interface for running task files."""
 
 import argparse
+import sys
 import tempfile
 from pathlib import Path
 from typing import Optional, Sequence
@@ -53,6 +54,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Override the Qwen vision model name",
     )
+    run_parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="Cancel steps that require manual confirmation",
+    )
     return parser
 
 
@@ -64,6 +70,7 @@ def run_task(
     reporter,
     screenshot_path=None,
     policy=None,
+    confirmation_handler=None,
 ) -> TaskResult:
     task = TaskRunner.load_task(task_path)
     screenshot_path = Path(
@@ -109,6 +116,7 @@ def run_task(
         vision_verifier=verify_vision,
         artifact_provider=artifact_provider,
         policy=policy or SafetyPolicy(),
+        confirmation_handler=confirmation_handler,
     )
     result = runner.run(task)
     reporter.write(result)
@@ -117,6 +125,38 @@ def run_task(
 
 def exit_code_for_status(status: TaskStatus) -> int:
     return 0 if status == TaskStatus.PASSED else 1
+
+
+def non_interactive_confirmation(step) -> bool:
+    """Reject steps that require confirmation without prompting."""
+    return False
+
+
+def terminal_confirmation_handler(step, input_fn=input, output=None) -> bool:
+    """Prompt the user before a step marked as requiring confirmation."""
+    output = output or sys.stdout
+    print("Confirmation required:", file=output)
+    print(f"Action: {step.type.value}", file=output)
+
+    for field_name in (
+        "app",
+        "content",
+        "keys",
+        "x",
+        "y",
+        "prompt",
+        "summary",
+    ):
+        value = getattr(step, field_name)
+        if value is not None:
+            print(f"{field_name}: {value}", file=output)
+
+    try:
+        answer = input_fn("Proceed? [y/N]: ")
+    except EOFError:
+        return False
+
+    return answer.strip().lower() in {"y", "yes"}
 
 
 def main(
@@ -130,6 +170,11 @@ def main(
         settle_delay=args.settle_delay,
         reports_dir=args.reports_dir,
         model=args.model,
+    )
+    confirmation_handler = (
+        non_interactive_confirmation
+        if args.non_interactive
+        else terminal_confirmation_handler
     )
 
     if dependency_factory is None:
@@ -157,6 +202,7 @@ def main(
             executor,
             vision_provider,
             reporter,
+            confirmation_handler=confirmation_handler,
         )
     except Exception as error:
         print(f"Task execution failed: {error}")

@@ -2,16 +2,19 @@
 
 import tempfile
 import unittest
+from io import StringIO
 from pathlib import Path
 
 from soc_agent.actions.executor import ActionExecutor
 from soc_agent.cli import (
     build_parser,
     exit_code_for_status,
+    non_interactive_confirmation,
     run_task,
+    terminal_confirmation_handler,
 )
 from soc_agent.reporting.report import ReportWriter
-from soc_agent.task_models import TaskStatus
+from soc_agent.task_models import TaskStatus, TaskStep
 
 
 class FakeEnvironment:
@@ -75,12 +78,67 @@ class CLITests(unittest.TestCase):
         self.assertEqual(args.scale, 0.4)
         self.assertEqual(args.settle_delay, 0.2)
         self.assertEqual(args.reports_dir, "custom-reports")
+        self.assertFalse(args.non_interactive)
+
+    def test_parser_supports_non_interactive_mode(self):
+        args = build_parser().parse_args(
+            [
+                "run",
+                "tasks/calculator_17x23.json",
+                "--non-interactive",
+            ]
+        )
+
+        self.assertTrue(args.non_interactive)
 
     def test_exit_code_for_status(self):
         self.assertEqual(exit_code_for_status(TaskStatus.PASSED), 0)
         self.assertEqual(exit_code_for_status(TaskStatus.FAILED), 1)
         self.assertEqual(exit_code_for_status(TaskStatus.TIMED_OUT), 1)
         self.assertEqual(exit_code_for_status(TaskStatus.CANCELLED), 1)
+
+    def test_terminal_confirmation_accepts_yes(self):
+        output = StringIO()
+        step = TaskStep(type="write", content="sensitive")
+
+        confirmed = terminal_confirmation_handler(
+            step,
+            input_fn=lambda prompt: "yes",
+            output=output,
+        )
+
+        self.assertTrue(confirmed)
+        self.assertIn("write", output.getvalue())
+        self.assertIn("sensitive", output.getvalue())
+
+    def test_terminal_confirmation_rejects_other_answers(self):
+        output = StringIO()
+        step = TaskStep(type="press", keys=["enter"])
+
+        for answer in ("", "n", "no", "continue"):
+            confirmed = terminal_confirmation_handler(
+                step,
+                input_fn=lambda prompt, value=answer: value,
+                output=output,
+            )
+            self.assertFalse(confirmed)
+
+    def test_terminal_confirmation_handles_end_of_input(self):
+        def raise_eof(prompt):
+            raise EOFError
+
+        confirmed = terminal_confirmation_handler(
+            TaskStep(type="write", content="sensitive"),
+            input_fn=raise_eof,
+            output=StringIO(),
+        )
+
+        self.assertFalse(confirmed)
+
+    def test_non_interactive_confirmation_always_rejects(self):
+        step = TaskStep(type="write", content="sensitive")
+
+        self.assertFalse(non_interactive_confirmation(step))
 
     def test_run_task_wires_environment_vision_and_report(self):
         environment = FakeEnvironment()
@@ -114,6 +172,71 @@ class CLITests(unittest.TestCase):
         self.assertTrue(
             (self.root / "reports" / result.steps[3].screenshot).is_file()
         )
+
+    def test_run_task_accepts_confirmed_step(self):
+        task_path = self.root / "confirmation.json"
+        task_path.write_text(
+            """
+            {
+              "name": "confirmation_task",
+              "steps": [
+                {
+                  "type": "write",
+                  "content": "confirmed",
+                  "requires_confirmation": true
+                },
+                {"type": "done", "summary": "finished"}
+              ]
+            }
+            """,
+            encoding="utf-8",
+        )
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+
+        result = run_task(
+            task_path,
+            environment,
+            executor,
+            FakeVisionProvider(),
+            ReportWriter(self.root / "reports"),
+            confirmation_handler=lambda step: True,
+        )
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertIn(("write", "confirmed"), environment.calls)
+
+    def test_run_task_cancels_rejected_step(self):
+        task_path = self.root / "confirmation.json"
+        task_path.write_text(
+            """
+            {
+              "name": "confirmation_task",
+              "steps": [
+                {
+                  "type": "write",
+                  "content": "rejected",
+                  "requires_confirmation": true
+                }
+              ]
+            }
+            """,
+            encoding="utf-8",
+        )
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+
+        result = run_task(
+            task_path,
+            environment,
+            executor,
+            FakeVisionProvider(),
+            ReportWriter(self.root / "reports"),
+            confirmation_handler=lambda step: False,
+        )
+
+        self.assertEqual(result.status, TaskStatus.CANCELLED)
+        self.assertEqual(environment.calls, [])
 
     def test_report_is_written_when_verification_fails(self):
         environment = FakeEnvironment()
