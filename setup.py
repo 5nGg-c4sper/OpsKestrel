@@ -16,6 +16,7 @@ setup(
     entry_points={
         "console_scripts": [
             "operate=operate.main:main_entry",
+            "soc-agent=soc_agent.cli:main",
         ],
     },
     package_data={

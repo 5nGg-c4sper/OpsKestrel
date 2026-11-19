@@ -24,14 +24,26 @@ Configure the project root `.env` from [.env.example](.env.example).
 Run one task:
 
 ```bash
-./venv/bin/python -m soc_agent.cli run tasks/calculator_17x23.json
+./venv/bin/soc-agent run tasks/calculator_17x23.json
 ```
 
 Run all JSON tasks in a directory:
 
 ```bash
-./venv/bin/python -m soc_agent.cli suite tasks/
+./venv/bin/soc-agent suite tasks/
 ```
+
+For local development without the installed command, use
+`./venv/bin/python -m soc_agent` with the same arguments.
+
+The package must be installed in editable mode after changing entry points:
+
+```bash
+./venv/bin/python -m pip install -e .
+```
+
+If the environment uses legacy `setuptools` without editable-install support,
+use `./venv/bin/python setup.py develop` instead.
 
 Each task produces a JSON report under `reports/`. Verification screenshots are
 archived under `reports/artifacts/<report-name>/`. Reports and screenshots are
