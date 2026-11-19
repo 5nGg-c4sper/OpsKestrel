@@ -78,7 +78,22 @@ class CLITests(unittest.TestCase):
         self.assertEqual(args.scale, 0.4)
         self.assertEqual(args.settle_delay, 0.2)
         self.assertEqual(args.reports_dir, "custom-reports")
+        self.assertIsNone(args.param)
         self.assertFalse(args.non_interactive)
+
+    def test_parser_supports_repeated_run_parameters(self):
+        args = build_parser().parse_args(
+            [
+                "run",
+                "tasks/calculator_17x23.json",
+                "--param",
+                "left=3",
+                "--param",
+                "right=4",
+            ]
+        )
+
+        self.assertEqual(args.param, ["left=3", "right=4"])
 
     def test_parser_supports_non_interactive_mode(self):
         args = build_parser().parse_args(
@@ -103,8 +118,23 @@ class CLITests(unittest.TestCase):
 
         self.assertEqual(args.command, "suite")
         self.assertEqual(args.suite_path, "tasks")
+        self.assertIsNone(args.param)
         self.assertTrue(args.stop_on_failure)
         self.assertTrue(args.non_interactive)
+
+    def test_parser_supports_repeated_suite_parameters(self):
+        args = build_parser().parse_args(
+            [
+                "suite",
+                "tasks",
+                "--param",
+                "left=3",
+                "--param",
+                "right=4",
+            ]
+        )
+
+        self.assertEqual(args.param, ["left=3", "right=4"])
 
     def test_exit_code_for_status(self):
         self.assertEqual(exit_code_for_status(TaskStatus.PASSED), 0)

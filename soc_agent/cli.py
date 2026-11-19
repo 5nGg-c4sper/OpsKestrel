@@ -76,6 +76,13 @@ def add_execution_options(parser: argparse.ArgumentParser) -> None:
         help="Override the Qwen vision model name",
     )
     parser.add_argument(
+        "--param",
+        action="append",
+        default=None,
+        metavar="KEY=VALUE",
+        help="Override a task parameter; may be repeated",
+    )
+    parser.add_argument(
         "--non-interactive",
         action="store_true",
         help="Cancel steps that require manual confirmation",
