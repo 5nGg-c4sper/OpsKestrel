@@ -149,6 +149,49 @@ class TaskDefinition(StrictModel):
             )
         return value
 
+    def resolve_parameters(
+        self,
+        overrides: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, str]:
+        """Apply defaults and validate task parameter overrides."""
+        overrides = dict(overrides or {})
+
+        unknown_names = sorted(set(overrides) - set(self.parameters))
+        if unknown_names:
+            raise ValueError(
+                f"unknown task parameters: {', '.join(unknown_names)}"
+            )
+
+        invalid_values = sorted(
+            name
+            for name, value in overrides.items()
+            if not isinstance(value, str)
+        )
+        if invalid_values:
+            raise ValueError(
+                "task parameter overrides must be strings: "
+                f"{', '.join(invalid_values)}"
+            )
+
+        resolved = {
+            name: definition.default
+            for name, definition in self.parameters.items()
+            if definition.default is not None
+        }
+        resolved.update(overrides)
+
+        missing_names = [
+            name
+            for name, definition in self.parameters.items()
+            if definition.default is None and name not in resolved
+        ]
+        if missing_names:
+            raise ValueError(
+                f"missing task parameters: {', '.join(missing_names)}"
+            )
+
+        return resolved
+
     @model_validator(mode="after")
     def validate_step_count(self):
         if len(self.steps) > self.max_steps:
