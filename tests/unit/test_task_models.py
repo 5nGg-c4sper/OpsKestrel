@@ -47,6 +47,38 @@ class TaskDefinitionTests(unittest.TestCase):
             }
         )
 
+    def renderable_task(self):
+        return TaskDefinition.model_validate(
+            {
+                "name": "renderable_task",
+                "app": "${app_name}",
+                "parameters": {
+                    "app_name": {},
+                    "left": {},
+                    "operator": {},
+                    "right": {},
+                    "expected": {},
+                    "submit_key": {},
+                },
+                "steps": [
+                    {"type": "open_app", "app": "${app_name}"},
+                    {
+                        "type": "write",
+                        "content": "${left}${operator}${right}",
+                    },
+                    {"type": "press", "keys": ["${submit_key}"]},
+                    {
+                        "type": "verify_vision",
+                        "prompt": "结果是否为 ${expected}？",
+                    },
+                    {
+                        "type": "done",
+                        "summary": "${left}${operator}${right}=${expected}",
+                    },
+                ],
+            }
+        )
+
     def test_valid_task_is_parsed(self):
         task = TaskDefinition.model_validate(self.valid_task)
 
@@ -157,6 +189,80 @@ class TaskDefinitionTests(unittest.TestCase):
             "task parameter overrides must be strings: right",
         ):
             task.resolve_parameters({"right": 23})
+
+    def test_render_parameters_replaces_supported_fields(self):
+        task = self.renderable_task()
+
+        rendered = task.render_parameters(
+            {
+                "app_name": "计算器",
+                "left": "17",
+                "operator": "*",
+                "right": "23",
+                "expected": "391",
+                "submit_key": "enter",
+            }
+        )
+
+        self.assertEqual(rendered.app, "计算器")
+        self.assertEqual(rendered.steps[0].app, "计算器")
+        self.assertEqual(rendered.steps[1].content, "17*23")
+        self.assertEqual(rendered.steps[2].keys, ["enter"])
+        self.assertEqual(rendered.steps[3].prompt, "结果是否为 391？")
+        self.assertEqual(rendered.steps[4].summary, "17*23=391")
+        self.assertEqual(task.app, "${app_name}")
+        self.assertEqual(
+            task.steps[1].content,
+            "${left}${operator}${right}",
+        )
+
+    def test_render_parameters_preserves_non_placeholder_dollars(self):
+        task = TaskDefinition.model_validate(
+            {
+                "name": "dollar_text",
+                "steps": [
+                    {"type": "write", "content": "价格 $5：${price}"}
+                ],
+            }
+        )
+
+        rendered = task.render_parameters({"price": "$6"})
+
+        self.assertEqual(rendered.steps[0].content, "价格 $5：$6")
+
+    def test_render_parameters_rejects_unresolved_placeholders(self):
+        task = TaskDefinition.model_validate(
+            {
+                "name": "unresolved",
+                "steps": [
+                    {"type": "write", "content": "${missing}"}
+                ],
+            }
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "unresolved task parameters: missing",
+        ):
+            task.render_parameters({})
+
+    def test_render_parameters_does_not_recursively_expand_values(self):
+        task = TaskDefinition.model_validate(
+            {
+                "name": "recursive_value",
+                "steps": [
+                    {"type": "write", "content": "${first}"}
+                ],
+            }
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "unresolved task parameters: second",
+        ):
+            task.render_parameters(
+                {"first": "${second}", "second": "expanded"}
+            )
 
     def test_open_app_requires_app(self):
         task = {

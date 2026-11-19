@@ -192,6 +192,60 @@ class TaskDefinition(StrictModel):
 
         return resolved
 
+    def render_parameters(
+        self,
+        values: Dict[str, str],
+    ) -> "TaskDefinition":
+        """Return a copy with task parameter placeholders substituted."""
+        values = dict(values)
+        invalid_values = sorted(
+            name
+            for name, value in values.items()
+            if not isinstance(value, str)
+        )
+        if invalid_values:
+            raise ValueError(
+                "task parameter values must be strings: "
+                f"{', '.join(invalid_values)}"
+            )
+
+        placeholder_pattern = re.compile(r"\$\{([^{}]*)\}")
+
+        def render_text(text: str) -> str:
+            rendered = placeholder_pattern.sub(
+                lambda match: values.get(match.group(1), match.group(0)),
+                text,
+            )
+            unresolved_names = sorted(
+                {
+                    match.group(1) or "<empty>"
+                    for match in placeholder_pattern.finditer(rendered)
+                }
+            )
+            if unresolved_names:
+                raise ValueError(
+                    "unresolved task parameters: "
+                    f"{', '.join(unresolved_names)}"
+                )
+            return rendered
+
+        data = self.model_dump()
+        if data["app"] is not None:
+            data["app"] = render_text(data["app"])
+
+        for step in data["steps"]:
+            for field_name in ("app", "content", "prompt", "summary"):
+                if step[field_name] is not None:
+                    step[field_name] = render_text(step[field_name])
+
+            if step["keys"] is not None:
+                step["keys"] = [
+                    render_text(key)
+                    for key in step["keys"]
+                ]
+
+        return TaskDefinition.model_validate(data)
+
     @model_validator(mode="after")
     def validate_step_count(self):
         if len(self.steps) > self.max_steps:
