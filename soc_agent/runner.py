@@ -4,7 +4,7 @@ import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Dict, Optional
 
 from soc_agent.actions.executor import ActionExecutor, StepOutcome
 from soc_agent.safety.policy import SafetyPolicy, SafetyViolation
@@ -49,10 +49,15 @@ class TaskRunner:
         self._clock = clock or time.monotonic
 
     @staticmethod
-    def load_task(task_path) -> TaskDefinition:
+    def load_task(
+        task_path,
+        parameter_overrides: Optional[Dict[str, str]] = None,
+    ) -> TaskDefinition:
         path = Path(task_path)
         payload = json.loads(path.read_text(encoding="utf-8"))
-        return TaskDefinition.model_validate(payload)
+        task = TaskDefinition.model_validate(payload)
+        resolved = task.resolve_parameters(parameter_overrides)
+        return task.render_parameters(resolved)
 
     def run(self, task: TaskDefinition) -> TaskResult:
         started_at = datetime.now(timezone.utc)
