@@ -10,6 +10,7 @@ from soc_agent.cli import (
     build_parser,
     exit_code_for_status,
     non_interactive_confirmation,
+    parse_parameter_overrides,
     run_task,
     terminal_confirmation_handler,
 )
@@ -135,6 +136,45 @@ class CLITests(unittest.TestCase):
         )
 
         self.assertEqual(args.param, ["left=3", "right=4"])
+
+    def test_parse_parameter_overrides_returns_empty_for_none(self):
+        self.assertEqual(parse_parameter_overrides(None), {})
+
+    def test_parse_parameter_overrides_parses_repeated_values(self):
+        overrides = parse_parameter_overrides(
+            [
+                "left=3",
+                "right=4",
+                "formula=a=b",
+                "empty=",
+            ]
+        )
+
+        self.assertEqual(
+            overrides,
+            {
+                "left": "3",
+                "right": "4",
+                "formula": "a=b",
+                "empty": "",
+            },
+        )
+
+    def test_parse_parameter_overrides_rejects_malformed_values(self):
+        for raw_value in ("left", "=3", ""):
+            with self.subTest(raw_value=raw_value):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "expected KEY=VALUE",
+                ):
+                    parse_parameter_overrides([raw_value])
+
+    def test_parse_parameter_overrides_rejects_duplicate_names(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "duplicate task parameter override: left",
+        ):
+            parse_parameter_overrides(["left=3", "left=4"])
 
     def test_exit_code_for_status(self):
         self.assertEqual(exit_code_for_status(TaskStatus.PASSED), 0)

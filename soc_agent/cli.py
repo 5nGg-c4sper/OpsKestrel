@@ -4,7 +4,7 @@ import argparse
 import sys
 import tempfile
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Dict, Optional, Sequence
 
 from dotenv import load_dotenv
 
@@ -87,6 +87,24 @@ def add_execution_options(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Cancel steps that require manual confirmation",
     )
+
+
+def parse_parameter_overrides(
+    raw_values: Optional[Sequence[str]],
+) -> Dict[str, str]:
+    """Parse repeated ``KEY=VALUE`` task parameter overrides."""
+    overrides = {}
+    for raw_value in raw_values or []:
+        name, separator, value = raw_value.partition("=")
+        if not separator or not name:
+            raise ValueError(
+                f"invalid task parameter override {raw_value!r}; "
+                "expected KEY=VALUE"
+            )
+        if name in overrides:
+            raise ValueError(f"duplicate task parameter override: {name}")
+        overrides[name] = value
+    return overrides
 
 
 def run_task(
