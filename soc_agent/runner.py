@@ -13,6 +13,7 @@ from soc_agent.task_models import (
     StepStatus,
     TaskDefinition,
     TaskResult,
+    TaskStep,
     TaskStatus,
 )
 
@@ -33,11 +34,15 @@ class TaskRunner:
         executor: ActionExecutor,
         vision_verifier: Optional[Callable[[str], bool]] = None,
         confirmation_handler: Optional[Callable[[object], bool]] = None,
+        artifact_provider: Optional[
+            Callable[[int, TaskStep, StepStatus], Optional[str]]
+        ] = None,
         clock: Optional[Callable[[], float]] = None,
     ):
         self.executor = executor
         self.vision_verifier = vision_verifier
         self.confirmation_handler = confirmation_handler
+        self.artifact_provider = artifact_provider
         self._clock = clock or time.monotonic
 
     @staticmethod
@@ -138,6 +143,11 @@ class TaskRunner:
                             self._clock() - step_start_time,
                         ),
                         error=task_error,
+                        screenshot=self._get_artifact(
+                            index,
+                            step,
+                            StepStatus.FAILED,
+                        ),
                     )
                 )
                 break
@@ -152,6 +162,11 @@ class TaskRunner:
                     duration_seconds=max(
                         0.0,
                         self._clock() - step_start_time,
+                    ),
+                    screenshot=self._get_artifact(
+                        index,
+                        step,
+                        StepStatus.PASSED,
                     ),
                 )
             )
@@ -176,6 +191,22 @@ class TaskRunner:
             steps=step_results,
             error=task_error,
         )
+
+    def _get_artifact(
+        self,
+        index: int,
+        step: TaskStep,
+        status: StepStatus,
+    ) -> Optional[str]:
+        if self.artifact_provider is None:
+            return None
+
+        try:
+            artifact = self.artifact_provider(index, step, status)
+        except Exception:
+            return None
+
+        return str(artifact) if artifact else None
 
     @staticmethod
     def _append_skipped(

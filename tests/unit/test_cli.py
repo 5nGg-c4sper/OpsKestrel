@@ -110,6 +110,10 @@ class CLITests(unittest.TestCase):
             ],
         )
         self.assertIn(("screenshot", str(screenshot_path)), environment.calls)
+        self.assertIsNotNone(result.steps[3].screenshot)
+        self.assertTrue(
+            (self.root / "reports" / result.steps[3].screenshot).is_file()
+        )
 
     def test_report_is_written_when_verification_fails(self):
         environment = FakeEnvironment()
@@ -128,6 +132,7 @@ class CLITests(unittest.TestCase):
 
         self.assertEqual(result.status, TaskStatus.FAILED)
         self.assertTrue(Path(result.report_path).is_file())
+        self.assertIsNotNone(result.steps[3].screenshot)
 
 
 if __name__ == "__main__":

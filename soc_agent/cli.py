@@ -13,7 +13,12 @@ from soc_agent.environments.macos import MacOSEnvironment
 from soc_agent.providers.qwen import QwenVisionProvider
 from soc_agent.reporting.report import ReportWriter
 from soc_agent.runner import TaskRunner
-from soc_agent.task_models import TaskResult, TaskStatus
+from soc_agent.task_models import (
+    ActionType,
+    StepStatus,
+    TaskResult,
+    TaskStatus,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -63,14 +68,44 @@ def run_task(
         screenshot_path
         or Path(tempfile.gettempdir()) / f"soc-{task.name}-verify.png"
     )
+    pending_verification_screenshots = []
+    verification_count = 0
 
     def verify_vision(statement: str) -> bool:
-        environment.screenshot(screenshot_path)
-        return vision_provider.verify(str(screenshot_path), statement)
+        nonlocal verification_count
+        current_path = screenshot_path
+        if verification_count:
+            current_path = screenshot_path.with_name(
+                f"{screenshot_path.stem}-{verification_count}"
+                f"{screenshot_path.suffix}"
+            )
+        verification_count += 1
+
+        environment.screenshot(current_path)
+        pending_verification_screenshots.append(str(current_path))
+        return vision_provider.verify(str(current_path), statement)
+
+    def artifact_provider(index, step, status):
+        if (
+            step.type == ActionType.VERIFY_VISION
+            and pending_verification_screenshots
+        ):
+            return pending_verification_screenshots.pop(0)
+
+        if status == StepStatus.FAILED:
+            failure_path = screenshot_path.with_name(
+                f"{screenshot_path.stem}-step-{index:03d}"
+                f"{screenshot_path.suffix}"
+            )
+            environment.screenshot(failure_path)
+            return str(failure_path)
+
+        return None
 
     runner = TaskRunner(
         executor,
         vision_verifier=verify_vision,
+        artifact_provider=artifact_provider,
     )
     result = runner.run(task)
     reporter.write(result)

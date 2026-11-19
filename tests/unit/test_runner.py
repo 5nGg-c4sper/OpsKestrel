@@ -77,6 +77,23 @@ class TaskRunnerTests(unittest.TestCase):
             ],
         )
 
+    def test_artifact_provider_records_step_screenshot(self):
+        environment = FakeEnvironment()
+        runner = TaskRunner(
+            ActionExecutor(environment, settle_delay=0),
+            vision_verifier=lambda prompt: True,
+            artifact_provider=lambda index, step, status: (
+                f"/private/tmp/step-{index}.png"
+            ),
+        )
+
+        result = runner.run(self.make_task())
+
+        self.assertEqual(
+            result.steps[3].screenshot,
+            "/private/tmp/step-3.png",
+        )
+
     def test_failed_vision_verification(self):
         environment = FakeEnvironment()
         runner = TaskRunner(
@@ -89,6 +106,24 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertEqual(result.status, TaskStatus.FAILED)
         self.assertIn("vision verification failed", result.error)
         self.assertEqual(result.steps[-1].status, StepStatus.FAILED)
+
+    def test_failed_action_records_artifact(self):
+        runner = TaskRunner(
+            FlakyExecutor(),
+            artifact_provider=lambda index, step, status: (
+                f"/private/tmp/failure-{index}.png"
+            ),
+        )
+        task = TaskDefinition.model_validate(
+            {
+                "name": "failing_task",
+                "steps": [{"type": "press", "keys": ["enter"]}],
+            }
+        )
+
+        result = runner.run(task)
+
+        self.assertEqual(result.steps[0].screenshot, "/private/tmp/failure-0.png")
 
     def test_missing_vision_verifier_fails(self):
         environment = FakeEnvironment()

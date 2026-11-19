@@ -20,7 +20,8 @@ class ReportWriterTests(unittest.TestCase):
     def setUp(self):
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary_directory.cleanup)
-        self.output_dir = Path(self.temporary_directory.name) / "reports"
+        self.root = Path(self.temporary_directory.name)
+        self.output_dir = self.root / "reports"
 
     def make_result(self, task_name="calculator_17x23"):
         timestamp = datetime(2026, 11, 19, 10, 30, 0, tzinfo=timezone.utc)
@@ -40,6 +41,25 @@ class ReportWriterTests(unittest.TestCase):
                     duration_seconds=0.5,
                 )
             ],
+        )
+
+    def test_copies_screenshot_to_artifact_directory(self):
+        source = self.root / "verification.png"
+        source.write_bytes(b"fake-image")
+
+        result = self.make_result()
+        result.steps[0].screenshot = str(source)
+        writer = ReportWriter(self.output_dir)
+
+        path = writer.write(result)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        relative_screenshot = payload["steps"][0]["screenshot"]
+        artifact_path = self.output_dir / relative_screenshot
+
+        self.assertTrue(artifact_path.is_file())
+        self.assertEqual(artifact_path.read_bytes(), b"fake-image")
+        self.assertTrue(
+            relative_screenshot.startswith("artifacts/")
         )
 
     def test_writes_json_report(self):
