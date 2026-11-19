@@ -1,6 +1,7 @@
 """Tests for the macOS environment adapter."""
 
 import unittest
+import tempfile
 from pathlib import Path
 
 from soc_agent.environments.macos import MacOSEnvironment
@@ -25,6 +26,8 @@ class FakeSystem:
 
 class MacOSEnvironmentTests(unittest.TestCase):
     def setUp(self):
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
         self.system = FakeSystem()
         self.screenshot_calls = []
         self.sleep_calls = []
@@ -63,11 +66,14 @@ class MacOSEnvironmentTests(unittest.TestCase):
         self.assertEqual(self.sleep_calls, [1.5])
 
     def test_screenshot(self):
-        path = self.environment.screenshot("/private/tmp/soc-test.png")
-        self.assertEqual(path, Path("/private/tmp/soc-test.png"))
+        expected_path = (
+            Path(self.temporary_directory.name) / "soc-test.png"
+        )
+        path = self.environment.screenshot(expected_path)
+        self.assertEqual(path, expected_path)
         self.assertEqual(
             self.screenshot_calls,
-            [("/private/tmp/soc-test.png", 0.5)],
+            [(str(expected_path), 0.5)],
         )
 
     def test_invalid_click_is_rejected(self):
