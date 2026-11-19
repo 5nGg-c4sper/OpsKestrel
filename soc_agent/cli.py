@@ -1,1 +1,127 @@
 """Command-line interface for running task files."""
+
+import argparse
+import tempfile
+from pathlib import Path
+from typing import Optional, Sequence
+
+from dotenv import load_dotenv
+
+from soc_agent.actions.executor import ActionExecutor
+from soc_agent.environments.macos import MacOSEnvironment
+from soc_agent.providers.qwen import QwenVisionProvider
+from soc_agent.reporting.report import ReportWriter
+from soc_agent.runner import TaskRunner
+from soc_agent.task_models import TaskResult, TaskStatus
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="soc-agent",
+        description="Run deterministic macOS desktop tasks.",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    run_parser = subparsers.add_parser("run", help="Run a task JSON file")
+    run_parser.add_argument("task", help="Path to the task JSON file")
+    run_parser.add_argument(
+        "--reports-dir",
+        default="reports",
+        help="Directory for JSON execution reports",
+    )
+    run_parser.add_argument(
+        "--scale",
+        type=float,
+        default=0.5,
+        help="Screenshot scale passed to the macOS environment",
+    )
+    run_parser.add_argument(
+        "--settle-delay",
+        type=float,
+        default=0.6,
+        help="Delay after application, key, and click actions",
+    )
+    run_parser.add_argument(
+        "--model",
+        default=None,
+        help="Override the Qwen vision model name",
+    )
+    return parser
+
+
+def run_task(
+    task_path,
+    environment,
+    executor,
+    vision_provider,
+    reporter,
+    screenshot_path=None,
+) -> TaskResult:
+    task = TaskRunner.load_task(task_path)
+    screenshot_path = Path(
+        screenshot_path
+        or Path(tempfile.gettempdir()) / f"soc-{task.name}-verify.png"
+    )
+
+    def verify_vision(statement: str) -> bool:
+        environment.screenshot(screenshot_path)
+        return vision_provider.verify(str(screenshot_path), statement)
+
+    runner = TaskRunner(
+        executor,
+        vision_verifier=verify_vision,
+    )
+    result = runner.run(task)
+    reporter.write(result)
+    return result
+
+
+def exit_code_for_status(status: TaskStatus) -> int:
+    return 0 if status == TaskStatus.PASSED else 1
+
+
+def main(
+    argv: Optional[Sequence[str]] = None,
+    dependency_factory=None,
+) -> int:
+    args = build_parser().parse_args(argv)
+    load_dotenv()
+
+    if dependency_factory is None:
+        environment = MacOSEnvironment(scale=args.scale)
+        executor = ActionExecutor(
+            environment,
+            settle_delay=args.settle_delay,
+        )
+        vision_provider = QwenVisionProvider(model=args.model)
+        reporter = ReportWriter(args.reports_dir)
+    else:
+        environment, executor, vision_provider, reporter = (
+            dependency_factory(args)
+        )
+
+    try:
+        result = run_task(
+            args.task,
+            environment,
+            executor,
+            vision_provider,
+            reporter,
+        )
+    except Exception as error:
+        print(f"Task execution failed: {error}")
+        return 1
+
+    print(f"Task: {result.task_name}")
+    print(f"Status: {result.status.value.upper()}")
+    print(f"Duration: {result.duration_seconds:.2f} seconds")
+    if result.report_path:
+        print(f"Report: {result.report_path}")
+    if result.error:
+        print(f"Error: {result.error}")
+
+    return exit_code_for_status(result.status)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
