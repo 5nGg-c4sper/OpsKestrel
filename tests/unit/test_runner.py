@@ -14,6 +14,8 @@ from soc_agent.task_models import (
     TaskStatus,
 )
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 class FakeEnvironment:
     def __init__(self):
@@ -117,6 +119,23 @@ class TaskRunnerTests(unittest.TestCase):
                 "missing task parameters: right",
             ):
                 TaskRunner.load_task(task_path)
+
+    def test_parameterized_calculator_task(self):
+        task_path = (
+            PROJECT_ROOT / "tasks" / "calculator_parameterized.json"
+        )
+
+        task = TaskRunner.load_task(task_path, {"right": "23"})
+
+        self.assertEqual(task.steps[2].content, "17*23")
+        self.assertIn("391", task.steps[4].prompt)
+        self.assertEqual(task.steps[5].summary, "17 * 23 = 391")
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "missing task parameters: right",
+        ):
+            TaskRunner.load_task(task_path)
 
     def test_successful_task(self):
         environment = FakeEnvironment()
