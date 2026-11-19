@@ -65,6 +65,33 @@ class CLITests(unittest.TestCase):
         self.addCleanup(self.temporary_directory.cleanup)
         self.root = Path(self.temporary_directory.name)
 
+    def write_parameterized_suite(self):
+        suite_path = self.root / "suite"
+        suite_path.mkdir()
+
+        for name, left in (("first", "17"), ("second", "125")):
+            (suite_path / f"{name}.json").write_text(
+                f"""
+                {{
+                  "name": "{name}",
+                  "parameters": {{
+                    "left": {{"default": "{left}"}},
+                    "right": {{}}
+                  }},
+                  "steps": [
+                    {{
+                      "type": "write",
+                      "content": "${{left}}*${{right}}"
+                    }},
+                    {{"type": "done", "summary": "finished"}}
+                  ]
+                }}
+                """,
+                encoding="utf-8",
+            )
+
+        return suite_path
+
     def test_parser_supports_run_options(self):
         args = build_parser().parse_args(
             [
@@ -368,30 +395,7 @@ class CLITests(unittest.TestCase):
         self.assertEqual(dependency_calls, [])
 
     def test_run_suite_applies_common_parameter_overrides(self):
-        suite_path = self.root / "suite"
-        suite_path.mkdir()
-
-        for name, left in (("first", "17"), ("second", "125")):
-            (suite_path / f"{name}.json").write_text(
-                f"""
-                {{
-                  "name": "{name}",
-                  "parameters": {{
-                    "left": {{"default": "{left}"}},
-                    "right": {{}}
-                  }},
-                  "steps": [
-                    {{
-                      "type": "write",
-                      "content": "${{left}}*${{right}}"
-                    }},
-                    {{"type": "done", "summary": "finished"}}
-                  ]
-                }}
-                """,
-                encoding="utf-8",
-            )
-
+        suite_path = self.write_parameterized_suite()
         environment = FakeEnvironment()
         executor = ActionExecutor(environment, settle_delay=0)
 
@@ -407,6 +411,41 @@ class CLITests(unittest.TestCase):
 
         self.assertTrue(suite_result.successful)
         self.assertEqual(suite_result.total, 2)
+        self.assertIn(("write", "17*23"), environment.calls)
+        self.assertIn(("write", "125*23"), environment.calls)
+
+    def test_main_passes_cli_parameters_to_suite(self):
+        suite_path = self.write_parameterized_suite()
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+        vision_provider = FakeVisionProvider()
+        reporter = ReportWriter(self.root / "reports")
+
+        def dependency_factory(args, config):
+            self.assertEqual(args.command, "suite")
+            self.assertEqual(args.param, ["right=23"])
+            return environment, executor, vision_provider, reporter
+
+        with (
+            patch("soc_agent.cli.load_dotenv"),
+            patch.dict(
+                os.environ,
+                {"OPENAI_API_KEY": "test-key"},
+                clear=False,
+            ),
+            redirect_stdout(StringIO()),
+        ):
+            exit_code = main(
+                [
+                    "suite",
+                    str(suite_path),
+                    "--param",
+                    "right=23",
+                ],
+                dependency_factory=dependency_factory,
+            )
+
+        self.assertEqual(exit_code, 0)
         self.assertIn(("write", "17*23"), environment.calls)
         self.assertIn(("write", "125*23"), environment.calls)
 

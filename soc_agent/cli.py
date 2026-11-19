@@ -267,6 +267,7 @@ def main(
                 reporter,
                 confirmation_handler=confirmation_handler,
                 stop_on_failure=args.stop_on_failure,
+                parameter_overrides=parameter_overrides,
             )
             print_suite_result(suite_result)
             return 0 if suite_result.successful else 1
