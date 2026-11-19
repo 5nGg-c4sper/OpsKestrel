@@ -8,6 +8,7 @@ from typing import Optional, Sequence
 from dotenv import load_dotenv
 
 from soc_agent.actions.executor import ActionExecutor
+from soc_agent.config import AgentConfig
 from soc_agent.environments.macos import MacOSEnvironment
 from soc_agent.providers.qwen import QwenVisionProvider
 from soc_agent.reporting.report import ReportWriter
@@ -26,19 +27,19 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("task", help="Path to the task JSON file")
     run_parser.add_argument(
         "--reports-dir",
-        default="reports",
+        default=None,
         help="Directory for JSON execution reports",
     )
     run_parser.add_argument(
         "--scale",
         type=float,
-        default=0.5,
+        default=None,
         help="Screenshot scale passed to the macOS environment",
     )
     run_parser.add_argument(
         "--settle-delay",
         type=float,
-        default=0.6,
+        default=None,
         help="Delay after application, key, and click actions",
     )
     run_parser.add_argument(
@@ -86,18 +87,29 @@ def main(
 ) -> int:
     args = build_parser().parse_args(argv)
     load_dotenv()
+    config = AgentConfig.from_env().with_overrides(
+        screenshot_scale=args.scale,
+        settle_delay=args.settle_delay,
+        reports_dir=args.reports_dir,
+        model=args.model,
+    )
 
     if dependency_factory is None:
-        environment = MacOSEnvironment(scale=args.scale)
+        environment = MacOSEnvironment(scale=config.screenshot_scale)
         executor = ActionExecutor(
             environment,
-            settle_delay=args.settle_delay,
+            settle_delay=config.settle_delay,
         )
-        vision_provider = QwenVisionProvider(model=args.model)
-        reporter = ReportWriter(args.reports_dir)
+        vision_provider = QwenVisionProvider(
+            api_key=config.api_key,
+            base_url=config.base_url,
+            model=config.model,
+            timeout=config.qwen_timeout,
+        )
+        reporter = ReportWriter(config.reports_dir)
     else:
         environment, executor, vision_provider, reporter = (
-            dependency_factory(args)
+            dependency_factory(args, config)
         )
 
     try:
