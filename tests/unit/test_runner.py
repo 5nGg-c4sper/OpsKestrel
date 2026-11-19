@@ -1,6 +1,9 @@
 """Tests for task execution orchestration."""
 
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from soc_agent.actions.executor import ActionExecutor
 from soc_agent.runner import TaskRunner
@@ -54,6 +57,66 @@ class TaskRunnerTests(unittest.TestCase):
                 ],
             }
         )
+
+    def test_load_task_resolves_and_renders_parameters(self):
+        task_payload = {
+            "name": "parameterized_task",
+            "parameters": {
+                "left": {"default": "17"},
+                "right": {},
+            },
+            "steps": [
+                {
+                    "type": "write",
+                    "content": "${left}*${right}",
+                },
+                {
+                    "type": "done",
+                    "summary": "${left}*${right}",
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            task_path = Path(directory) / "parameterized.json"
+            original_payload = json.dumps(
+                task_payload,
+                ensure_ascii=False,
+                indent=2,
+            )
+            task_path.write_text(original_payload, encoding="utf-8")
+
+            task = TaskRunner.load_task(
+                task_path,
+                {"right": "23"},
+            )
+
+            self.assertEqual(task.steps[0].content, "17*23")
+            self.assertEqual(task.steps[1].summary, "17*23")
+            self.assertEqual(
+                task_path.read_text(encoding="utf-8"),
+                original_payload,
+            )
+
+    def test_load_task_propagates_missing_parameter_error(self):
+        task_payload = {
+            "name": "parameterized_task",
+            "parameters": {"right": {}},
+            "steps": [{"type": "write", "content": "${right}"}],
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            task_path = Path(directory) / "parameterized.json"
+            task_path.write_text(
+                json.dumps(task_payload),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "missing task parameters: right",
+            ):
+                TaskRunner.load_task(task_path)
 
     def test_successful_task(self):
         environment = FakeEnvironment()
