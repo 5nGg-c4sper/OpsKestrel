@@ -34,6 +34,19 @@ class TaskDefinitionTests(unittest.TestCase):
             ],
         }
 
+    def parameterized_task(self):
+        return TaskDefinition.model_validate(
+            {
+                "name": "parameterized_task",
+                "parameters": {
+                    "left": {"default": "17"},
+                    "right": {"description": "required operand"},
+                    "operator": {"default": "*"},
+                },
+                "steps": [{"type": "done", "summary": "finished"}],
+            }
+        )
+
     def test_valid_task_is_parsed(self):
         task = TaskDefinition.model_validate(self.valid_task)
 
@@ -94,6 +107,56 @@ class TaskDefinitionTests(unittest.TestCase):
 
         with self.assertRaises(ValidationError):
             TaskDefinition.model_validate(task_data)
+
+    def test_resolve_parameters_applies_defaults(self):
+        task = self.parameterized_task()
+
+        resolved = task.resolve_parameters({"right": "23"})
+
+        self.assertEqual(
+            resolved,
+            {"left": "17", "operator": "*", "right": "23"},
+        )
+
+    def test_resolve_parameters_overrides_defaults(self):
+        task = self.parameterized_task()
+
+        resolved = task.resolve_parameters({"left": "3", "right": "4"})
+
+        self.assertEqual(
+            resolved,
+            {"left": "3", "operator": "*", "right": "4"},
+        )
+        self.assertEqual(task.parameters["left"].default, "17")
+
+    def test_resolve_parameters_rejects_missing_values(self):
+        task = self.parameterized_task()
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "missing task parameters: right",
+        ):
+            task.resolve_parameters()
+
+    def test_resolve_parameters_rejects_unknown_values(self):
+        task = self.parameterized_task()
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "unknown task parameters: unsupported",
+        ):
+            task.resolve_parameters(
+                {"right": "23", "unsupported": "value"}
+            )
+
+    def test_resolve_parameters_rejects_non_string_values(self):
+        task = self.parameterized_task()
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "task parameter overrides must be strings: right",
+        ):
+            task.resolve_parameters({"right": 23})
 
     def test_open_app_requires_app(self):
         task = {
