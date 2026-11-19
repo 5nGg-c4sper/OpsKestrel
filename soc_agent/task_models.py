@@ -256,6 +256,60 @@ class TaskDefinition(StrictModel):
         return self
 
 
+class TaskCaseDefinition(StrictModel):
+    name: str
+    parameters: Dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value):
+        if not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+    @field_validator("parameters")
+    @classmethod
+    def validate_parameter_names(cls, value):
+        invalid_names = [
+            name
+            for name in value
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name)
+        ]
+        if invalid_names:
+            raise ValueError(
+                f"invalid parameter names: {', '.join(invalid_names)}"
+            )
+        return value
+
+
+class TaskDatasetDefinition(StrictModel):
+    name: str
+    task: str
+    cases: List[TaskCaseDefinition] = Field(min_length=1)
+
+    @field_validator("name", "task")
+    @classmethod
+    def validate_non_empty_text(cls, value):
+        if not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+    @model_validator(mode="after")
+    def validate_unique_case_names(self):
+        seen_names = set()
+        duplicate_names = []
+        for case in self.cases:
+            if case.name in seen_names and case.name not in duplicate_names:
+                duplicate_names.append(case.name)
+            seen_names.add(case.name)
+
+        if duplicate_names:
+            raise ValueError(
+                f"duplicate case names: {', '.join(duplicate_names)}"
+            )
+        return self
+
+
 class StepResult(StrictModel):
     index: int = Field(ge=0)
     type: ActionType

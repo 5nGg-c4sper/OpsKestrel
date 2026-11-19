@@ -9,6 +9,7 @@ from soc_agent.task_models import (
     ActionType,
     StepResult,
     StepStatus,
+    TaskDatasetDefinition,
     TaskDefinition,
     TaskResult,
     TaskStatus,
@@ -351,6 +352,102 @@ class TaskDefinitionTests(unittest.TestCase):
 
         with self.assertRaises(ValidationError):
             TaskDefinition.model_validate(task)
+
+
+class TaskDatasetDefinitionTests(unittest.TestCase):
+    def setUp(self):
+        self.valid_dataset = {
+            "name": "calculator_cases",
+            "task": "tasks/calculator_parameterized.json",
+            "cases": [
+                {
+                    "name": "default_result",
+                    "parameters": {"right": "23"},
+                },
+                {
+                    "name": "custom_result",
+                    "parameters": {
+                        "left": "3",
+                        "right": "4",
+                        "expected_result": "12",
+                    },
+                },
+            ],
+        }
+
+    def test_valid_dataset_is_parsed(self):
+        dataset = TaskDatasetDefinition.model_validate(self.valid_dataset)
+
+        self.assertEqual(dataset.name, "calculator_cases")
+        self.assertEqual(len(dataset.cases), 2)
+        self.assertEqual(dataset.cases[0].parameters, {"right": "23"})
+
+    def test_dataset_requires_at_least_one_case(self):
+        dataset_data = {**self.valid_dataset, "cases": []}
+
+        with self.assertRaises(ValidationError):
+            TaskDatasetDefinition.model_validate(dataset_data)
+
+    def test_duplicate_case_names_are_rejected(self):
+        dataset_data = {
+            **self.valid_dataset,
+            "cases": [
+                {"name": "duplicate", "parameters": {"right": "1"}},
+                {"name": "duplicate", "parameters": {"right": "2"}},
+            ],
+        }
+
+        with self.assertRaisesRegex(
+            ValidationError,
+            "duplicate case names: duplicate",
+        ):
+            TaskDatasetDefinition.model_validate(dataset_data)
+
+    def test_empty_case_name_is_rejected(self):
+        dataset_data = {
+            **self.valid_dataset,
+            "cases": [{"name": " ", "parameters": {}}],
+        }
+
+        with self.assertRaises(ValidationError):
+            TaskDatasetDefinition.model_validate(dataset_data)
+
+    def test_invalid_case_parameter_names_are_rejected(self):
+        dataset_data = {
+            **self.valid_dataset,
+            "cases": [
+                {
+                    "name": "invalid_parameter",
+                    "parameters": {"17x": "value"},
+                }
+            ],
+        }
+
+        with self.assertRaisesRegex(
+            ValidationError,
+            "invalid parameter names",
+        ):
+            TaskDatasetDefinition.model_validate(dataset_data)
+
+    def test_unknown_dataset_and_case_fields_are_rejected(self):
+        invalid_payloads = [
+            {**self.valid_dataset, "unsupported": True},
+            {
+                **self.valid_dataset,
+                "cases": [
+                    {
+                        "name": "case",
+                        "parameters": {},
+                        "unsupported": True,
+                    }
+                ],
+            },
+        ]
+
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload):
+                with self.assertRaises(ValidationError):
+                    TaskDatasetDefinition.model_validate(payload)
 
 
 class TaskResultTests(unittest.TestCase):
