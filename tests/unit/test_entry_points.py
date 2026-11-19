@@ -1,12 +1,10 @@
 """Tests for package and command-line entry points."""
 
-import os
-import runpy
+import ast
 import subprocess
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -29,19 +27,30 @@ class EntryPointTests(unittest.TestCase):
         self.assertIn("suite", result.stdout)
 
     def test_setup_preserves_operate_and_adds_soc_agent(self):
-        original_directory = os.getcwd()
-        os.chdir(PROJECT_ROOT)
-        try:
-            with (
-                patch("setuptools.find_packages", return_value=[]),
-                patch("setuptools.setup") as setup_mock,
-            ):
-                runpy.run_path(str(PROJECT_ROOT / "setup.py"))
-        finally:
-            os.chdir(original_directory)
+        setup_tree = ast.parse(
+            (PROJECT_ROOT / "setup.py").read_text(encoding="utf-8")
+        )
+        setup_call = next(
+            node
+            for node in ast.walk(setup_tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "setup"
+        )
+        entry_points = next(
+            keyword.value
+            for keyword in setup_call.keywords
+            if keyword.arg == "entry_points"
+        )
+        console_scripts_node = next(
+            value
+            for key, value in zip(entry_points.keys, entry_points.values)
+            if isinstance(key, ast.Constant) and key.value == "console_scripts"
+        )
+        console_scripts = [
+            element.value for element in console_scripts_node.elts
+        ]
 
-        setup_options = setup_mock.call_args.kwargs
-        console_scripts = setup_options["entry_points"]["console_scripts"]
         self.assertIn("operate=operate.main:main_entry", console_scripts)
         self.assertIn("soc-agent=soc_agent.cli:main", console_scripts)
 
