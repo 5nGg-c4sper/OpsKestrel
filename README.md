@@ -27,11 +27,45 @@ Run one task:
 ./venv/bin/soc-agent run tasks/calculator_17x23.json
 ```
 
+Run the parameterized calculator task:
+
+```bash
+./venv/bin/soc-agent run tasks/calculator_parameterized.json \
+  --param right=23
+```
+
+`calculator_parameterized.json` defaults `left` to `17` and
+`expected_result` to `391`. `right` has no default and must be supplied with
+`--param`.
+
+Override several string parameters by repeating `--param`:
+
+```bash
+./venv/bin/soc-agent run tasks/calculator_parameterized.json \
+  --param left=3 \
+  --param right=4 \
+  --param expected_result=12
+```
+
+Task strings can reference declared parameters with `${parameter_name}` in
+fields such as `app`, `content`, `keys`, `prompt`, and `summary`. Referencing an
+undeclared or missing parameter fails before the first desktop action.
+
 Run all JSON tasks in a directory:
 
 ```bash
 ./venv/bin/soc-agent suite tasks/
 ```
+
+Pass shared parameters to every task in a suite:
+
+```bash
+./venv/bin/soc-agent suite tasks/ --param right=23
+```
+
+Every task in a parameterized suite must declare each shared parameter. A task
+that does not declare a supplied parameter fails with an unknown parameter
+error.
 
 For local development without the installed command, use
 `./venv/bin/python -m soc_agent` with the same arguments.
