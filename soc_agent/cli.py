@@ -210,6 +210,12 @@ def main(
     dependency_factory=None,
 ) -> int:
     args = build_parser().parse_args(argv)
+    try:
+        parameter_overrides = parse_parameter_overrides(args.param)
+    except ValueError as error:
+        print(f"Task execution failed: {error}")
+        return 1
+
     load_dotenv()
     config = AgentConfig.from_env().with_overrides(
         screenshot_scale=args.scale,
@@ -250,6 +256,7 @@ def main(
                 vision_provider,
                 reporter,
                 confirmation_handler=confirmation_handler,
+                parameter_overrides=parameter_overrides,
             )
         else:
             suite_result = run_suite(

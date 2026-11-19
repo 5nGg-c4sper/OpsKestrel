@@ -1,14 +1,18 @@
 """Tests for the task runner command-line interface."""
 
+import os
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 from soc_agent.actions.executor import ActionExecutor
 from soc_agent.cli import (
     build_parser,
     exit_code_for_status,
+    main,
     non_interactive_confirmation,
     parse_parameter_overrides,
     run_task,
@@ -291,6 +295,76 @@ class CLITests(unittest.TestCase):
         self.assertEqual(result.status, TaskStatus.PASSED)
         self.assertIn(("write", "17*23"), environment.calls)
         self.assertTrue(Path(result.report_path).is_file())
+
+    def test_main_passes_cli_parameters_to_run_task(self):
+        task_path = self.root / "parameterized.json"
+        task_path.write_text(
+            """
+            {
+              "name": "parameterized_task",
+              "parameters": {
+                "left": {"default": "17"},
+                "right": {}
+              },
+              "steps": [
+                {"type": "write", "content": "${left}*${right}"},
+                {"type": "done", "summary": "finished"}
+              ]
+            }
+            """,
+            encoding="utf-8",
+        )
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+        vision_provider = FakeVisionProvider()
+        reporter = ReportWriter(self.root / "reports")
+
+        def dependency_factory(args, config):
+            self.assertEqual(args.param, ["right=23"])
+            return environment, executor, vision_provider, reporter
+
+        with (
+            patch("soc_agent.cli.load_dotenv"),
+            patch.dict(
+                os.environ,
+                {"OPENAI_API_KEY": "test-key"},
+                clear=False,
+            ),
+            redirect_stdout(StringIO()),
+        ):
+            exit_code = main(
+                [
+                    "run",
+                    str(task_path),
+                    "--param",
+                    "right=23",
+                ],
+                dependency_factory=dependency_factory,
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn(("write", "17*23"), environment.calls)
+
+    def test_main_rejects_invalid_parameters_before_dependencies(self):
+        dependency_calls = []
+
+        def dependency_factory(args, config):
+            dependency_calls.append((args, config))
+            raise AssertionError("dependency factory must not be called")
+
+        with redirect_stdout(StringIO()):
+            exit_code = main(
+                [
+                    "run",
+                    "unused-task.json",
+                    "--param",
+                    "invalid",
+                ],
+                dependency_factory=dependency_factory,
+            )
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(dependency_calls, [])
 
     def test_run_task_accepts_confirmed_step(self):
         task_path = self.root / "confirmation.json"
