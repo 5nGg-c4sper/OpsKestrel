@@ -116,8 +116,9 @@ def run_task(
     screenshot_path=None,
     policy=None,
     confirmation_handler=None,
+    parameter_overrides: Optional[Dict[str, str]] = None,
 ) -> TaskResult:
-    task = TaskRunner.load_task(task_path)
+    task = TaskRunner.load_task(task_path, parameter_overrides)
     screenshot_path = Path(
         screenshot_path
         or Path(tempfile.gettempdir()) / f"soc-{task.name}-verify.png"

@@ -258,6 +258,40 @@ class CLITests(unittest.TestCase):
             (self.root / "reports" / result.steps[3].screenshot).is_file()
         )
 
+    def test_run_task_applies_parameter_overrides(self):
+        task_path = self.root / "parameterized.json"
+        task_path.write_text(
+            """
+            {
+              "name": "parameterized_task",
+              "parameters": {
+                "left": {"default": "17"},
+                "right": {}
+              },
+              "steps": [
+                {"type": "write", "content": "${left}*${right}"},
+                {"type": "done", "summary": "finished"}
+              ]
+            }
+            """,
+            encoding="utf-8",
+        )
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+
+        result = run_task(
+            task_path,
+            environment,
+            executor,
+            FakeVisionProvider(),
+            ReportWriter(self.root / "reports"),
+            parameter_overrides={"right": "23"},
+        )
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertIn(("write", "17*23"), environment.calls)
+        self.assertTrue(Path(result.report_path).is_file())
+
     def test_run_task_accepts_confirmed_step(self):
         task_path = self.root / "confirmation.json"
         task_path.write_text(
