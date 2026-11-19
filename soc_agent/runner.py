@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from soc_agent.actions.executor import ActionExecutor, StepOutcome
+from soc_agent.safety.policy import SafetyPolicy, SafetyViolation
 from soc_agent.task_models import (
     ActionType,
     StepResult,
@@ -37,12 +38,14 @@ class TaskRunner:
         artifact_provider: Optional[
             Callable[[int, TaskStep, StepStatus], Optional[str]]
         ] = None,
+        policy: Optional[SafetyPolicy] = None,
         clock: Optional[Callable[[], float]] = None,
     ):
         self.executor = executor
         self.vision_verifier = vision_verifier
         self.confirmation_handler = confirmation_handler
         self.artifact_provider = artifact_provider
+        self.policy = policy
         self._clock = clock or time.monotonic
 
     @staticmethod
@@ -72,6 +75,22 @@ class TaskRunner:
                     task_error,
                 )
                 break
+
+            if self.policy is not None:
+                try:
+                    self.policy.validate(step)
+                except SafetyViolation as error:
+                    status = TaskStatus.CANCELLED
+                    task_error = (
+                        f"safety policy blocked step {index}: {error}"
+                    )
+                    self._append_skipped(
+                        step_results,
+                        task,
+                        index,
+                        task_error,
+                    )
+                    break
 
             if step.requires_confirmation:
                 if self.confirmation_handler is None:

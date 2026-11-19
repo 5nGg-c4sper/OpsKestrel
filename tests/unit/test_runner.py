@@ -4,6 +4,7 @@ import unittest
 
 from soc_agent.actions.executor import ActionExecutor
 from soc_agent.runner import TaskRunner
+from soc_agent.safety.policy import SafetyPolicy
 from soc_agent.task_models import (
     StepStatus,
     TaskDefinition,
@@ -251,6 +252,28 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertEqual(result.status, TaskStatus.TIMED_OUT)
         self.assertEqual(result.steps[0].status, StepStatus.PASSED)
         self.assertEqual(result.steps[1].status, StepStatus.SKIPPED)
+
+    def test_safety_policy_blocks_dangerous_action(self):
+        environment = FakeEnvironment()
+        runner = TaskRunner(
+            ActionExecutor(environment, settle_delay=0),
+            policy=SafetyPolicy(),
+        )
+        task = TaskDefinition.model_validate(
+            {
+                "name": "unsafe_task",
+                "steps": [
+                    {"type": "press", "keys": ["command", "q"]},
+                ],
+            }
+        )
+
+        result = runner.run(task)
+
+        self.assertEqual(result.status, TaskStatus.CANCELLED)
+        self.assertIn("safety policy blocked", result.error)
+        self.assertEqual(result.steps[0].status, StepStatus.SKIPPED)
+        self.assertEqual(environment.calls, [])
 
 
 if __name__ == "__main__":

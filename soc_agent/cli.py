@@ -13,6 +13,7 @@ from soc_agent.environments.macos import MacOSEnvironment
 from soc_agent.providers.qwen import QwenVisionProvider
 from soc_agent.reporting.report import ReportWriter
 from soc_agent.runner import TaskRunner
+from soc_agent.safety.policy import SafetyPolicy
 from soc_agent.task_models import (
     ActionType,
     StepStatus,
@@ -62,6 +63,7 @@ def run_task(
     vision_provider,
     reporter,
     screenshot_path=None,
+    policy=None,
 ) -> TaskResult:
     task = TaskRunner.load_task(task_path)
     screenshot_path = Path(
@@ -106,6 +108,7 @@ def run_task(
         executor,
         vision_verifier=verify_vision,
         artifact_provider=artifact_provider,
+        policy=policy or SafetyPolicy(),
     )
     result = runner.run(task)
     reporter.write(result)
