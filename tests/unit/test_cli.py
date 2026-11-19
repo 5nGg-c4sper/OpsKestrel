@@ -16,6 +16,7 @@ from soc_agent.cli import (
     non_interactive_confirmation,
     parse_parameter_overrides,
     run_task,
+    run_suite,
     terminal_confirmation_handler,
 )
 from soc_agent.reporting.report import ReportWriter
@@ -365,6 +366,49 @@ class CLITests(unittest.TestCase):
 
         self.assertEqual(exit_code, 1)
         self.assertEqual(dependency_calls, [])
+
+    def test_run_suite_applies_common_parameter_overrides(self):
+        suite_path = self.root / "suite"
+        suite_path.mkdir()
+
+        for name, left in (("first", "17"), ("second", "125")):
+            (suite_path / f"{name}.json").write_text(
+                f"""
+                {{
+                  "name": "{name}",
+                  "parameters": {{
+                    "left": {{"default": "{left}"}},
+                    "right": {{}}
+                  }},
+                  "steps": [
+                    {{
+                      "type": "write",
+                      "content": "${{left}}*${{right}}"
+                    }},
+                    {{"type": "done", "summary": "finished"}}
+                  ]
+                }}
+                """,
+                encoding="utf-8",
+            )
+
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+
+        with redirect_stdout(StringIO()):
+            suite_result = run_suite(
+                suite_path,
+                environment,
+                executor,
+                FakeVisionProvider(),
+                ReportWriter(self.root / "reports"),
+                parameter_overrides={"right": "23"},
+            )
+
+        self.assertTrue(suite_result.successful)
+        self.assertEqual(suite_result.total, 2)
+        self.assertIn(("write", "17*23"), environment.calls)
+        self.assertIn(("write", "125*23"), environment.calls)
 
     def test_run_task_accepts_confirmed_step(self):
         task_path = self.root / "confirmation.json"

@@ -286,6 +286,7 @@ def run_suite(
     reporter,
     confirmation_handler=None,
     stop_on_failure=False,
+    parameter_overrides: Optional[Dict[str, str]] = None,
 ) -> SuiteResult:
     def execute_task(task_path):
         print(f"Running: {task_path.name}")
@@ -296,6 +297,7 @@ def run_suite(
             vision_provider,
             reporter,
             confirmation_handler=confirmation_handler,
+            parameter_overrides=parameter_overrides,
         )
         print(f"Status: {result.status.value.upper()}")
         return result
