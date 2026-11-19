@@ -1,9 +1,10 @@
 """Data models for task definitions, steps, and execution results."""
 
 import math
+import re
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -109,11 +110,19 @@ class TaskStep(StrictModel):
         return self
 
 
+class TaskParameterDefinition(StrictModel):
+    description: str = ""
+    default: Optional[str] = None
+
+
 class TaskDefinition(StrictModel):
     schema_version: int = Field(default=1, ge=1)
     name: str
     description: str = ""
     app: Optional[str] = None
+    parameters: Dict[str, TaskParameterDefinition] = Field(
+        default_factory=dict
+    )
 
     max_steps: int = Field(default=20, ge=1, le=100)
     max_duration_seconds: float = Field(default=120.0, gt=0, le=3600)
@@ -124,6 +133,20 @@ class TaskDefinition(StrictModel):
     def validate_name(cls, value):
         if not value.strip():
             raise ValueError("must not be empty")
+        return value
+
+    @field_validator("parameters")
+    @classmethod
+    def validate_parameter_names(cls, value):
+        invalid_names = [
+            name
+            for name in value
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name)
+        ]
+        if invalid_names:
+            raise ValueError(
+                f"invalid parameter names: {', '.join(invalid_names)}"
+            )
         return value
 
     @model_validator(mode="after")

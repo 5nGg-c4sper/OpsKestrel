@@ -38,9 +38,62 @@ class TaskDefinitionTests(unittest.TestCase):
         task = TaskDefinition.model_validate(self.valid_task)
 
         self.assertEqual(task.name, "calculator_17x23")
+        self.assertEqual(task.parameters, {})
         self.assertEqual(len(task.steps), 5)
         self.assertEqual(task.steps[0].type, ActionType.OPEN_APP)
         self.assertEqual(task.steps[1].content, "17*23")
+
+    def test_parameters_with_defaults_and_required_values_are_parsed(self):
+        task_data = {
+            **self.valid_task,
+            "parameters": {
+                "left": {
+                    "description": "第一个操作数",
+                    "default": "17",
+                },
+                "right": {
+                    "description": "第二个操作数",
+                },
+            },
+        }
+
+        task = TaskDefinition.model_validate(task_data)
+
+        self.assertEqual(task.parameters["left"].default, "17")
+        self.assertEqual(
+            task.parameters["left"].description,
+            "第一个操作数",
+        )
+        self.assertIsNone(task.parameters["right"].default)
+
+    def test_invalid_parameter_names_are_rejected(self):
+        task_data = {
+            **self.valid_task,
+            "parameters": {
+                "17x": {},
+                "中文参数": {},
+            },
+        }
+
+        with self.assertRaisesRegex(
+            ValidationError,
+            "invalid parameter names",
+        ):
+            TaskDefinition.model_validate(task_data)
+
+    def test_unknown_parameter_fields_are_rejected(self):
+        task_data = {
+            **self.valid_task,
+            "parameters": {
+                "left": {
+                    "default": "17",
+                    "unsupported": True,
+                },
+            },
+        }
+
+        with self.assertRaises(ValidationError):
+            TaskDefinition.model_validate(task_data)
 
     def test_open_app_requires_app(self):
         task = {
