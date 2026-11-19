@@ -1,0 +1,46 @@
+{
+  "name": "calculator_parameterized",
+  "description": "使用参数计算两个数并验证结果",
+  "app": "计算器",
+  "parameters": {
+    "left": {
+      "description": "第一个操作数",
+      "default": "17"
+    },
+    "right": {
+      "description": "第二个操作数"
+    },
+    "expected_result": {
+      "description": "计算器应显示的结果",
+      "default": "391"
+    }
+  },
+  "max_steps": 8,
+  "max_duration_seconds": 60,
+  "steps": [
+    {
+      "type": "open_app",
+      "app": "计算器"
+    },
+    {
+      "type": "press",
+      "keys": ["escape"]
+    },
+    {
+      "type": "write",
+      "content": "${left}*${right}"
+    },
+    {
+      "type": "press",
+      "keys": ["enter"]
+    },
+    {
+      "type": "verify_vision",
+      "prompt": "计算器是否显示结果 ${expected_result}？只返回 true 或 false。"
+    },
+    {
+      "type": "done",
+      "summary": "${left} * ${right} = ${expected_result}"
+    }
+  ]
+}
