@@ -5,7 +5,7 @@ import re
 import shutil
 from pathlib import Path
 
-from soc_agent.task_models import TaskResult
+from soc_agent.task_models import TaskResult, TaskStatus
 
 
 class ReportWriter:
@@ -26,6 +26,7 @@ class ReportWriter:
 
         result.report_path = str(path)
         self._copy_screenshots(result, path)
+        self._write_failure_log(result, path)
         payload = result.model_dump(mode="json")
         content = json.dumps(payload, ensure_ascii=False, indent=2)
 
@@ -51,6 +52,41 @@ class ReportWriter:
             target = artifact_dir / f"step-{step.index:03d}{suffix}"
             shutil.copy2(source, target)
             step.screenshot = str(target.relative_to(self.output_dir))
+
+    def _write_failure_log(
+        self,
+        result: TaskResult,
+        report_path: Path,
+    ) -> None:
+        if result.status == TaskStatus.PASSED:
+            return
+
+        artifact_dir = self.output_dir / "artifacts" / report_path.stem
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        lines = [
+            f"Task: {result.task_name}",
+            f"Status: {result.status.value}",
+            f"Duration: {result.duration_seconds:.2f} seconds",
+            f"Error: {result.error or '(none)'}",
+            "",
+            "Steps:",
+        ]
+
+        for step in result.steps:
+            lines.append(
+                f"[{step.index}] {step.type.value} {step.status.value} "
+                f"duration={step.duration_seconds:.2f}s"
+            )
+            if step.error:
+                lines.append(f"  error: {step.error}")
+            if step.screenshot:
+                lines.append(f"  screenshot: {step.screenshot}")
+
+        content = "\n".join(lines) + "\n"
+        log_path = artifact_dir / "failure.log"
+        temp_path = log_path.with_suffix(".log.tmp")
+        temp_path.write_text(content, encoding="utf-8")
+        temp_path.replace(log_path)
 
     @staticmethod
     def _safe_task_name(task_name: str) -> str:

@@ -26,22 +26,33 @@ class ReportWriterTests(unittest.TestCase):
         self.root = Path(self.temporary_directory.name)
         self.output_dir = self.root / "reports"
 
-    def make_result(self, task_name="calculator_17x23"):
+    def make_result(
+        self,
+        task_name="calculator_17x23",
+        status=TaskStatus.PASSED,
+        error=None,
+    ):
         timestamp = datetime(2026, 11, 19, 10, 30, 0, tzinfo=timezone.utc)
         return TaskResult(
             task_name=task_name,
-            status=TaskStatus.PASSED,
+            status=status,
             started_at=timestamp,
             finished_at=timestamp,
             duration_seconds=1.5,
+            error=error,
             steps=[
                 StepResult(
                     index=0,
                     type=ActionType.OPEN_APP,
-                    status=StepStatus.PASSED,
+                    status=(
+                        StepStatus.PASSED
+                        if status == TaskStatus.PASSED
+                        else StepStatus.FAILED
+                    ),
                     started_at=timestamp,
                     finished_at=timestamp,
                     duration_seconds=0.5,
+                    error=error,
                 )
             ],
         )
@@ -114,6 +125,55 @@ class ReportWriterTests(unittest.TestCase):
             second_path.name,
             "20261119-103000-calculator_17x23-1.json",
         )
+
+    def test_writes_failure_log_to_artifact_directory(self):
+        result = self.make_result(
+            status=TaskStatus.FAILED,
+            error="action failed",
+        )
+        timestamp = result.started_at
+        result.steps.append(
+            StepResult(
+                index=1,
+                type=ActionType.WRITE,
+                status=StepStatus.SKIPPED,
+                started_at=timestamp,
+                finished_at=timestamp,
+                error="task stopped after failure",
+            )
+        )
+        writer = ReportWriter(self.output_dir)
+
+        path = writer.write(result)
+        log_path = (
+            self.output_dir
+            / "artifacts"
+            / path.stem
+            / "failure.log"
+        )
+
+        self.assertTrue(log_path.is_file())
+        content = log_path.read_text(encoding="utf-8")
+        self.assertIn("Task: calculator_17x23", content)
+        self.assertIn("Status: failed", content)
+        self.assertIn("Error: action failed", content)
+        self.assertIn("[0] open_app failed", content)
+        self.assertIn("[1] write skipped", content)
+        self.assertIn("task stopped after failure", content)
+
+    def test_successful_task_does_not_write_failure_log(self):
+        result = self.make_result()
+        writer = ReportWriter(self.output_dir)
+
+        path = writer.write(result)
+        log_path = (
+            self.output_dir
+            / "artifacts"
+            / path.stem
+            / "failure.log"
+        )
+
+        self.assertFalse(log_path.exists())
 
 
 class DatasetReportWriterTests(unittest.TestCase):
