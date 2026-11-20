@@ -4,7 +4,7 @@ import json
 import os
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -173,6 +173,45 @@ class CLITests(unittest.TestCase):
         )
 
         self.assertEqual(args.param, ["left=3", "right=4"])
+
+    def test_parser_supports_dataset_mode(self):
+        args = build_parser().parse_args(
+            [
+                "dataset",
+                "datasets/calculator_cases.json",
+                "--scale",
+                "0.4",
+                "--reports-dir",
+                "dataset-reports",
+                "--stop-on-failure",
+                "--non-interactive",
+            ]
+        )
+
+        self.assertEqual(args.command, "dataset")
+        self.assertEqual(
+            args.dataset_path,
+            "datasets/calculator_cases.json",
+        )
+        self.assertEqual(args.scale, 0.4)
+        self.assertEqual(args.reports_dir, "dataset-reports")
+        self.assertTrue(args.stop_on_failure)
+        self.assertTrue(args.non_interactive)
+        self.assertFalse(hasattr(args, "param"))
+
+    def test_parser_rejects_dataset_parameter_option(self):
+        with (
+            redirect_stderr(StringIO()),
+            self.assertRaises(SystemExit),
+        ):
+            build_parser().parse_args(
+                [
+                    "dataset",
+                    "datasets/calculator_cases.json",
+                    "--param",
+                    "right=23",
+                ]
+            )
 
     def test_parse_parameter_overrides_returns_empty_for_none(self):
         self.assertEqual(parse_parameter_overrides(None), {})

@@ -53,10 +53,31 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Stop after the first unsuccessful task",
     )
+
+    dataset_parser = subparsers.add_parser(
+        "dataset",
+        help="Run all cases in a task dataset",
+    )
+    dataset_parser.add_argument(
+        "dataset_path",
+        help="Path to the dataset JSON file",
+    )
+    add_execution_options(
+        dataset_parser,
+        include_parameters=False,
+    )
+    dataset_parser.add_argument(
+        "--stop-on-failure",
+        action="store_true",
+        help="Stop after the first unsuccessful case",
+    )
     return parser
 
 
-def add_execution_options(parser: argparse.ArgumentParser) -> None:
+def add_execution_options(
+    parser: argparse.ArgumentParser,
+    include_parameters: bool = True,
+) -> None:
     parser.add_argument(
         "--reports-dir",
         default=None,
@@ -79,13 +100,14 @@ def add_execution_options(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="Override the Qwen vision model name",
     )
-    parser.add_argument(
-        "--param",
-        action="append",
-        default=None,
-        metavar="KEY=VALUE",
-        help="Override a task parameter; may be repeated",
-    )
+    if include_parameters:
+        parser.add_argument(
+            "--param",
+            action="append",
+            default=None,
+            metavar="KEY=VALUE",
+            help="Override a task parameter; may be repeated",
+        )
     parser.add_argument(
         "--non-interactive",
         action="store_true",
