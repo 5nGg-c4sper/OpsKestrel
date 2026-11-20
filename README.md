@@ -67,6 +67,28 @@ Every task in a parameterized suite must declare each shared parameter. A task
 that does not declare a supplied parameter fails with an unknown parameter
 error.
 
+Run a data-driven task dataset:
+
+```bash
+./venv/bin/soc-agent dataset datasets/calculator_cases.json
+```
+
+Each dataset case supplies its own parameters. Dataset commands therefore do
+not accept `--param`. The task path inside a dataset is resolved relative to the
+dataset file's directory.
+
+Every case creates its own task report and screenshot artifacts. After all cases
+finish, a summary report containing case names, parameters, statuses, durations,
+and nested task reports is written under `reports/` as
+`<timestamp>-<dataset-name>.json`.
+
+Stop immediately when a case does not pass:
+
+```bash
+./venv/bin/soc-agent dataset datasets/calculator_cases.json \
+  --stop-on-failure
+```
+
 For local development without the installed command, use
 `./venv/bin/python -m soc_agent` with the same arguments.
 
