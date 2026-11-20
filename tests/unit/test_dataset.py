@@ -105,6 +105,11 @@ class DatasetRunnerTests(unittest.TestCase):
             PROJECT_ROOT / "datasets" / "calculator_cases.json"
         )
 
+    def make_single_case_dataset(self):
+        loaded = self.make_loaded_dataset()
+        loaded.definition.cases = loaded.definition.cases[:1]
+        return loaded
+
     def make_task_result(self, status, error=None):
         started_at = datetime(2026, 11, 20, tzinfo=timezone.utc)
         return TaskResult(
@@ -243,6 +248,75 @@ class DatasetRunnerTests(unittest.TestCase):
 
                 result = DatasetRunner(execute_case).run(loaded)
                 self.assertEqual(result.status, expected_status)
+
+    def test_run_retries_failed_case_until_it_passes(self):
+        loaded = self.make_single_case_dataset()
+        loaded.definition.cases[0].attempts = 2
+        loaded.definition.cases[0].retry_delay_seconds = 0.25
+        statuses = iter([TaskStatus.FAILED, TaskStatus.PASSED])
+        sleeps = []
+
+        def execute_case(task_path, case):
+            status = next(statuses)
+            error = "failed" if status == TaskStatus.FAILED else None
+            return self.make_task_result(status, error)
+
+        result = DatasetRunner(
+            execute_case,
+            sleep=sleeps.append,
+        ).run(loaded)
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertEqual(result.cases[0].attempts, 2)
+        self.assertEqual(result.cases[0].status, TaskStatus.PASSED)
+        self.assertEqual(sleeps, [0.25])
+
+    def test_run_stops_retrying_after_configured_attempts(self):
+        loaded = self.make_single_case_dataset()
+        loaded.definition.cases[0].attempts = 2
+        loaded.definition.cases[0].retry_delay_seconds = 0.1
+        calls = []
+        sleeps = []
+
+        def execute_case(task_path, case):
+            calls.append(case.name)
+            return self.make_task_result(
+                TaskStatus.FAILED,
+                "failed",
+            )
+
+        result = DatasetRunner(
+            execute_case,
+            sleep=sleeps.append,
+        ).run(loaded)
+
+        self.assertEqual(
+            calls,
+            ["default_17x23", "default_17x23"],
+        )
+        self.assertEqual(result.cases[0].attempts, 2)
+        self.assertEqual(result.cases[0].status, TaskStatus.FAILED)
+        self.assertEqual(sleeps, [0.1])
+
+    def test_run_does_not_retry_cancelled_case(self):
+        loaded = self.make_single_case_dataset()
+        loaded.definition.cases[0].attempts = 3
+        calls = []
+        sleeps = []
+
+        def execute_case(task_path, case):
+            calls.append(case.name)
+            return self.make_task_result(TaskStatus.CANCELLED)
+
+        result = DatasetRunner(
+            execute_case,
+            sleep=sleeps.append,
+        ).run(loaded)
+
+        self.assertEqual(calls, ["default_17x23"])
+        self.assertEqual(result.cases[0].attempts, 1)
+        self.assertEqual(result.status, TaskStatus.CANCELLED)
+        self.assertEqual(sleeps, [])
 
 
 if __name__ == "__main__":

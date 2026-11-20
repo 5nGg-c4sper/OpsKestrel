@@ -435,6 +435,7 @@ class TaskDatasetDefinitionTests(unittest.TestCase):
         self.assertEqual(len(dataset.cases), 2)
         self.assertEqual(dataset.cases[0].parameters, {"right": "23"})
         self.assertEqual(dataset.cases[0].attempts, 1)
+        self.assertEqual(dataset.cases[0].retry_delay_seconds, 0.5)
 
     def test_case_accepts_retry_attempts(self):
         dataset_data = {
@@ -444,6 +445,7 @@ class TaskDatasetDefinitionTests(unittest.TestCase):
                     "name": "retry_case",
                     "parameters": {"right": "23"},
                     "attempts": 2,
+                    "retry_delay_seconds": 0.25,
                 }
             ],
         }
@@ -451,6 +453,7 @@ class TaskDatasetDefinitionTests(unittest.TestCase):
         dataset = TaskDatasetDefinition.model_validate(dataset_data)
 
         self.assertEqual(dataset.cases[0].attempts, 2)
+        self.assertEqual(dataset.cases[0].retry_delay_seconds, 0.25)
 
     def test_case_rejects_invalid_retry_attempts(self):
         for attempts in (0, 4):
@@ -462,6 +465,22 @@ class TaskDatasetDefinitionTests(unittest.TestCase):
                             "name": "retry_case",
                             "parameters": {},
                             "attempts": attempts,
+                        }
+                    ],
+                }
+                with self.assertRaises(ValidationError):
+                    TaskDatasetDefinition.model_validate(dataset_data)
+
+    def test_case_rejects_invalid_retry_delay(self):
+        for delay in (-0.1, 11):
+            with self.subTest(delay=delay):
+                dataset_data = {
+                    **self.valid_dataset,
+                    "cases": [
+                        {
+                            "name": "retry_case",
+                            "parameters": {},
+                            "retry_delay_seconds": delay,
                         }
                     ],
                 }

@@ -26,10 +26,12 @@ class DatasetRunner:
         ],
         stop_on_failure: bool = False,
         clock: Optional[Callable[[], float]] = None,
+        sleep: Optional[Callable[[float], None]] = None,
     ):
         self.execute_case = execute_case
         self.stop_on_failure = stop_on_failure
         self._clock = clock or time.monotonic
+        self._sleep = sleep or time.sleep
 
     def run(self, loaded_dataset: LoadedTaskDataset) -> TaskDatasetResult:
         started_at = datetime.now(timezone.utc)
@@ -39,36 +41,44 @@ class DatasetRunner:
 
         for case in loaded_dataset.definition.cases:
             case_start_time = self._clock()
-            case_started_at = datetime.now(timezone.utc)
-            try:
-                task_result = self.execute_case(
-                    loaded_dataset.task_path,
-                    case,
-                )
-            except Exception as error:
-                case_finished_at = datetime.now(timezone.utc)
-                case_duration = max(
-                    0.0,
-                    self._clock() - case_start_time,
-                )
-                task_result = TaskResult(
-                    task_name=loaded_dataset.task_path.stem,
-                    status=TaskStatus.FAILED,
-                    started_at=case_started_at,
-                    finished_at=case_finished_at,
-                    duration_seconds=case_duration,
-                    error=str(error),
-                )
-            else:
-                case_duration = max(
-                    0.0,
-                    self._clock() - case_start_time,
-                )
+            attempts_used = 0
+
+            for attempt in range(1, case.attempts + 1):
+                attempts_used = attempt
+                case_started_at = datetime.now(timezone.utc)
+                try:
+                    task_result = self.execute_case(
+                        loaded_dataset.task_path,
+                        case,
+                    )
+                except Exception as error:
+                    case_finished_at = datetime.now(timezone.utc)
+                    task_result = TaskResult(
+                        task_name=loaded_dataset.task_path.stem,
+                        status=TaskStatus.FAILED,
+                        started_at=case_started_at,
+                        finished_at=case_finished_at,
+                        duration_seconds=0.0,
+                        error=str(error),
+                    )
+
+                if (
+                    task_result.status != TaskStatus.FAILED
+                    or attempt == case.attempts
+                ):
+                    break
+                self._sleep(case.retry_delay_seconds)
+
+            case_duration = max(
+                0.0,
+                self._clock() - case_start_time,
+            )
 
             case_results.append(
                 TaskCaseResult(
                     name=case.name,
                     parameters=case.parameters,
+                    attempts=attempts_used,
                     status=task_result.status,
                     duration_seconds=case_duration,
                     task_result=task_result,

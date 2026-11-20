@@ -267,6 +267,7 @@ class TaskCaseDefinition(StrictModel):
     name: str
     parameters: Dict[str, str] = Field(default_factory=dict)
     attempts: int = Field(default=1, ge=1, le=3)
+    retry_delay_seconds: float = Field(default=0.5, ge=0, le=10)
 
     @field_validator("name")
     @classmethod
