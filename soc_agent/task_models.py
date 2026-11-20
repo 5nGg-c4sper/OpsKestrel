@@ -334,3 +334,38 @@ class TaskResult(StrictModel):
     steps: List[StepResult] = Field(default_factory=list)
     error: Optional[str] = None
     report_path: Optional[str] = None
+
+
+class TaskCaseResult(StrictModel):
+    name: str
+    parameters: Dict[str, str] = Field(default_factory=dict)
+    status: TaskStatus
+    duration_seconds: float = Field(default=0.0, ge=0)
+    task_result: TaskResult
+    error: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value):
+        if not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+
+class TaskDatasetResult(StrictModel):
+    dataset_name: str
+    status: TaskStatus
+
+    started_at: datetime
+    finished_at: Optional[datetime] = None
+    duration_seconds: float = Field(default=0.0, ge=0)
+
+    cases: List[TaskCaseResult] = Field(min_length=1)
+    report_path: Optional[str] = None
+
+    @field_validator("dataset_name")
+    @classmethod
+    def validate_dataset_name(cls, value):
+        if not value.strip():
+            raise ValueError("must not be empty")
+        return value

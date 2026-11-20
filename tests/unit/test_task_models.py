@@ -9,7 +9,9 @@ from soc_agent.task_models import (
     ActionType,
     StepResult,
     StepStatus,
+    TaskCaseResult,
     TaskDatasetDefinition,
+    TaskDatasetResult,
     TaskDefinition,
     TaskResult,
     TaskStatus,
@@ -476,6 +478,102 @@ class TaskResultTests(unittest.TestCase):
         self.assertIn('"task_name":"calculator_17x23"', payload)
         self.assertIn('"status":"passed"', payload)
         self.assertIn('"duration_seconds":4.5', payload)
+
+
+class TaskDatasetResultTests(unittest.TestCase):
+    def make_task_result(
+        self,
+        status=TaskStatus.PASSED,
+        error=None,
+    ):
+        started_at = datetime(2026, 11, 20, tzinfo=timezone.utc)
+        return TaskResult(
+            task_name="calculator_parameterized",
+            status=status,
+            started_at=started_at,
+            finished_at=started_at,
+            duration_seconds=4.5,
+            error=error,
+        )
+
+    def test_dataset_result_serializes_nested_case_results(self):
+        started_at = datetime(2026, 11, 20, tzinfo=timezone.utc)
+        case_result = TaskCaseResult(
+            name="default_17x23",
+            parameters={"right": "23"},
+            status=TaskStatus.PASSED,
+            duration_seconds=4.5,
+            task_result=self.make_task_result(),
+        )
+        dataset_result = TaskDatasetResult(
+            dataset_name="calculator_regression",
+            status=TaskStatus.PASSED,
+            started_at=started_at,
+            finished_at=started_at,
+            duration_seconds=4.5,
+            cases=[case_result],
+            report_path="reports/calculator_regression.json",
+        )
+
+        payload = dataset_result.model_dump_json()
+
+        self.assertIn('"dataset_name":"calculator_regression"', payload)
+        self.assertIn('"name":"default_17x23"', payload)
+        self.assertIn('"right":"23"', payload)
+        self.assertIn('"task_name":"calculator_parameterized"', payload)
+        self.assertIn(
+            '"report_path":"reports/calculator_regression.json"',
+            payload,
+        )
+
+    def test_dataset_result_requires_at_least_one_case(self):
+        started_at = datetime(2026, 11, 20, tzinfo=timezone.utc)
+
+        with self.assertRaises(ValidationError):
+            TaskDatasetResult(
+                dataset_name="empty_dataset",
+                status=TaskStatus.FAILED,
+                started_at=started_at,
+                cases=[],
+            )
+
+    def test_case_result_rejects_empty_name(self):
+        with self.assertRaises(ValidationError):
+            TaskCaseResult(
+                name=" ",
+                status=TaskStatus.PASSED,
+                task_result=self.make_task_result(),
+            )
+
+    def test_dataset_result_preserves_failure_state(self):
+        started_at = datetime(2026, 11, 20, tzinfo=timezone.utc)
+        task_result = self.make_task_result(
+            status=TaskStatus.FAILED,
+            error="vision verification failed",
+        )
+        case_result = TaskCaseResult(
+            name="failed_case",
+            parameters={"right": "23"},
+            status=TaskStatus.FAILED,
+            duration_seconds=2.0,
+            task_result=task_result,
+            error="vision verification failed",
+        )
+        dataset_result = TaskDatasetResult(
+            dataset_name="calculator_regression",
+            status=TaskStatus.FAILED,
+            started_at=started_at,
+            finished_at=started_at,
+            duration_seconds=2.0,
+            cases=[case_result],
+        )
+
+        self.assertEqual(dataset_result.status, TaskStatus.FAILED)
+        self.assertEqual(dataset_result.cases[0].status, TaskStatus.FAILED)
+        self.assertEqual(
+            dataset_result.cases[0].error,
+            "vision verification failed",
+        )
 
 
 if __name__ == "__main__":
