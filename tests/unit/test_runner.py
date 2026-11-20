@@ -190,6 +190,57 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertIn("vision verification failed", result.error)
         self.assertEqual(result.steps[-1].status, StepStatus.FAILED)
 
+    def test_expected_false_accepts_negative_vision_result(self):
+        environment = FakeEnvironment()
+        runner = TaskRunner(
+            ActionExecutor(environment, settle_delay=0),
+            vision_verifier=lambda prompt: False,
+        )
+        task = TaskDefinition.model_validate(
+            {
+                "name": "negative_assertion",
+                "steps": [
+                    {
+                        "type": "verify_vision",
+                        "prompt": "错误提示是否未显示？",
+                        "expected_vision_result": False,
+                    },
+                    {"type": "done", "summary": "finished"},
+                ],
+            }
+        )
+
+        result = runner.run(task)
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertTrue(
+            all(step.status == StepStatus.PASSED for step in result.steps)
+        )
+
+    def test_expected_false_rejects_positive_vision_result(self):
+        environment = FakeEnvironment()
+        runner = TaskRunner(
+            ActionExecutor(environment, settle_delay=0),
+            vision_verifier=lambda prompt: True,
+        )
+        task = TaskDefinition.model_validate(
+            {
+                "name": "negative_assertion",
+                "steps": [
+                    {
+                        "type": "verify_vision",
+                        "prompt": "错误提示是否未显示？",
+                        "expected_vision_result": False,
+                    }
+                ],
+            }
+        )
+
+        result = runner.run(task)
+
+        self.assertEqual(result.status, TaskStatus.FAILED)
+        self.assertIn("expected False, got True", result.error)
+
     def test_failed_action_records_artifact(self):
         runner = TaskRunner(
             FlakyExecutor(),

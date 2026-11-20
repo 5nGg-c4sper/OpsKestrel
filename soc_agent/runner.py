@@ -145,9 +145,15 @@ class TaskRunner:
                         raise TaskRunnerError(
                             "verify_vision requires a vision verifier"
                         )
-                    if not self.vision_verifier(step.prompt):
+                    verification_result = self.vision_verifier(step.prompt)
+                    if (
+                        verification_result
+                        != step.expected_vision_result
+                    ):
                         raise TaskRunnerError(
-                            f"vision verification failed: {step.prompt}"
+                            "vision verification failed: "
+                            f"expected {step.expected_vision_result}, "
+                            f"got {verification_result}: {step.prompt}"
                         )
                     outcome = StepOutcome.CONTINUE
                 else:
