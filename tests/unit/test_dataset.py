@@ -3,10 +3,16 @@
 import json
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
+from soc_agent.dataset_runner import DatasetRunner
 from soc_agent.datasets import DatasetLoadError, load_dataset
-from soc_agent.task_models import TaskDatasetDefinition
+from soc_agent.task_models import (
+    TaskDatasetDefinition,
+    TaskResult,
+    TaskStatus,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -91,6 +97,70 @@ class DatasetLoaderTests(unittest.TestCase):
             "failed to read dataset",
         ):
             load_dataset(missing_path)
+
+
+class DatasetRunnerTests(unittest.TestCase):
+    def test_run_executes_cases_in_order(self):
+        dataset_path = PROJECT_ROOT / "datasets" / "calculator_cases.json"
+        loaded = load_dataset(dataset_path)
+        current_time = [0.0]
+        calls = []
+        started_at = datetime(2026, 11, 20, tzinfo=timezone.utc)
+
+        def execute_case(task_path, case):
+            calls.append((task_path, case.name, case.parameters))
+            current_time[0] += 1.5
+            return TaskResult(
+                task_name="calculator_parameterized",
+                status=TaskStatus.PASSED,
+                started_at=started_at,
+                finished_at=started_at,
+                duration_seconds=1.5,
+                report_path=f"reports/{case.name}.json",
+            )
+
+        result = DatasetRunner(
+            execute_case,
+            clock=lambda: current_time[0],
+        ).run(loaded)
+
+        self.assertEqual(result.dataset_name, "calculator_regression")
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertEqual(result.duration_seconds, 3.0)
+        self.assertEqual(
+            [case.name for case in result.cases],
+            ["default_17x23", "custom_3x4"],
+        )
+        self.assertEqual(
+            [case.parameters for case in result.cases],
+            [
+                {"right": "23"},
+                {
+                    "left": "3",
+                    "right": "4",
+                    "expected_result": "12",
+                },
+            ],
+        )
+        self.assertEqual(
+            calls,
+            [
+                (
+                    loaded.task_path,
+                    "default_17x23",
+                    {"right": "23"},
+                ),
+                (
+                    loaded.task_path,
+                    "custom_3x4",
+                    {
+                        "left": "3",
+                        "right": "4",
+                        "expected_result": "12",
+                    },
+                ),
+            ],
+        )
 
 
 if __name__ == "__main__":
