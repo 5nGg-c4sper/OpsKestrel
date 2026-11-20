@@ -10,8 +10,11 @@ from dotenv import load_dotenv
 
 from soc_agent.actions.executor import ActionExecutor
 from soc_agent.config import AgentConfig
+from soc_agent.dataset_runner import DatasetRunner
+from soc_agent.datasets import load_dataset
 from soc_agent.environments.macos import MacOSEnvironment
 from soc_agent.providers.qwen import QwenVisionProvider
+from soc_agent.reporting.dataset_report import DatasetReportWriter
 from soc_agent.reporting.report import ReportWriter
 from soc_agent.runner import TaskRunner
 from soc_agent.safety.policy import SafetyPolicy
@@ -19,6 +22,7 @@ from soc_agent.suite import SuiteResult, SuiteRunner
 from soc_agent.task_models import (
     ActionType,
     StepStatus,
+    TaskDatasetResult,
     TaskResult,
     TaskStatus,
 )
@@ -307,6 +311,36 @@ def run_suite(
         execute_task,
         stop_on_failure=stop_on_failure,
     ).run(suite_path)
+
+
+def run_dataset(
+    dataset_path,
+    environment,
+    executor,
+    vision_provider,
+    reporter,
+    confirmation_handler=None,
+    stop_on_failure=False,
+) -> TaskDatasetResult:
+    loaded_dataset = load_dataset(dataset_path)
+
+    def execute_case(task_path, case):
+        return run_task(
+            task_path,
+            environment,
+            executor,
+            vision_provider,
+            reporter,
+            confirmation_handler=confirmation_handler,
+            parameter_overrides=case.parameters,
+        )
+
+    result = DatasetRunner(
+        execute_case,
+        stop_on_failure=stop_on_failure,
+    ).run(loaded_dataset)
+    DatasetReportWriter(reporter.output_dir).write(result)
+    return result
 
 
 def print_result(result: TaskResult) -> None:

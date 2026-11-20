@@ -1,5 +1,6 @@
 """Tests for the task runner command-line interface."""
 
+import json
 import os
 import tempfile
 import unittest
@@ -15,12 +16,16 @@ from soc_agent.cli import (
     main,
     non_interactive_confirmation,
     parse_parameter_overrides,
+    run_dataset,
     run_task,
     run_suite,
     terminal_confirmation_handler,
 )
 from soc_agent.reporting.report import ReportWriter
 from soc_agent.task_models import TaskStatus, TaskStep
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 class FakeEnvironment:
@@ -448,6 +453,37 @@ class CLITests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertIn(("write", "17*23"), environment.calls)
         self.assertIn(("write", "125*23"), environment.calls)
+
+    def test_run_dataset_writes_task_and_summary_reports(self):
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+        reporter = ReportWriter(self.root / "reports")
+
+        result = run_dataset(
+            PROJECT_ROOT / "datasets" / "calculator_cases.json",
+            environment,
+            executor,
+            FakeVisionProvider(),
+            reporter,
+        )
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertEqual(
+            [case.name for case in result.cases],
+            ["default_17x23", "custom_3x4"],
+        )
+        self.assertIn(("write", "17*23"), environment.calls)
+        self.assertIn(("write", "3*4"), environment.calls)
+
+        for case in result.cases:
+            self.assertTrue(Path(case.task_result.report_path).is_file())
+
+        self.assertTrue(Path(result.report_path).is_file())
+        payload = json.loads(
+            Path(result.report_path).read_text(encoding="utf-8")
+        )
+        self.assertEqual(payload["dataset_name"], "calculator_regression")
+        self.assertEqual(len(payload["cases"]), 2)
 
     def test_run_task_accepts_confirmed_step(self):
         task_path = self.root / "confirmation.json"
