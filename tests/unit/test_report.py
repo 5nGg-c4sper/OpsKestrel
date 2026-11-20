@@ -6,11 +6,14 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
+from soc_agent.reporting.dataset_report import DatasetReportWriter
 from soc_agent.reporting.report import ReportWriter
 from soc_agent.task_models import (
     ActionType,
     StepResult,
     StepStatus,
+    TaskCaseResult,
+    TaskDatasetResult,
     TaskResult,
     TaskStatus,
 )
@@ -110,6 +113,97 @@ class ReportWriterTests(unittest.TestCase):
         self.assertEqual(
             second_path.name,
             "20261119-103000-calculator_17x23-1.json",
+        )
+
+
+class DatasetReportWriterTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.root = Path(self.temporary_directory.name)
+        self.output_dir = self.root / "reports"
+
+    def make_dataset_result(self, dataset_name="calculator_regression"):
+        timestamp = datetime(2026, 11, 20, 12, 0, 0, tzinfo=timezone.utc)
+        task_result = TaskResult(
+            task_name="calculator_parameterized",
+            status=TaskStatus.PASSED,
+            started_at=timestamp,
+            finished_at=timestamp,
+            duration_seconds=3.5,
+            report_path="reports/default_17x23.json",
+        )
+        case_result = TaskCaseResult(
+            name="default_17x23",
+            parameters={"right": "23"},
+            status=TaskStatus.PASSED,
+            duration_seconds=3.5,
+            task_result=task_result,
+        )
+        return TaskDatasetResult(
+            dataset_name=dataset_name,
+            status=TaskStatus.PASSED,
+            started_at=timestamp,
+            finished_at=timestamp,
+            duration_seconds=3.5,
+            cases=[case_result],
+        )
+
+    def test_writes_dataset_summary_report(self):
+        result = self.make_dataset_result()
+        writer = DatasetReportWriter(self.output_dir)
+
+        path = writer.write(result)
+
+        self.assertTrue(path.is_file())
+        self.assertEqual(result.report_path, str(path))
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["dataset_name"], "calculator_regression")
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["duration_seconds"], 3.5)
+
+    def test_preserves_nested_case_fields(self):
+        result = self.make_dataset_result()
+        writer = DatasetReportWriter(self.output_dir)
+
+        path = writer.write(result)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        case_payload = payload["cases"][0]
+
+        self.assertEqual(case_payload["name"], "default_17x23")
+        self.assertEqual(case_payload["parameters"], {"right": "23"})
+        self.assertEqual(case_payload["status"], "passed")
+        self.assertEqual(
+            case_payload["task_result"]["task_name"],
+            "calculator_parameterized",
+        )
+        self.assertEqual(
+            case_payload["task_result"]["report_path"],
+            "reports/default_17x23.json",
+        )
+
+    def test_sanitizes_dataset_name(self):
+        result = self.make_dataset_result("calculator / regression")
+        writer = DatasetReportWriter(self.output_dir)
+
+        path = writer.write(result)
+
+        self.assertEqual(
+            path.name,
+            "20261120-120000-calculator-regression.json",
+        )
+
+    def test_avoids_overwriting_existing_report(self):
+        result = self.make_dataset_result()
+        writer = DatasetReportWriter(self.output_dir)
+
+        first_path = writer.write(result)
+        second_path = writer.write(result)
+
+        self.assertNotEqual(first_path, second_path)
+        self.assertEqual(
+            second_path.name,
+            "20261120-120000-calculator_regression-1.json",
         )
 
 
