@@ -135,6 +135,36 @@ class TaskDefinitionTests(unittest.TestCase):
 
         self.assertFalse(task.steps[0].expected_vision_result)
 
+    def test_verify_vision_retry_defaults(self):
+        task = TaskDefinition.model_validate(self.valid_task)
+        step = task.steps[3]
+
+        self.assertEqual(step.verification_attempts, 1)
+        self.assertEqual(step.verification_retry_delay_seconds, 0.5)
+
+    def test_verify_vision_retry_values_are_validated(self):
+        invalid_values = (
+            {"verification_attempts": 0},
+            {"verification_attempts": 6},
+            {"verification_retry_delay_seconds": -0.1},
+            {"verification_retry_delay_seconds": 11},
+        )
+
+        for values in invalid_values:
+            with self.subTest(values=values):
+                task = {
+                    "name": "invalid_retry",
+                    "steps": [
+                        {
+                            "type": "verify_vision",
+                            "prompt": "结果是否正确？",
+                            **values,
+                        }
+                    ],
+                }
+                with self.assertRaises(ValidationError):
+                    TaskDefinition.model_validate(task)
+
     def test_invalid_parameter_names_are_rejected(self):
         task_data = {
             **self.valid_task,

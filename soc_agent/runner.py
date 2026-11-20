@@ -40,6 +40,7 @@ class TaskRunner:
         ] = None,
         policy: Optional[SafetyPolicy] = None,
         clock: Optional[Callable[[], float]] = None,
+        sleep: Optional[Callable[[float], None]] = None,
     ):
         self.executor = executor
         self.vision_verifier = vision_verifier
@@ -47,6 +48,7 @@ class TaskRunner:
         self.artifact_provider = artifact_provider
         self.policy = policy
         self._clock = clock or time.monotonic
+        self._sleep = sleep or time.sleep
 
     @staticmethod
     def load_task(
@@ -145,15 +147,24 @@ class TaskRunner:
                         raise TaskRunnerError(
                             "verify_vision requires a vision verifier"
                         )
-                    verification_result = self.vision_verifier(step.prompt)
-                    if (
-                        verification_result
-                        != step.expected_vision_result
-                    ):
-                        raise TaskRunnerError(
-                            "vision verification failed: "
-                            f"expected {step.expected_vision_result}, "
-                            f"got {verification_result}: {step.prompt}"
+                    for attempt in range(step.verification_attempts):
+                        verification_result = self.vision_verifier(
+                            step.prompt
+                        )
+                        if (
+                            verification_result
+                            == step.expected_vision_result
+                        ):
+                            break
+                        if attempt + 1 == step.verification_attempts:
+                            raise TaskRunnerError(
+                                "vision verification failed after "
+                                f"{step.verification_attempts} attempt(s): "
+                                f"expected {step.expected_vision_result}, "
+                                f"got {verification_result}: {step.prompt}"
+                            )
+                        self._sleep(
+                            step.verification_retry_delay_seconds
                         )
                     outcome = StepOutcome.CONTINUE
                 else:

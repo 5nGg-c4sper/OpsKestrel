@@ -241,6 +241,67 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertEqual(result.status, TaskStatus.FAILED)
         self.assertIn("expected False, got True", result.error)
 
+    def test_vision_verification_retries_until_it_passes(self):
+        responses = iter([False, True])
+        sleeps = []
+        runner = TaskRunner(
+            ActionExecutor(FakeEnvironment(), settle_delay=0),
+            vision_verifier=lambda prompt: next(responses),
+            sleep=sleeps.append,
+        )
+        task = TaskDefinition.model_validate(
+            {
+                "name": "retry_vision",
+                "steps": [
+                    {
+                        "type": "verify_vision",
+                        "prompt": "结果是否正确？",
+                        "verification_attempts": 2,
+                        "verification_retry_delay_seconds": 0.25,
+                    }
+                ],
+            }
+        )
+
+        result = runner.run(task)
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertEqual(sleeps, [0.25])
+
+    def test_vision_verification_reports_attempt_count(self):
+        verifier_calls = []
+        sleeps = []
+
+        def verify(prompt):
+            verifier_calls.append(prompt)
+            return False
+
+        runner = TaskRunner(
+            ActionExecutor(FakeEnvironment(), settle_delay=0),
+            vision_verifier=verify,
+            sleep=sleeps.append,
+        )
+        task = TaskDefinition.model_validate(
+            {
+                "name": "retry_vision",
+                "steps": [
+                    {
+                        "type": "verify_vision",
+                        "prompt": "结果是否正确？",
+                        "verification_attempts": 3,
+                        "verification_retry_delay_seconds": 0.1,
+                    }
+                ],
+            }
+        )
+
+        result = runner.run(task)
+
+        self.assertEqual(result.status, TaskStatus.FAILED)
+        self.assertEqual(len(verifier_calls), 3)
+        self.assertEqual(sleeps, [0.1, 0.1])
+        self.assertIn("after 3 attempt(s)", result.error)
+
     def test_failed_action_records_artifact(self):
         runner = TaskRunner(
             FlakyExecutor(),
