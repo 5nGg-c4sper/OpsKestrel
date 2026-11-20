@@ -564,6 +564,45 @@ class CLITests(unittest.TestCase):
         self.assertIn("Cases: 2", output.getvalue())
         self.assertIn("Status: PASSED", output.getvalue())
 
+    def test_main_dataset_stops_after_failed_case(self):
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+        vision_provider = FakeVisionProvider(response=False)
+        reporter = ReportWriter(self.root / "reports")
+
+        def dependency_factory(args, config):
+            return environment, executor, vision_provider, reporter
+
+        output = StringIO()
+        with (
+            patch("soc_agent.cli.load_dotenv"),
+            patch.dict(
+                os.environ,
+                {"OPENAI_API_KEY": "test-key"},
+                clear=False,
+            ),
+            redirect_stdout(output),
+        ):
+            exit_code = main(
+                [
+                    "dataset",
+                    str(
+                        PROJECT_ROOT
+                        / "datasets"
+                        / "calculator_cases.json"
+                    ),
+                    "--stop-on-failure",
+                ],
+                dependency_factory=dependency_factory,
+            )
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn(("write", "17*23"), environment.calls)
+        self.assertNotIn(("write", "3*4"), environment.calls)
+        self.assertIn("Cases: 1", output.getvalue())
+        self.assertIn("Stopped early: yes", output.getvalue())
+        self.assertIn("Status: FAILED", output.getvalue())
+
     def test_run_task_accepts_confirmed_step(self):
         task_path = self.root / "confirmation.json"
         task_path.write_text(
