@@ -266,6 +266,7 @@ class TaskDefinition(StrictModel):
 class TaskCaseDefinition(StrictModel):
     name: str
     parameters: Dict[str, str] = Field(default_factory=dict)
+    attempts: int = Field(default=1, ge=1, le=3)
 
     @field_validator("name")
     @classmethod
@@ -346,6 +347,7 @@ class TaskResult(StrictModel):
 class TaskCaseResult(StrictModel):
     name: str
     parameters: Dict[str, str] = Field(default_factory=dict)
+    attempts: int = Field(default=1, ge=1)
     status: TaskStatus
     duration_seconds: float = Field(default=0.0, ge=0)
     task_result: TaskResult

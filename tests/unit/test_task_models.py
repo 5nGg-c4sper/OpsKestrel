@@ -434,6 +434,39 @@ class TaskDatasetDefinitionTests(unittest.TestCase):
         self.assertEqual(dataset.name, "calculator_cases")
         self.assertEqual(len(dataset.cases), 2)
         self.assertEqual(dataset.cases[0].parameters, {"right": "23"})
+        self.assertEqual(dataset.cases[0].attempts, 1)
+
+    def test_case_accepts_retry_attempts(self):
+        dataset_data = {
+            **self.valid_dataset,
+            "cases": [
+                {
+                    "name": "retry_case",
+                    "parameters": {"right": "23"},
+                    "attempts": 2,
+                }
+            ],
+        }
+
+        dataset = TaskDatasetDefinition.model_validate(dataset_data)
+
+        self.assertEqual(dataset.cases[0].attempts, 2)
+
+    def test_case_rejects_invalid_retry_attempts(self):
+        for attempts in (0, 4):
+            with self.subTest(attempts=attempts):
+                dataset_data = {
+                    **self.valid_dataset,
+                    "cases": [
+                        {
+                            "name": "retry_case",
+                            "parameters": {},
+                            "attempts": attempts,
+                        }
+                    ],
+                }
+                with self.assertRaises(ValidationError):
+                    TaskDatasetDefinition.model_validate(dataset_data)
 
     def test_dataset_requires_at_least_one_case(self):
         dataset_data = {**self.valid_dataset, "cases": []}
