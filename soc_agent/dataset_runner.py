@@ -24,26 +24,47 @@ class DatasetRunner:
             [Path, TaskCaseDefinition],
             TaskResult,
         ],
+        stop_on_failure: bool = False,
         clock: Optional[Callable[[], float]] = None,
     ):
         self.execute_case = execute_case
+        self.stop_on_failure = stop_on_failure
         self._clock = clock or time.monotonic
 
     def run(self, loaded_dataset: LoadedTaskDataset) -> TaskDatasetResult:
         started_at = datetime.now(timezone.utc)
         start_time = self._clock()
         case_results = []
+        stopped_early = False
 
         for case in loaded_dataset.definition.cases:
             case_start_time = self._clock()
-            task_result = self.execute_case(
-                loaded_dataset.task_path,
-                case,
-            )
-            case_duration = max(
-                0.0,
-                self._clock() - case_start_time,
-            )
+            case_started_at = datetime.now(timezone.utc)
+            try:
+                task_result = self.execute_case(
+                    loaded_dataset.task_path,
+                    case,
+                )
+            except Exception as error:
+                case_finished_at = datetime.now(timezone.utc)
+                case_duration = max(
+                    0.0,
+                    self._clock() - case_start_time,
+                )
+                task_result = TaskResult(
+                    task_name=loaded_dataset.task_path.stem,
+                    status=TaskStatus.FAILED,
+                    started_at=case_started_at,
+                    finished_at=case_finished_at,
+                    duration_seconds=case_duration,
+                    error=str(error),
+                )
+            else:
+                case_duration = max(
+                    0.0,
+                    self._clock() - case_start_time,
+                )
+
             case_results.append(
                 TaskCaseResult(
                     name=case.name,
@@ -55,20 +76,33 @@ class DatasetRunner:
                 )
             )
 
-        status = (
-            TaskStatus.PASSED
-            if all(
-                result.status == TaskStatus.PASSED
-                for result in case_results
-            )
-            else TaskStatus.FAILED
-        )
+            if (
+                self.stop_on_failure
+                and task_result.status != TaskStatus.PASSED
+            ):
+                stopped_early = True
+                break
 
         return TaskDatasetResult(
             dataset_name=loaded_dataset.definition.name,
-            status=status,
+            status=self._aggregate_status(case_results),
             started_at=started_at,
             finished_at=datetime.now(timezone.utc),
             duration_seconds=max(0.0, self._clock() - start_time),
             cases=case_results,
+            stopped_early=stopped_early,
         )
+
+    @staticmethod
+    def _aggregate_status(
+        case_results,
+    ) -> TaskStatus:
+        statuses = {result.status for result in case_results}
+        for status in (
+            TaskStatus.FAILED,
+            TaskStatus.TIMED_OUT,
+            TaskStatus.CANCELLED,
+        ):
+            if status in statuses:
+                return status
+        return TaskStatus.PASSED

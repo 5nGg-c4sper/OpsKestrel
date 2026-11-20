@@ -361,6 +361,7 @@ class TaskDatasetResult(StrictModel):
     duration_seconds: float = Field(default=0.0, ge=0)
 
     cases: List[TaskCaseResult] = Field(min_length=1)
+    stopped_early: bool = False
     report_path: Optional[str] = None
 
     @field_validator("dataset_name")

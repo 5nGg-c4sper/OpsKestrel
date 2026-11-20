@@ -100,24 +100,31 @@ class DatasetLoaderTests(unittest.TestCase):
 
 
 class DatasetRunnerTests(unittest.TestCase):
+    def make_loaded_dataset(self):
+        return load_dataset(
+            PROJECT_ROOT / "datasets" / "calculator_cases.json"
+        )
+
+    def make_task_result(self, status, error=None):
+        started_at = datetime(2026, 11, 20, tzinfo=timezone.utc)
+        return TaskResult(
+            task_name="calculator_parameterized",
+            status=status,
+            started_at=started_at,
+            finished_at=started_at,
+            duration_seconds=1.5,
+            error=error,
+        )
+
     def test_run_executes_cases_in_order(self):
-        dataset_path = PROJECT_ROOT / "datasets" / "calculator_cases.json"
-        loaded = load_dataset(dataset_path)
+        loaded = self.make_loaded_dataset()
         current_time = [0.0]
         calls = []
-        started_at = datetime(2026, 11, 20, tzinfo=timezone.utc)
 
         def execute_case(task_path, case):
             calls.append((task_path, case.name, case.parameters))
             current_time[0] += 1.5
-            return TaskResult(
-                task_name="calculator_parameterized",
-                status=TaskStatus.PASSED,
-                started_at=started_at,
-                finished_at=started_at,
-                duration_seconds=1.5,
-                report_path=f"reports/{case.name}.json",
-            )
+            return self.make_task_result(TaskStatus.PASSED)
 
         result = DatasetRunner(
             execute_case,
@@ -161,6 +168,81 @@ class DatasetRunnerTests(unittest.TestCase):
                 ),
             ],
         )
+
+    def test_run_continues_after_failed_case(self):
+        loaded = self.make_loaded_dataset()
+        statuses = iter([TaskStatus.FAILED, TaskStatus.PASSED])
+
+        def execute_case(task_path, case):
+            status = next(statuses)
+            error = "failed" if status == TaskStatus.FAILED else None
+            return self.make_task_result(status, error)
+
+        result = DatasetRunner(execute_case).run(loaded)
+
+        self.assertEqual(result.status, TaskStatus.FAILED)
+        self.assertFalse(result.stopped_early)
+        self.assertEqual(
+            [case.status for case in result.cases],
+            [TaskStatus.FAILED, TaskStatus.PASSED],
+        )
+
+    def test_run_stops_after_failed_case_when_configured(self):
+        loaded = self.make_loaded_dataset()
+        calls = []
+
+        def execute_case(task_path, case):
+            calls.append(case.name)
+            return self.make_task_result(
+                TaskStatus.FAILED,
+                "failed",
+            )
+
+        result = DatasetRunner(
+            execute_case,
+            stop_on_failure=True,
+        ).run(loaded)
+
+        self.assertEqual(calls, ["default_17x23"])
+        self.assertEqual(len(result.cases), 1)
+        self.assertTrue(result.stopped_early)
+        self.assertEqual(result.status, TaskStatus.FAILED)
+
+    def test_run_converts_executor_exception_to_failed_case(self):
+        loaded = self.make_loaded_dataset()
+        calls = []
+
+        def execute_case(task_path, case):
+            calls.append(case.name)
+            if len(calls) == 1:
+                raise RuntimeError("executor crashed")
+            return self.make_task_result(TaskStatus.PASSED)
+
+        result = DatasetRunner(execute_case).run(loaded)
+
+        self.assertEqual(len(result.cases), 2)
+        self.assertEqual(result.cases[0].status, TaskStatus.FAILED)
+        self.assertEqual(result.cases[0].error, "executor crashed")
+        self.assertEqual(
+            result.cases[0].task_result.error,
+            "executor crashed",
+        )
+        self.assertEqual(result.cases[1].status, TaskStatus.PASSED)
+        self.assertEqual(result.status, TaskStatus.FAILED)
+
+    def test_run_aggregates_non_passed_statuses(self):
+        loaded = self.make_loaded_dataset()
+
+        for expected_status in (
+            TaskStatus.TIMED_OUT,
+            TaskStatus.CANCELLED,
+        ):
+            with self.subTest(expected_status=expected_status):
+                def execute_case(task_path, case):
+                    return self.make_task_result(expected_status)
+
+                result = DatasetRunner(execute_case).run(loaded)
+                self.assertEqual(result.status, expected_status)
 
 
 if __name__ == "__main__":
