@@ -52,6 +52,7 @@ class TaskStep(StrictModel):
 
     prompt: Optional[str] = None
     summary: Optional[str] = None
+    expected_vision_result: bool = True
 
     seconds: Optional[float] = Field(default=None, gt=0)
     timeout_seconds: float = Field(default=30.0, gt=0, le=300)

@@ -114,6 +114,27 @@ class TaskDefinitionTests(unittest.TestCase):
         )
         self.assertIsNone(task.parameters["right"].default)
 
+    def test_verify_vision_defaults_to_expected_true(self):
+        task = TaskDefinition.model_validate(self.valid_task)
+
+        self.assertTrue(task.steps[3].expected_vision_result)
+
+    def test_verify_vision_accepts_expected_false(self):
+        task_data = {
+            **self.valid_task,
+            "steps": [
+                {
+                    "type": "verify_vision",
+                    "prompt": "错误提示是否未显示？只返回 true 或 false。",
+                    "expected_vision_result": False,
+                }
+            ],
+        }
+
+        task = TaskDefinition.model_validate(task_data)
+
+        self.assertFalse(task.steps[0].expected_vision_result)
+
     def test_invalid_parameter_names_are_rejected(self):
         task_data = {
             **self.valid_task,
