@@ -524,6 +524,46 @@ class CLITests(unittest.TestCase):
         self.assertEqual(payload["dataset_name"], "calculator_regression")
         self.assertEqual(len(payload["cases"]), 2)
 
+    def test_main_runs_dataset_command(self):
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+        vision_provider = FakeVisionProvider()
+        reporter = ReportWriter(self.root / "reports")
+
+        def dependency_factory(args, config):
+            self.assertEqual(args.command, "dataset")
+            self.assertFalse(hasattr(args, "param"))
+            return environment, executor, vision_provider, reporter
+
+        output = StringIO()
+        with (
+            patch("soc_agent.cli.load_dotenv"),
+            patch.dict(
+                os.environ,
+                {"OPENAI_API_KEY": "test-key"},
+                clear=False,
+            ),
+            redirect_stdout(output),
+        ):
+            exit_code = main(
+                [
+                    "dataset",
+                    str(
+                        PROJECT_ROOT
+                        / "datasets"
+                        / "calculator_cases.json"
+                    ),
+                ],
+                dependency_factory=dependency_factory,
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn(("write", "17*23"), environment.calls)
+        self.assertIn(("write", "3*4"), environment.calls)
+        self.assertIn("Dataset: calculator_regression", output.getvalue())
+        self.assertIn("Cases: 2", output.getvalue())
+        self.assertIn("Status: PASSED", output.getvalue())
+
     def test_run_task_accepts_confirmed_step(self):
         task_path = self.root / "confirmation.json"
         task_path.write_text(

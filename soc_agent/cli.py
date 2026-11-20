@@ -237,7 +237,9 @@ def main(
 ) -> int:
     args = build_parser().parse_args(argv)
     try:
-        parameter_overrides = parse_parameter_overrides(args.param)
+        parameter_overrides = parse_parameter_overrides(
+            getattr(args, "param", None)
+        )
     except ValueError as error:
         print(f"Task execution failed: {error}")
         return 1
@@ -284,6 +286,18 @@ def main(
                 confirmation_handler=confirmation_handler,
                 parameter_overrides=parameter_overrides,
             )
+        elif args.command == "dataset":
+            dataset_result = run_dataset(
+                args.dataset_path,
+                environment,
+                executor,
+                vision_provider,
+                reporter,
+                confirmation_handler=confirmation_handler,
+                stop_on_failure=args.stop_on_failure,
+            )
+            print_dataset_result(dataset_result)
+            return exit_code_for_status(dataset_result.status)
         else:
             suite_result = run_suite(
                 args.suite_path,
@@ -382,6 +396,33 @@ def print_suite_result(result: SuiteResult) -> None:
     print(f"Timed out: {result.timed_out}")
     print(f"Cancelled: {result.cancelled}")
     print(f"Duration: {result.duration_seconds:.2f} seconds")
+    if result.stopped_early:
+        print("Stopped early: yes")
+
+
+def print_dataset_result(result: TaskDatasetResult) -> None:
+    print(f"Dataset: {result.dataset_name}")
+    print(f"Status: {result.status.value.upper()}")
+    print(f"Cases: {len(result.cases)}")
+    print(
+        "Passed: "
+        f"{sum(case.status == TaskStatus.PASSED for case in result.cases)}"
+    )
+    print(
+        "Failed: "
+        f"{sum(case.status == TaskStatus.FAILED for case in result.cases)}"
+    )
+    print(
+        "Timed out: "
+        f"{sum(case.status == TaskStatus.TIMED_OUT for case in result.cases)}"
+    )
+    print(
+        "Cancelled: "
+        f"{sum(case.status == TaskStatus.CANCELLED for case in result.cases)}"
+    )
+    print(f"Duration: {result.duration_seconds:.2f} seconds")
+    if result.report_path:
+        print(f"Report: {result.report_path}")
     if result.stopped_early:
         print("Stopped early: yes")
 
