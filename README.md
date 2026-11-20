@@ -50,6 +50,9 @@ Override several string parameters by repeating `--param`:
 Task strings can reference declared parameters with `${parameter_name}` in
 fields such as `app`, `content`, `keys`, `prompt`, and `summary`. Referencing an
 undeclared or missing parameter fails before the first desktop action.
+`verify_vision` steps accept `expected_vision_result` (default `true`), plus
+`verification_attempts` and `verification_retry_delay_seconds` for retrying
+transient screenshot or model results.
 
 Run all JSON tasks in a directory:
 
@@ -81,6 +84,20 @@ Every case creates its own task report and screenshot artifacts. After all cases
 finish, a summary report containing case names, parameters, statuses, durations,
 and nested task reports is written under `reports/` as
 `<timestamp>-<dataset-name>.json`.
+
+Dataset cases retry only `failed` results, never `cancelled` or `timed_out`
+results. Retry configuration is optional:
+
+```json
+{
+  "name": "default_17x23",
+  "parameters": {"right": "23"},
+  "attempts": 2,
+  "retry_delay_seconds": 0.5
+}
+```
+
+`attempts` includes the initial execution and accepts values from 1 to 3.
 
 Stop immediately when a case does not pass:
 
