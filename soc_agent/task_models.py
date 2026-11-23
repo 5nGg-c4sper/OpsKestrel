@@ -17,6 +17,7 @@ class StrictModel(BaseModel):
 
 class ActionType(str, Enum):
     OPEN_APP = "open_app"
+    ACTIVATE_APP = "activate_app"
     WRITE = "write"
     PRESS = "press"
     CLICK = "click"
@@ -97,6 +98,9 @@ class TaskStep(StrictModel):
     def validate_action_fields(self):
         if self.type == ActionType.OPEN_APP and not self.app:
             raise ValueError("open_app requires app")
+
+        if self.type == ActionType.ACTIVATE_APP and not self.app:
+            raise ValueError("activate_app requires app")
 
         if self.type == ActionType.WRITE and self.content is None:
             raise ValueError("write requires content")

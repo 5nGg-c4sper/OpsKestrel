@@ -327,6 +327,37 @@ class TaskDefinitionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "open_app requires app"):
             TaskDefinition.model_validate(task)
 
+    def test_activate_app_is_parsed(self):
+        task = TaskDefinition.model_validate(
+            {
+                "name": "activate_app",
+                "steps": [
+                    {
+                        "type": "activate_app",
+                        "app": "Safari",
+                    }
+                ],
+            }
+        )
+
+        self.assertEqual(
+            task.steps[0].type,
+            ActionType.ACTIVATE_APP,
+        )
+        self.assertEqual(task.steps[0].app, "Safari")
+
+    def test_activate_app_requires_app(self):
+        task = {
+            "name": "missing_app",
+            "steps": [{"type": "activate_app"}],
+        }
+
+        with self.assertRaisesRegex(
+            ValidationError,
+            "activate_app requires app",
+        ):
+            TaskDefinition.model_validate(task)
+
     def test_write_requires_content(self):
         task = {
             "name": "missing_content",
