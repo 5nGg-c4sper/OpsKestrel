@@ -15,6 +15,7 @@ from soc_agent.task_models import (
     TaskDatasetDefinition,
     TaskDatasetResult,
     TaskDefinition,
+    TaskLoop,
     TaskResult,
     TaskStatus,
 )
@@ -459,6 +460,41 @@ class TaskDefinitionTests(unittest.TestCase):
                     ],
                 }
             )
+
+    def test_step_accepts_loop_configuration(self):
+        task = TaskDefinition.model_validate(
+            {
+                "name": "looped_task",
+                "steps": [
+                    {
+                        "type": "press",
+                        "keys": ["tab"],
+                        "loop": {
+                            "count": 3,
+                            "delay_seconds": 0.2,
+                        },
+                    }
+                ],
+            }
+        )
+
+        loop = task.steps[0].loop
+        self.assertIsNotNone(loop)
+        self.assertEqual(loop.count, 3)
+        self.assertEqual(loop.delay_seconds, 0.2)
+
+    def test_loop_rejects_invalid_count_and_delay(self):
+        invalid_values = (
+            {"count": 0},
+            {"count": 21},
+            {"count": 2, "delay_seconds": -0.1},
+            {"count": 2, "delay_seconds": 11},
+        )
+
+        for values in invalid_values:
+            with self.subTest(values=values):
+                with self.assertRaises(ValidationError):
+                    TaskLoop(**values)
 
     def test_write_requires_content(self):
         task = {

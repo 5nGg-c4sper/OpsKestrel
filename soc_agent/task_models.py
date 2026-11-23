@@ -59,6 +59,7 @@ class TaskStep(StrictModel):
     summary: Optional[str] = None
     expected_vision_result: bool = True
     condition: Optional["TaskCondition"] = None
+    loop: Optional["TaskLoop"] = None
 
     seconds: Optional[float] = Field(default=None, gt=0)
     timeout_seconds: float = Field(default=30.0, gt=0, le=300)
@@ -145,6 +146,11 @@ class TaskCondition(StrictModel):
         if not value.strip():
             raise ValueError("must not be empty")
         return value
+
+
+class TaskLoop(StrictModel):
+    count: int = Field(ge=1, le=20)
+    delay_seconds: float = Field(default=0.0, ge=0, le=10)
 
 
 class TaskDefinition(StrictModel):
