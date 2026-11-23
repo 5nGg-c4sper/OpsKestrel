@@ -117,6 +117,10 @@ class TaskDefinitionTests(unittest.TestCase):
                     {
                         "type": "write",
                         "content": "${left}${operator}${right}",
+                        "condition": {
+                            "type": "vision",
+                            "prompt": "结果是否为 ${expected}？",
+                        },
                     },
                     {"type": "press", "keys": ["${submit_key}"]},
                     {
@@ -310,6 +314,10 @@ class TaskDefinitionTests(unittest.TestCase):
         self.assertEqual(rendered.app, "计算器")
         self.assertEqual(rendered.steps[0].app, "计算器")
         self.assertEqual(rendered.steps[1].content, "17*23")
+        self.assertEqual(
+            rendered.steps[1].condition.prompt,
+            "结果是否为 391？",
+        )
         self.assertEqual(rendered.steps[2].keys, ["enter"])
         self.assertEqual(rendered.steps[3].prompt, "结果是否为 391？")
         self.assertEqual(rendered.steps[4].summary, "17*23=391")
@@ -317,6 +325,10 @@ class TaskDefinitionTests(unittest.TestCase):
         self.assertEqual(
             task.steps[1].content,
             "${left}${operator}${right}",
+        )
+        self.assertEqual(
+            task.steps[1].condition.prompt,
+            "结果是否为 ${expected}？",
         )
 
     def test_render_parameters_preserves_non_placeholder_dollars(self):

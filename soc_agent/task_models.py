@@ -276,6 +276,10 @@ class TaskDefinition(StrictModel):
                     for key in step["keys"]
                 ]
 
+            condition = step["condition"]
+            if condition is not None:
+                condition["prompt"] = render_text(condition["prompt"])
+
         return TaskDefinition.model_validate(data)
 
     @model_validator(mode="after")
