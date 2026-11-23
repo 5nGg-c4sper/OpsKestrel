@@ -322,6 +322,18 @@ class DatasetReportWriterTests(unittest.TestCase):
             result.cases[0].task_result.failure_log,
         )
 
+    def test_preserves_retry_and_stop_metadata(self):
+        result = self.make_dataset_result()
+        result.cases[0].attempts = 2
+        result.stopped_early = True
+        writer = DatasetReportWriter(self.output_dir)
+
+        path = writer.write(result)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(payload["cases"][0]["attempts"], 2)
+        self.assertTrue(payload["stopped_early"])
+
 
 if __name__ == "__main__":
     unittest.main()
