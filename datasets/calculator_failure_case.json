@@ -1,0 +1,16 @@
+{
+  "name": "calculator_failure_diagnostic",
+  "task": "../tasks/calculator_parameterized.json",
+  "cases": [
+    {
+      "name": "expected_result_mismatch",
+      "parameters": {
+        "left": "17",
+        "right": "23",
+        "expected_result": "999"
+      },
+      "attempts": 1,
+      "retry_delay_seconds": 0
+    }
+  ]
+}
