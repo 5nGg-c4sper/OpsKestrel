@@ -183,6 +183,38 @@ class ReportWriterTests(unittest.TestCase):
         self.assertFalse(log_path.exists())
         self.assertIsNone(result.failure_log)
 
+    def test_all_non_passed_statuses_write_failure_logs(self):
+        writer = ReportWriter(self.output_dir)
+
+        for status in (
+            TaskStatus.FAILED,
+            TaskStatus.TIMED_OUT,
+            TaskStatus.CANCELLED,
+        ):
+            with self.subTest(status=status):
+                result = self.make_result(
+                    status=status,
+                    error=f"{status.value} diagnostic",
+                )
+                path = writer.write(result)
+                log_path = (
+                    self.output_dir
+                    / "artifacts"
+                    / path.stem
+                    / "failure.log"
+                )
+
+                self.assertTrue(log_path.is_file())
+                content = log_path.read_text(encoding="utf-8")
+                self.assertIn(
+                    f"Status: {status.value}",
+                    content,
+                )
+                self.assertIn(
+                    f"Error: {status.value} diagnostic",
+                    content,
+                )
+
 
 class DatasetReportWriterTests(unittest.TestCase):
     def setUp(self):
