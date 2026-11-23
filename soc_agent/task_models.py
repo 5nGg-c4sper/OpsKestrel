@@ -343,6 +343,7 @@ class TaskResult(StrictModel):
     steps: List[StepResult] = Field(default_factory=list)
     error: Optional[str] = None
     report_path: Optional[str] = None
+    failure_log: Optional[str] = None
 
 
 class TaskCaseResult(StrictModel):

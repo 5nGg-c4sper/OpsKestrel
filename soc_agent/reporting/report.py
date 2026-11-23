@@ -59,6 +59,7 @@ class ReportWriter:
         report_path: Path,
     ) -> None:
         if result.status == TaskStatus.PASSED:
+            result.failure_log = None
             return
 
         artifact_dir = self.output_dir / "artifacts" / report_path.stem
@@ -87,6 +88,7 @@ class ReportWriter:
         temp_path = log_path.with_suffix(".log.tmp")
         temp_path.write_text(content, encoding="utf-8")
         temp_path.replace(log_path)
+        result.failure_log = str(log_path.relative_to(self.output_dir))
 
     @staticmethod
     def _safe_task_name(task_name: str) -> str:

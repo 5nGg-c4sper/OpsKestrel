@@ -91,6 +91,7 @@ class ReportWriterTests(unittest.TestCase):
         self.assertEqual(payload["duration_seconds"], 1.5)
         self.assertEqual(len(payload["steps"]), 1)
         self.assertEqual(payload["report_path"], str(path))
+        self.assertIsNone(payload["failure_log"])
 
     def test_creates_output_directory(self):
         result = self.make_result()
@@ -153,6 +154,10 @@ class ReportWriterTests(unittest.TestCase):
         )
 
         self.assertTrue(log_path.is_file())
+        self.assertEqual(
+            result.failure_log,
+            str(log_path.relative_to(self.output_dir)),
+        )
         content = log_path.read_text(encoding="utf-8")
         self.assertIn("Task: calculator_17x23", content)
         self.assertIn("Status: failed", content)
@@ -160,6 +165,8 @@ class ReportWriterTests(unittest.TestCase):
         self.assertIn("[0] open_app failed", content)
         self.assertIn("[1] write skipped", content)
         self.assertIn("task stopped after failure", content)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["failure_log"], result.failure_log)
 
     def test_successful_task_does_not_write_failure_log(self):
         result = self.make_result()
@@ -174,6 +181,7 @@ class ReportWriterTests(unittest.TestCase):
         )
 
         self.assertFalse(log_path.exists())
+        self.assertIsNone(result.failure_log)
 
 
 class DatasetReportWriterTests(unittest.TestCase):
@@ -264,6 +272,22 @@ class DatasetReportWriterTests(unittest.TestCase):
         self.assertEqual(
             second_path.name,
             "20261120-120000-calculator_regression-1.json",
+        )
+
+    def test_preserves_nested_task_failure_log(self):
+        result = self.make_dataset_result()
+        result.cases[0].task_result.failure_log = (
+            "artifacts/20261120-120000-calculator_parameterized/"
+            "failure.log"
+        )
+        writer = DatasetReportWriter(self.output_dir)
+
+        path = writer.write(result)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            payload["cases"][0]["task_result"]["failure_log"],
+            result.cases[0].task_result.failure_log,
         )
 
 
