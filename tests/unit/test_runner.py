@@ -489,6 +489,117 @@ class TaskRunnerTests(unittest.TestCase):
             result.steps[0].condition_duration_seconds
         )
 
+    def test_loop_executes_step_configured_number_of_times(self):
+        environment = FakeEnvironment()
+        sleeps = []
+        runner = TaskRunner(
+            ActionExecutor(environment, settle_delay=0),
+            sleep=sleeps.append,
+        )
+        task = TaskDefinition.model_validate(
+            {
+                "name": "looped_press",
+                "steps": [
+                    {
+                        "type": "press",
+                        "keys": ["tab"],
+                        "loop": {
+                            "count": 3,
+                            "delay_seconds": 0.2,
+                        },
+                    }
+                ],
+            }
+        )
+
+        result = runner.run(task)
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertEqual(
+            environment.calls,
+            [
+                ("press", ["tab"]),
+                ("press", ["tab"]),
+                ("press", ["tab"]),
+            ],
+        )
+        self.assertEqual(sleeps, [0.2, 0.2])
+        self.assertEqual(result.steps[0].loop_count, 3)
+        self.assertEqual(
+            result.steps[0].loop_iterations_completed,
+            3,
+        )
+        self.assertEqual(result.steps[0].loop_delay_seconds, 0.2)
+
+    def test_loop_records_completed_iterations_before_failure(self):
+        class FailingEnvironment(FakeEnvironment):
+            def press(self, keys):
+                self.calls.append(("press", keys))
+                if len(self.calls) == 2:
+                    raise RuntimeError("second iteration failed")
+
+        environment = FailingEnvironment()
+        runner = TaskRunner(
+            ActionExecutor(environment, settle_delay=0)
+        )
+        task = TaskDefinition.model_validate(
+            {
+                "name": "looped_failure",
+                "steps": [
+                    {
+                        "type": "press",
+                        "keys": ["tab"],
+                        "loop": {
+                            "count": 3,
+                            "delay_seconds": 0,
+                        },
+                    }
+                ],
+            }
+        )
+
+        result = runner.run(task)
+
+        self.assertEqual(result.status, TaskStatus.FAILED)
+        self.assertEqual(
+            result.steps[0].loop_iterations_completed,
+            1,
+        )
+        self.assertIn("second iteration failed", result.error)
+
+    def test_skipped_loop_records_zero_completed_iterations(self):
+        environment = FakeEnvironment()
+        runner = TaskRunner(
+            ActionExecutor(environment, settle_delay=0),
+            vision_verifier=lambda prompt: False,
+        )
+        task = TaskDefinition.model_validate(
+            {
+                "name": "skipped_loop",
+                "steps": [
+                    {
+                        "type": "press",
+                        "keys": ["tab"],
+                        "loop": {"count": 3},
+                        "condition": {
+                            "type": "vision",
+                            "prompt": "是否继续？",
+                        },
+                    }
+                ],
+            }
+        )
+
+        result = runner.run(task)
+
+        self.assertEqual(result.steps[0].status, StepStatus.SKIPPED)
+        self.assertEqual(result.steps[0].loop_count, 3)
+        self.assertEqual(
+            result.steps[0].loop_iterations_completed,
+            0,
+        )
+        self.assertEqual(environment.calls, [])
+
     def test_failed_action_records_artifact(self):
         runner = TaskRunner(
             FlakyExecutor(),

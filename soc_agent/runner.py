@@ -79,6 +79,15 @@ class TaskRunner:
             condition_actual = None
             condition_duration = None
             condition_screenshot = None
+            configured_loop_count = (
+                step.loop.count if step.loop is not None else None
+            )
+            loop_delay_seconds = (
+                step.loop.delay_seconds
+                if step.loop is not None
+                else None
+            )
+            iterations_completed = 0
 
             if self._clock() - start_time > task.max_duration_seconds:
                 status = TaskStatus.TIMED_OUT
@@ -134,6 +143,9 @@ class TaskRunner:
                             condition_actual=None,
                             condition_duration_seconds=condition_duration,
                             condition_screenshot=condition_screenshot,
+                            loop_count=configured_loop_count,
+                            loop_iterations_completed=0,
+                            loop_delay_seconds=loop_delay_seconds,
                         )
                     )
                     break
@@ -170,6 +182,9 @@ class TaskRunner:
                             condition_actual=condition_actual,
                             condition_duration_seconds=condition_duration,
                             condition_screenshot=condition_screenshot,
+                            loop_count=configured_loop_count,
+                            loop_iterations_completed=0,
+                            loop_delay_seconds=loop_delay_seconds,
                         )
                     )
                     continue
@@ -250,9 +265,15 @@ class TaskRunner:
                             f"expected {step.expected_vision_result}, "
                             f"got {verification_result}: {step.prompt}"
                         )
+                    iterations_completed = 1
                     outcome = StepOutcome.CONTINUE
                 else:
-                    outcome = self.executor.execute(step)
+                    loop_count = configured_loop_count or 1
+                    for iteration in range(loop_count):
+                        outcome = self.executor.execute(step)
+                        iterations_completed += 1
+                        if iteration + 1 < loop_count:
+                            self._sleep(loop_delay_seconds or 0.0)
             except Exception as error:
                 status = TaskStatus.FAILED
                 task_error = str(error)
@@ -278,6 +299,9 @@ class TaskRunner:
                         condition_actual=condition_actual,
                         condition_duration_seconds=condition_duration,
                         condition_screenshot=condition_screenshot,
+                        loop_count=configured_loop_count,
+                        loop_iterations_completed=iterations_completed,
+                        loop_delay_seconds=loop_delay_seconds,
                     )
                 )
                 break
@@ -303,6 +327,9 @@ class TaskRunner:
                     condition_actual=condition_actual,
                     condition_duration_seconds=condition_duration,
                     condition_screenshot=condition_screenshot,
+                    loop_count=configured_loop_count,
+                    loop_iterations_completed=iterations_completed,
+                    loop_delay_seconds=loop_delay_seconds,
                 )
             )
 
