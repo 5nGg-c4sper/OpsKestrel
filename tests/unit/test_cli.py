@@ -603,6 +603,44 @@ class CLITests(unittest.TestCase):
         self.assertIn("Stopped early: yes", output.getvalue())
         self.assertIn("Status: FAILED", output.getvalue())
 
+    def test_run_dataset_archives_failure_diagnostics(self):
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+        reporter = ReportWriter(self.root / "reports")
+
+        result = run_dataset(
+            PROJECT_ROOT
+            / "datasets"
+            / "calculator_failure_case.json",
+            environment,
+            executor,
+            FakeVisionProvider(response=False),
+            reporter,
+        )
+
+        self.assertEqual(result.status, TaskStatus.FAILED)
+        self.assertEqual(len(result.cases), 1)
+        case = result.cases[0]
+        self.assertEqual(case.status, TaskStatus.FAILED)
+        self.assertIsNotNone(case.task_result.failure_log)
+        failure_log_path = (
+            reporter.output_dir / case.task_result.failure_log
+        )
+        self.assertTrue(failure_log_path.is_file())
+        self.assertIn(
+            "vision verification failed",
+            failure_log_path.read_text(encoding="utf-8"),
+        )
+
+        self.assertTrue(Path(result.report_path).is_file())
+        payload = json.loads(
+            Path(result.report_path).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            payload["cases"][0]["task_result"]["failure_log"],
+            case.task_result.failure_log,
+        )
+
     def test_run_task_accepts_confirmed_step(self):
         task_path = self.root / "confirmation.json"
         task_path.write_text(
