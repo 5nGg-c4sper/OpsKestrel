@@ -26,6 +26,10 @@ class ActionType(str, Enum):
     DONE = "done"
 
 
+class ConditionType(str, Enum):
+    VISION = "vision"
+
+
 class StepStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
@@ -124,6 +128,22 @@ class TaskStep(StrictModel):
 class TaskParameterDefinition(StrictModel):
     description: str = ""
     default: Optional[str] = None
+
+
+class TaskCondition(StrictModel):
+    type: ConditionType
+    prompt: str
+
+    expected: bool = True
+    attempts: int = Field(default=1, ge=1, le=5)
+    retry_delay_seconds: float = Field(default=0.5, ge=0, le=10)
+
+    @field_validator("prompt")
+    @classmethod
+    def validate_prompt(cls, value):
+        if not value.strip():
+            raise ValueError("must not be empty")
+        return value
 
 
 class TaskDefinition(StrictModel):

@@ -7,15 +7,64 @@ from pydantic import ValidationError
 
 from soc_agent.task_models import (
     ActionType,
+    ConditionType,
     StepResult,
     StepStatus,
     TaskCaseResult,
+    TaskCondition,
     TaskDatasetDefinition,
     TaskDatasetResult,
     TaskDefinition,
     TaskResult,
     TaskStatus,
 )
+
+
+class TaskConditionTests(unittest.TestCase):
+    def test_condition_defaults(self):
+        condition = TaskCondition(
+            type="vision",
+            prompt="结果是否正确？",
+        )
+
+        self.assertEqual(condition.type, ConditionType.VISION)
+        self.assertTrue(condition.expected)
+        self.assertEqual(condition.attempts, 1)
+        self.assertEqual(condition.retry_delay_seconds, 0.5)
+
+    def test_condition_accepts_custom_retry_values(self):
+        condition = TaskCondition(
+            type="vision",
+            prompt="错误提示是否未显示？",
+            expected=False,
+            attempts=3,
+            retry_delay_seconds=0.2,
+        )
+
+        self.assertFalse(condition.expected)
+        self.assertEqual(condition.attempts, 3)
+        self.assertEqual(condition.retry_delay_seconds, 0.2)
+
+    def test_condition_rejects_empty_prompt(self):
+        with self.assertRaises(ValidationError):
+            TaskCondition(type="vision", prompt=" ")
+
+    def test_condition_rejects_invalid_retry_values(self):
+        invalid_values = (
+            {"attempts": 0},
+            {"attempts": 6},
+            {"retry_delay_seconds": -0.1},
+            {"retry_delay_seconds": 11},
+        )
+
+        for values in invalid_values:
+            with self.subTest(values=values):
+                with self.assertRaises(ValidationError):
+                    TaskCondition(
+                        type="vision",
+                        prompt="结果是否正确？",
+                        **values,
+                    )
 
 
 class TaskDefinitionTests(unittest.TestCase):
