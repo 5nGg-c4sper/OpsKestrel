@@ -374,6 +374,10 @@ class StepResult(StrictModel):
     )
     condition_screenshot: Optional[str] = None
 
+    loop_count: Optional[int] = Field(default=None, ge=1)
+    loop_iterations_completed: int = Field(default=1, ge=0)
+    loop_delay_seconds: Optional[float] = Field(default=None, ge=0)
+
 
 class TaskResult(StrictModel):
     task_name: str

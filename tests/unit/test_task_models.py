@@ -785,6 +785,33 @@ class TaskResultTests(unittest.TestCase):
             payload,
         )
 
+    def test_task_result_serializes_loop_diagnostics(self):
+        started_at = datetime(2026, 11, 23, tzinfo=timezone.utc)
+        result = TaskResult(
+            task_name="looped_task",
+            status=TaskStatus.PASSED,
+            started_at=started_at,
+            finished_at=started_at,
+            steps=[
+                StepResult(
+                    index=0,
+                    type=ActionType.PRESS,
+                    status=StepStatus.PASSED,
+                    started_at=started_at,
+                    finished_at=started_at,
+                    loop_count=3,
+                    loop_iterations_completed=3,
+                    loop_delay_seconds=0.2,
+                )
+            ],
+        )
+
+        payload = result.model_dump_json()
+
+        self.assertIn('"loop_count":3', payload)
+        self.assertIn('"loop_iterations_completed":3', payload)
+        self.assertIn('"loop_delay_seconds":0.2', payload)
+
 
 class TaskDatasetResultTests(unittest.TestCase):
     def make_task_result(
