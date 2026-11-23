@@ -70,6 +70,11 @@ class TaskRunner:
         task_error = None
 
         for index, step in enumerate(task.steps):
+            condition_prompt = None
+            condition_expected = None
+            condition_actual = None
+            condition_duration = None
+
             if self._clock() - start_time > task.max_duration_seconds:
                 status = TaskStatus.TIMED_OUT
                 task_error = (
@@ -94,6 +99,12 @@ class TaskRunner:
                         step.condition.retry_delay_seconds,
                     )
                 except Exception as error:
+                    condition_prompt = step.condition.prompt
+                    condition_expected = step.condition.expected
+                    condition_duration = max(
+                        0.0,
+                        self._clock() - condition_start_time,
+                    )
                     status = TaskStatus.FAILED
                     task_error = str(error)
                     step_results.append(
@@ -103,19 +114,28 @@ class TaskRunner:
                             status=StepStatus.FAILED,
                             started_at=condition_started_at,
                             finished_at=datetime.now(timezone.utc),
-                            duration_seconds=max(
-                                0.0,
-                                self._clock() - condition_start_time,
-                            ),
+                            duration_seconds=condition_duration,
                             error=task_error,
                             screenshot=self._get_artifact(
                                 index,
                                 step,
                                 StepStatus.FAILED,
                             ),
+                            condition_prompt=condition_prompt,
+                            condition_expected=condition_expected,
+                            condition_actual=None,
+                            condition_duration_seconds=condition_duration,
                         )
                     )
                     break
+
+                condition_prompt = step.condition.prompt
+                condition_expected = step.condition.expected
+                condition_actual = condition_result
+                condition_duration = max(
+                    0.0,
+                    self._clock() - condition_start_time,
+                )
 
                 if condition_result != step.condition.expected:
                     skipped_at = datetime.now(timezone.utc)
@@ -126,15 +146,16 @@ class TaskRunner:
                             status=StepStatus.SKIPPED,
                             started_at=condition_started_at,
                             finished_at=skipped_at,
-                            duration_seconds=max(
-                                0.0,
-                                self._clock() - condition_start_time,
-                            ),
+                            duration_seconds=condition_duration,
                             error=(
                                 "condition not met: "
                                 f"expected {step.condition.expected}, "
                                 f"got {condition_result}"
                             ),
+                            condition_prompt=condition_prompt,
+                            condition_expected=condition_expected,
+                            condition_actual=condition_actual,
+                            condition_duration_seconds=condition_duration,
                         )
                     )
                     continue
@@ -238,6 +259,10 @@ class TaskRunner:
                             step,
                             StepStatus.FAILED,
                         ),
+                        condition_prompt=condition_prompt,
+                        condition_expected=condition_expected,
+                        condition_actual=condition_actual,
+                        condition_duration_seconds=condition_duration,
                     )
                 )
                 break
@@ -258,6 +283,10 @@ class TaskRunner:
                         step,
                         StepStatus.PASSED,
                     ),
+                    condition_prompt=condition_prompt,
+                    condition_expected=condition_expected,
+                    condition_actual=condition_actual,
+                    condition_duration_seconds=condition_duration,
                 )
             )
 

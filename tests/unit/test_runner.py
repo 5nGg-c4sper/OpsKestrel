@@ -364,6 +364,15 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertEqual(result.steps[0].status, StepStatus.PASSED)
         self.assertEqual(environment.calls, [("write", "conditional")])
         self.assertEqual(prompts, ["编辑区域是否已打开？"])
+        self.assertEqual(
+            result.steps[0].condition_prompt,
+            "编辑区域是否已打开？",
+        )
+        self.assertTrue(result.steps[0].condition_expected)
+        self.assertTrue(result.steps[0].condition_actual)
+        self.assertIsNotNone(
+            result.steps[0].condition_duration_seconds
+        )
 
     def test_false_condition_skips_step(self):
         environment = FakeEnvironment()
@@ -393,6 +402,10 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertEqual(result.status, TaskStatus.PASSED)
         self.assertEqual(result.steps[0].status, StepStatus.SKIPPED)
         self.assertIn("condition not met", result.steps[0].error)
+        self.assertFalse(result.steps[0].condition_actual)
+        self.assertIsNotNone(
+            result.steps[0].condition_duration_seconds
+        )
         self.assertEqual(result.steps[1].status, StepStatus.PASSED)
         self.assertEqual(environment.calls, [])
 
@@ -453,6 +466,14 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertEqual(result.status, TaskStatus.FAILED)
         self.assertEqual(result.steps[0].status, StepStatus.FAILED)
         self.assertIn("condition provider failed", result.error)
+        self.assertEqual(
+            result.steps[0].condition_prompt,
+            "条件是否成立？",
+        )
+        self.assertIsNone(result.steps[0].condition_actual)
+        self.assertIsNotNone(
+            result.steps[0].condition_duration_seconds
+        )
 
     def test_failed_action_records_artifact(self):
         runner = TaskRunner(
