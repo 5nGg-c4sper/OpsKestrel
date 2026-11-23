@@ -9,6 +9,7 @@ from soc_agent.actions.executor import ActionExecutor
 from soc_agent.runner import TaskRunner
 from soc_agent.safety.policy import SafetyPolicy
 from soc_agent.task_models import (
+    ActionType,
     StepStatus,
     TaskDefinition,
     TaskStatus,
@@ -136,6 +137,22 @@ class TaskRunnerTests(unittest.TestCase):
             "missing task parameters: right",
         ):
             TaskRunner.load_task(task_path)
+
+    def test_multi_app_activate_task_is_valid(self):
+        task_path = (
+            PROJECT_ROOT / "tasks" / "examples" / "multi_app_activate.json"
+        )
+
+        task = TaskRunner.load_task(task_path)
+
+        self.assertEqual(task.name, "multi_app_activate")
+        self.assertEqual(len(task.steps), 9)
+        self.assertEqual(task.steps[4].app, "文本编辑")
+        self.assertEqual(
+            task.steps[6].type,
+            ActionType.ACTIVATE_APP,
+        )
+        self.assertEqual(task.steps[6].app, "计算器")
 
     def test_successful_task(self):
         environment = FakeEnvironment()

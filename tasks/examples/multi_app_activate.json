@@ -1,0 +1,44 @@
+{
+  "name": "multi_app_activate",
+  "description": "计算 17*23，切换到文本编辑输入测试文本，再切回计算器验证结果",
+  "max_steps": 12,
+  "max_duration_seconds": 90,
+  "steps": [
+    {
+      "type": "open_app",
+      "app": "计算器"
+    },
+    {
+      "type": "write",
+      "content": "17*23"
+    },
+    {
+      "type": "press",
+      "keys": ["enter"]
+    },
+    {
+      "type": "verify_vision",
+      "prompt": "计算器是否显示结果 391？只返回 true 或 false。"
+    },
+    {
+      "type": "open_app",
+      "app": "文本编辑"
+    },
+    {
+      "type": "write",
+      "content": "MULTI APP OK"
+    },
+    {
+      "type": "activate_app",
+      "app": "计算器"
+    },
+    {
+      "type": "verify_vision",
+      "prompt": "计算器是否仍显示结果 391？只返回 true 或 false。"
+    },
+    {
+      "type": "done",
+      "summary": "多应用切换验证完成"
+    }
+  ]
+}
