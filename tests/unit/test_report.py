@@ -76,6 +76,25 @@ class ReportWriterTests(unittest.TestCase):
             relative_screenshot.startswith("artifacts/")
         )
 
+    def test_copies_condition_screenshot_to_artifact_directory(self):
+        source = self.root / "condition.png"
+        source.write_bytes(b"condition-image")
+
+        result = self.make_result()
+        result.steps[0].condition_screenshot = str(source)
+        writer = ReportWriter(self.output_dir)
+
+        path = writer.write(result)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        relative_screenshot = payload["steps"][0]["condition_screenshot"]
+        artifact_path = self.output_dir / relative_screenshot
+
+        self.assertEqual(artifact_path.read_bytes(), b"condition-image")
+        self.assertEqual(
+            artifact_path.name,
+            "condition-step-000.png",
+        )
+
     def test_writes_json_report(self):
         result = self.make_result()
         writer = ReportWriter(self.output_dir)

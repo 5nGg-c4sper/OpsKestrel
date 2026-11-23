@@ -366,6 +366,7 @@ class StepResult(StrictModel):
         default=None,
         ge=0,
     )
+    condition_screenshot: Optional[str] = None
 
 
 class TaskResult(StrictModel):

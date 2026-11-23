@@ -38,6 +38,9 @@ class TaskRunner:
         artifact_provider: Optional[
             Callable[[int, TaskStep, StepStatus], Optional[str]]
         ] = None,
+        condition_artifact_provider: Optional[
+            Callable[[int, TaskStep], Optional[str]]
+        ] = None,
         policy: Optional[SafetyPolicy] = None,
         clock: Optional[Callable[[], float]] = None,
         sleep: Optional[Callable[[float], None]] = None,
@@ -46,6 +49,7 @@ class TaskRunner:
         self.vision_verifier = vision_verifier
         self.confirmation_handler = confirmation_handler
         self.artifact_provider = artifact_provider
+        self.condition_artifact_provider = condition_artifact_provider
         self.policy = policy
         self._clock = clock or time.monotonic
         self._sleep = sleep or time.sleep
@@ -74,6 +78,7 @@ class TaskRunner:
             condition_expected = None
             condition_actual = None
             condition_duration = None
+            condition_screenshot = None
 
             if self._clock() - start_time > task.max_duration_seconds:
                 status = TaskStatus.TIMED_OUT
@@ -105,6 +110,9 @@ class TaskRunner:
                         0.0,
                         self._clock() - condition_start_time,
                     )
+                    condition_screenshot = (
+                        self._get_condition_artifact(index, step)
+                    )
                     status = TaskStatus.FAILED
                     task_error = str(error)
                     step_results.append(
@@ -125,6 +133,7 @@ class TaskRunner:
                             condition_expected=condition_expected,
                             condition_actual=None,
                             condition_duration_seconds=condition_duration,
+                            condition_screenshot=condition_screenshot,
                         )
                     )
                     break
@@ -135,6 +144,10 @@ class TaskRunner:
                 condition_duration = max(
                     0.0,
                     self._clock() - condition_start_time,
+                )
+                condition_screenshot = self._get_condition_artifact(
+                    index,
+                    step,
                 )
 
                 if condition_result != step.condition.expected:
@@ -156,6 +169,7 @@ class TaskRunner:
                             condition_expected=condition_expected,
                             condition_actual=condition_actual,
                             condition_duration_seconds=condition_duration,
+                            condition_screenshot=condition_screenshot,
                         )
                     )
                     continue
@@ -263,6 +277,7 @@ class TaskRunner:
                         condition_expected=condition_expected,
                         condition_actual=condition_actual,
                         condition_duration_seconds=condition_duration,
+                        condition_screenshot=condition_screenshot,
                     )
                 )
                 break
@@ -287,6 +302,7 @@ class TaskRunner:
                     condition_expected=condition_expected,
                     condition_actual=condition_actual,
                     condition_duration_seconds=condition_duration,
+                    condition_screenshot=condition_screenshot,
                 )
             )
 
@@ -344,6 +360,21 @@ class TaskRunner:
 
         try:
             artifact = self.artifact_provider(index, step, status)
+        except Exception:
+            return None
+
+        return str(artifact) if artifact else None
+
+    def _get_condition_artifact(
+        self,
+        index: int,
+        step: TaskStep,
+    ) -> Optional[str]:
+        if self.condition_artifact_provider is None:
+            return None
+
+        try:
+            artifact = self.condition_artifact_provider(index, step)
         except Exception:
             return None
 

@@ -341,6 +341,9 @@ class TaskRunnerTests(unittest.TestCase):
         runner = TaskRunner(
             ActionExecutor(environment, settle_delay=0),
             vision_verifier=lambda prompt: prompts.append(prompt) or True,
+            condition_artifact_provider=(
+                lambda index, step: "condition.png"
+            ),
         )
         task = TaskDefinition.model_validate(
             {
@@ -373,12 +376,19 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertIsNotNone(
             result.steps[0].condition_duration_seconds
         )
+        self.assertEqual(
+            result.steps[0].condition_screenshot,
+            "condition.png",
+        )
 
     def test_false_condition_skips_step(self):
         environment = FakeEnvironment()
         runner = TaskRunner(
             ActionExecutor(environment, settle_delay=0),
             vision_verifier=lambda prompt: False,
+            condition_artifact_provider=(
+                lambda index, step: "condition.png"
+            ),
         )
         task = TaskDefinition.model_validate(
             {
@@ -405,6 +415,10 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertFalse(result.steps[0].condition_actual)
         self.assertIsNotNone(
             result.steps[0].condition_duration_seconds
+        )
+        self.assertEqual(
+            result.steps[0].condition_screenshot,
+            "condition.png",
         )
         self.assertEqual(result.steps[1].status, StepStatus.PASSED)
         self.assertEqual(environment.calls, [])

@@ -733,6 +733,7 @@ class TaskResultTests(unittest.TestCase):
                     condition_expected=True,
                     condition_actual=False,
                     condition_duration_seconds=1.25,
+                    condition_screenshot="artifacts/condition.png",
                 )
             ],
         )
@@ -743,6 +744,10 @@ class TaskResultTests(unittest.TestCase):
         self.assertIn('"condition_expected":true', payload)
         self.assertIn('"condition_actual":false', payload)
         self.assertIn('"condition_duration_seconds":1.25', payload)
+        self.assertIn(
+            '"condition_screenshot":"artifacts/condition.png"',
+            payload,
+        )
 
 
 class TaskDatasetResultTests(unittest.TestCase):

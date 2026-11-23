@@ -40,18 +40,31 @@ class ReportWriter:
         artifact_dir = self.output_dir / "artifacts" / report_path.stem
 
         for step in result.steps:
-            if not step.screenshot:
-                continue
+            screenshot_fields = (
+                ("screenshot", "step"),
+                ("condition_screenshot", "condition-step"),
+            )
+            for field_name, prefix in screenshot_fields:
+                source_value = getattr(step, field_name)
+                if not source_value:
+                    continue
 
-            source = Path(step.screenshot)
-            if not source.is_file():
-                continue
+                source = Path(source_value)
+                if not source.is_file():
+                    continue
 
-            artifact_dir.mkdir(parents=True, exist_ok=True)
-            suffix = source.suffix or ".png"
-            target = artifact_dir / f"step-{step.index:03d}{suffix}"
-            shutil.copy2(source, target)
-            step.screenshot = str(target.relative_to(self.output_dir))
+                artifact_dir.mkdir(parents=True, exist_ok=True)
+                suffix = source.suffix or ".png"
+                target = (
+                    artifact_dir
+                    / f"{prefix}-{step.index:03d}{suffix}"
+                )
+                shutil.copy2(source, target)
+                setattr(
+                    step,
+                    field_name,
+                    str(target.relative_to(self.output_dir)),
+                )
 
     def _write_failure_log(
         self,

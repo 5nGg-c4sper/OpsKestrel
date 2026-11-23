@@ -183,10 +183,16 @@ def run_task(
 
         return None
 
+    def condition_artifact_provider(index, step):
+        if pending_verification_screenshots:
+            return pending_verification_screenshots.pop(0)
+        return None
+
     runner = TaskRunner(
         executor,
         vision_verifier=verify_vision,
         artifact_provider=artifact_provider,
+        condition_artifact_provider=condition_artifact_provider,
         policy=policy or SafetyPolicy(),
         confirmation_handler=confirmation_handler,
     )
