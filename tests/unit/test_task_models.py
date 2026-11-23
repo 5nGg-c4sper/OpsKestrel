@@ -496,6 +496,33 @@ class TaskDefinitionTests(unittest.TestCase):
                 with self.assertRaises(ValidationError):
                     TaskLoop(**values)
 
+    def test_loop_rejects_non_repeatable_action_types(self):
+        task_steps = (
+            {
+                "type": "verify_vision",
+                "prompt": "结果是否正确？",
+                "loop": {"count": 2},
+            },
+            {
+                "type": "done",
+                "summary": "finished",
+                "loop": {"count": 2},
+            },
+        )
+
+        for step in task_steps:
+            with self.subTest(action_type=step["type"]):
+                with self.assertRaisesRegex(
+                    ValidationError,
+                    "loop is not supported",
+                ):
+                    TaskDefinition.model_validate(
+                        {
+                            "name": "invalid_loop",
+                            "steps": [step],
+                        }
+                    )
+
     def test_write_requires_content(self):
         task = {
             "name": "missing_content",

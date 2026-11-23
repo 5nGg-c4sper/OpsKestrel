@@ -124,6 +124,14 @@ class TaskStep(StrictModel):
         if self.type == ActionType.VERIFY_VISION and not self.prompt:
             raise ValueError("verify_vision requires prompt")
 
+        if self.loop is not None and self.type in {
+            ActionType.VERIFY_VISION,
+            ActionType.DONE,
+        }:
+            raise ValueError(
+                f"loop is not supported for {self.type.value}"
+            )
+
         return self
 
 
