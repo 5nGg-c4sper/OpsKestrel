@@ -407,6 +407,47 @@ class TaskDefinitionTests(unittest.TestCase):
         ):
             TaskDefinition.model_validate(task)
 
+    def test_step_accepts_vision_condition(self):
+        task = TaskDefinition.model_validate(
+            {
+                "name": "conditional_write",
+                "steps": [
+                    {
+                        "type": "write",
+                        "content": "conditional",
+                        "condition": {
+                            "type": "vision",
+                            "prompt": "编辑区域是否已打开？",
+                            "expected": True,
+                        },
+                    }
+                ],
+            }
+        )
+
+        condition = task.steps[0].condition
+        self.assertIsNotNone(condition)
+        self.assertEqual(condition.type, ConditionType.VISION)
+        self.assertEqual(condition.prompt, "编辑区域是否已打开？")
+
+    def test_step_rejects_invalid_nested_condition(self):
+        with self.assertRaises(ValidationError):
+            TaskDefinition.model_validate(
+                {
+                    "name": "invalid_condition",
+                    "steps": [
+                        {
+                            "type": "write",
+                            "content": "conditional",
+                            "condition": {
+                                "type": "vision",
+                                "prompt": " ",
+                            },
+                        }
+                    ],
+                }
+            )
+
     def test_write_requires_content(self):
         task = {
             "name": "missing_content",
