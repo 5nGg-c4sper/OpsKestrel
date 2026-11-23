@@ -715,6 +715,35 @@ class TaskResultTests(unittest.TestCase):
         self.assertIn('"status":"passed"', payload)
         self.assertIn('"duration_seconds":4.5', payload)
 
+    def test_task_result_serializes_condition_diagnostics(self):
+        started_at = datetime(2026, 11, 23, tzinfo=timezone.utc)
+        result = TaskResult(
+            task_name="conditional_task",
+            status=TaskStatus.PASSED,
+            started_at=started_at,
+            finished_at=started_at,
+            steps=[
+                StepResult(
+                    index=0,
+                    type=ActionType.WAIT,
+                    status=StepStatus.SKIPPED,
+                    started_at=started_at,
+                    finished_at=started_at,
+                    condition_prompt="结果是否为 999？",
+                    condition_expected=True,
+                    condition_actual=False,
+                    condition_duration_seconds=1.25,
+                )
+            ],
+        )
+
+        payload = result.model_dump_json()
+
+        self.assertIn('"condition_prompt":"结果是否为 999？"', payload)
+        self.assertIn('"condition_expected":true', payload)
+        self.assertIn('"condition_actual":false', payload)
+        self.assertIn('"condition_duration_seconds":1.25', payload)
+
 
 class TaskDatasetResultTests(unittest.TestCase):
     def make_task_result(

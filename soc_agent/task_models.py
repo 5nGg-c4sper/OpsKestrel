@@ -359,6 +359,13 @@ class StepResult(StrictModel):
 
     error: Optional[str] = None
     screenshot: Optional[str] = None
+    condition_prompt: Optional[str] = None
+    condition_expected: Optional[bool] = None
+    condition_actual: Optional[bool] = None
+    condition_duration_seconds: Optional[float] = Field(
+        default=None,
+        ge=0,
+    )
 
 
 class TaskResult(StrictModel):
