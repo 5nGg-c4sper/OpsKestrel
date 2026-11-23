@@ -46,6 +46,31 @@ class DatasetFileTests(unittest.TestCase):
         task_path = (dataset_path.parent / dataset.task).resolve()
         self.assertTrue(task_path.is_file())
 
+    def test_failure_diagnostic_dataset_is_valid(self):
+        dataset_path = (
+            PROJECT_ROOT / "datasets" / "calculator_failure_case.json"
+        )
+        loaded = load_dataset(dataset_path)
+        case = loaded.definition.cases[0]
+
+        self.assertEqual(
+            loaded.definition.name,
+            "calculator_failure_diagnostic",
+        )
+        self.assertEqual(len(loaded.definition.cases), 1)
+        self.assertEqual(case.name, "expected_result_mismatch")
+        self.assertEqual(
+            case.parameters,
+            {
+                "left": "17",
+                "right": "23",
+                "expected_result": "999",
+            },
+        )
+        self.assertEqual(case.attempts, 1)
+        self.assertEqual(case.retry_delay_seconds, 0)
+        self.assertTrue(loaded.task_path.is_file())
+
 
 class DatasetLoaderTests(unittest.TestCase):
     def test_load_dataset_resolves_relative_task_path(self):
