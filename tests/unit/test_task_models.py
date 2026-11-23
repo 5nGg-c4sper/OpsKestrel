@@ -678,6 +678,36 @@ class TaskDatasetResultTests(unittest.TestCase):
             "vision verification failed",
         )
 
+    def test_dataset_result_aggregates_case_counts(self):
+        started_at = datetime(2026, 11, 20, tzinfo=timezone.utc)
+        statuses = (
+            TaskStatus.PASSED,
+            TaskStatus.FAILED,
+            TaskStatus.TIMED_OUT,
+            TaskStatus.CANCELLED,
+        )
+        case_results = [
+            TaskCaseResult(
+                name=f"case_{status.value}",
+                status=status,
+                task_result=self.make_task_result(status=status),
+            )
+            for status in statuses
+        ]
+        dataset_result = TaskDatasetResult(
+            dataset_name="mixed_results",
+            status=TaskStatus.FAILED,
+            started_at=started_at,
+            cases=case_results,
+        )
+
+        self.assertEqual(dataset_result.total, 4)
+        self.assertEqual(dataset_result.passed, 1)
+        self.assertEqual(dataset_result.failed, 1)
+        self.assertEqual(dataset_result.timed_out, 1)
+        self.assertEqual(dataset_result.cancelled, 1)
+        self.assertFalse(dataset_result.successful)
+
 
 if __name__ == "__main__":
     unittest.main()

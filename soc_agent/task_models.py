@@ -381,3 +381,35 @@ class TaskDatasetResult(StrictModel):
         if not value.strip():
             raise ValueError("must not be empty")
         return value
+
+    @property
+    def total(self) -> int:
+        return len(self.cases)
+
+    @property
+    def passed(self) -> int:
+        return sum(
+            case.status == TaskStatus.PASSED for case in self.cases
+        )
+
+    @property
+    def failed(self) -> int:
+        return sum(
+            case.status == TaskStatus.FAILED for case in self.cases
+        )
+
+    @property
+    def timed_out(self) -> int:
+        return sum(
+            case.status == TaskStatus.TIMED_OUT for case in self.cases
+        )
+
+    @property
+    def cancelled(self) -> int:
+        return sum(
+            case.status == TaskStatus.CANCELLED for case in self.cases
+        )
+
+    @property
+    def successful(self) -> bool:
+        return self.passed == self.total
