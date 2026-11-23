@@ -46,6 +46,14 @@ class MacOSEnvironmentTests(unittest.TestCase):
         self.environment.open_app("计算器")
         self.assertEqual(self.system.calls, [("open_app", "计算器")])
 
+    def test_activate_app(self):
+        self.environment.activate_app("Safari")
+        self.assertEqual(self.system.calls, [("open_app", "Safari")])
+
+    def test_activate_app_rejects_empty_name(self):
+        with self.assertRaises(ValueError):
+            self.environment.activate_app(" ")
+
     def test_write(self):
         self.environment.write("17*23")
         self.assertEqual(self.system.calls, [("write", "17*23")])
