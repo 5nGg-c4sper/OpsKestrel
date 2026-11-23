@@ -5,6 +5,7 @@ import os
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -16,13 +17,14 @@ from soc_agent.cli import (
     main,
     non_interactive_confirmation,
     parse_parameter_overrides,
+    print_result,
     run_dataset,
     run_task,
     run_suite,
     terminal_confirmation_handler,
 )
 from soc_agent.reporting.report import ReportWriter
-from soc_agent.task_models import TaskStatus, TaskStep
+from soc_agent.task_models import TaskResult, TaskStatus, TaskStep
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -257,6 +259,27 @@ class CLITests(unittest.TestCase):
         self.assertEqual(exit_code_for_status(TaskStatus.FAILED), 1)
         self.assertEqual(exit_code_for_status(TaskStatus.TIMED_OUT), 1)
         self.assertEqual(exit_code_for_status(TaskStatus.CANCELLED), 1)
+
+    def test_print_result_includes_failure_log(self):
+        timestamp = datetime.now(timezone.utc)
+        result = TaskResult(
+            task_name="failed_task",
+            status=TaskStatus.FAILED,
+            started_at=timestamp,
+            finished_at=timestamp,
+            error="action failed",
+            report_path="reports/failed_task.json",
+            failure_log="artifacts/report/failure.log",
+        )
+        output = StringIO()
+
+        with redirect_stdout(output):
+            print_result(result)
+
+        self.assertIn(
+            "Failure log: artifacts/report/failure.log",
+            output.getvalue(),
+        )
 
     def test_terminal_confirmation_accepts_yes(self):
         output = StringIO()

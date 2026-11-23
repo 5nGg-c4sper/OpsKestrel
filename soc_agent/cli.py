@@ -387,6 +387,8 @@ def print_result(result: TaskResult) -> None:
         print(f"Report: {result.report_path}")
     if result.error:
         print(f"Error: {result.error}")
+    if result.failure_log:
+        print(f"Failure log: {result.failure_log}")
 
 
 def print_suite_result(result: SuiteResult) -> None:
