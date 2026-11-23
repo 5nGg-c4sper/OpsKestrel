@@ -138,6 +138,15 @@ Condition diagnostics include the prompt, expected and actual values, condition
 duration, and an archived `condition_screenshot`. These fields are also shown
 in terminal output and included in failure logs when condition evaluation fails.
 
+Deterministic steps can repeat without duplicating JSON:
+
+```bash
+./venv/bin/soc-agent run tasks/examples/loop_write.json
+```
+
+`loop.count` is the total execution count and `loop.delay_seconds` is the delay
+between iterations. Conditions are evaluated once before entering a loop.
+
 For local development without the installed command, use
 `./venv/bin/python -m soc_agent` with the same arguments.
 

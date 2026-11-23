@@ -170,6 +170,19 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertTrue(task.steps[4].condition.expected)
         self.assertIn("999", task.steps[4].condition.prompt)
 
+    def test_loop_write_task_is_valid(self):
+        task_path = (
+            PROJECT_ROOT / "tasks" / "examples" / "loop_write.json"
+        )
+
+        task = TaskRunner.load_task(task_path)
+
+        self.assertEqual(task.name, "loop_write")
+        self.assertEqual(task.steps[2].type, ActionType.WRITE)
+        self.assertEqual(task.steps[2].content, "LOOP ")
+        self.assertEqual(task.steps[2].loop.count, 3)
+        self.assertEqual(task.steps[2].loop.delay_seconds, 0.2)
+
     def test_successful_task(self):
         environment = FakeEnvironment()
         runner = TaskRunner(

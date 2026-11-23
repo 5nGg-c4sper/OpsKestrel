@@ -1,0 +1,32 @@
+{
+  "name": "loop_write",
+  "description": "在 TextEdit 新建文稿中循环输入三次 LOOP 并验证，不保存文件",
+  "max_steps": 8,
+  "max_duration_seconds": 60,
+  "steps": [
+    {
+      "type": "open_app",
+      "app": "文本编辑"
+    },
+    {
+      "type": "press",
+      "keys": ["command", "n"]
+    },
+    {
+      "type": "write",
+      "content": "LOOP ",
+      "loop": {
+        "count": 3,
+        "delay_seconds": 0.2
+      }
+    },
+    {
+      "type": "verify_vision",
+      "prompt": "文稿中是否至少出现三次 LOOP 文本？只返回 true 或 false。"
+    },
+    {
+      "type": "done",
+      "summary": "循环输入验证完成，文件未保存"
+    }
+  ]
+}

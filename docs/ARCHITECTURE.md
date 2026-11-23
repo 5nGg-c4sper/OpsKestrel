@@ -68,6 +68,8 @@ Dataset JSON
 任务失败，从而区分“业务不适用”和“判断过程本身出错”。
 条件诊断保存在 `StepResult` 的 `condition_*` 字段中，条件截图使用独立 artifact
 文件名，避免覆盖普通视觉验证截图。
+确定性动作可配置 `loop.count` 和 `loop.delay_seconds`。循环结果记录配置次数、
+实际完成次数和间隔；`verify_vision`、`done` 不允许配置循环。
 
 ## 数据与隐私
 
