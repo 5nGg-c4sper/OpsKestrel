@@ -117,6 +117,16 @@ This command is expected to return exit code `1`. Each non-passed task writes a
 through `failure_log`. Dataset output also prints failed case names, attempt
 counts, errors, task reports, and failure log paths.
 
+Run the safe cross-application activation example:
+
+```bash
+./venv/bin/soc-agent run tasks/examples/multi_app_activate.json
+```
+
+`open_app` starts or opens an application. `activate_app` explicitly brings an
+application to the foreground, including applications already opened earlier in
+the same task.
+
 For local development without the installed command, use
 `./venv/bin/python -m soc_agent` with the same arguments.
 

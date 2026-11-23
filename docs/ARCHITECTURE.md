@@ -54,6 +54,7 @@ Dataset JSON
 ## 任务动作
 
 - `open_app`：按名称打开应用
+- `activate_app`：将已有或已打开的应用切换到前台
 - `write`：输入文本
 - `press`：发送按键或组合键
 - `click`：使用 `0-1` 归一化坐标点击
