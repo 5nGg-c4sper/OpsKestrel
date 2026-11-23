@@ -562,6 +562,10 @@ class CLITests(unittest.TestCase):
         self.assertIn(("write", "3*4"), environment.calls)
         self.assertIn("Dataset: calculator_regression", output.getvalue())
         self.assertIn("Cases: 2", output.getvalue())
+        self.assertIn("Passed: 2", output.getvalue())
+        self.assertIn("Failed: 0", output.getvalue())
+        self.assertIn("Timed out: 0", output.getvalue())
+        self.assertIn("Cancelled: 0", output.getvalue())
         self.assertIn("Status: PASSED", output.getvalue())
 
     def test_main_dataset_stops_after_failed_case(self):
@@ -600,6 +604,8 @@ class CLITests(unittest.TestCase):
         self.assertIn(("write", "17*23"), environment.calls)
         self.assertNotIn(("write", "3*4"), environment.calls)
         self.assertIn("Cases: 1", output.getvalue())
+        self.assertIn("Passed: 0", output.getvalue())
+        self.assertIn("Failed: 1", output.getvalue())
         self.assertIn("Stopped early: yes", output.getvalue())
         self.assertIn("Status: FAILED", output.getvalue())
 

@@ -403,23 +403,11 @@ def print_suite_result(result: SuiteResult) -> None:
 def print_dataset_result(result: TaskDatasetResult) -> None:
     print(f"Dataset: {result.dataset_name}")
     print(f"Status: {result.status.value.upper()}")
-    print(f"Cases: {len(result.cases)}")
-    print(
-        "Passed: "
-        f"{sum(case.status == TaskStatus.PASSED for case in result.cases)}"
-    )
-    print(
-        "Failed: "
-        f"{sum(case.status == TaskStatus.FAILED for case in result.cases)}"
-    )
-    print(
-        "Timed out: "
-        f"{sum(case.status == TaskStatus.TIMED_OUT for case in result.cases)}"
-    )
-    print(
-        "Cancelled: "
-        f"{sum(case.status == TaskStatus.CANCELLED for case in result.cases)}"
-    )
+    print(f"Cases: {result.total}")
+    print(f"Passed: {result.passed}")
+    print(f"Failed: {result.failed}")
+    print(f"Timed out: {result.timed_out}")
+    print(f"Cancelled: {result.cancelled}")
     print(f"Duration: {result.duration_seconds:.2f} seconds")
     if result.report_path:
         print(f"Report: {result.report_path}")
