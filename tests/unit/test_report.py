@@ -234,6 +234,37 @@ class ReportWriterTests(unittest.TestCase):
                     content,
                 )
 
+    def test_failure_log_includes_condition_diagnostics(self):
+        result = self.make_result(
+            status=TaskStatus.FAILED,
+            error="condition provider failed",
+        )
+        step = result.steps[0]
+        step.condition_prompt = "结果是否正确？"
+        step.condition_expected = True
+        step.condition_actual = False
+        step.condition_duration_seconds = 1.25
+        step.condition_screenshot = "artifacts/condition-step-000.png"
+        writer = ReportWriter(self.output_dir)
+
+        path = writer.write(result)
+        log_path = (
+            self.output_dir
+            / "artifacts"
+            / path.stem
+            / "failure.log"
+        )
+        content = log_path.read_text(encoding="utf-8")
+
+        self.assertIn("prompt='结果是否正确？'", content)
+        self.assertIn("expected=True", content)
+        self.assertIn("actual=False", content)
+        self.assertIn("duration=1.25s", content)
+        self.assertIn(
+            "condition screenshot: artifacts/condition-step-000.png",
+            content,
+        )
+
 
 class DatasetReportWriterTests(unittest.TestCase):
     def setUp(self):

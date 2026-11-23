@@ -93,6 +93,20 @@ class ReportWriter:
             )
             if step.error:
                 lines.append(f"  error: {step.error}")
+            if step.condition_prompt is not None:
+                lines.append(
+                    "  condition: "
+                    f"prompt={step.condition_prompt!r}, "
+                    f"expected={step.condition_expected}, "
+                    f"actual={step.condition_actual}, "
+                    "duration="
+                    f"{step.condition_duration_seconds or 0.0:.2f}s"
+                )
+            if step.condition_screenshot:
+                lines.append(
+                    f"  condition screenshot: "
+                    f"{step.condition_screenshot}"
+                )
             if step.screenshot:
                 lines.append(f"  screenshot: {step.screenshot}")
 
