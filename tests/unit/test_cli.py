@@ -608,6 +608,10 @@ class CLITests(unittest.TestCase):
         self.assertIn("Failed: 1", output.getvalue())
         self.assertIn("Stopped early: yes", output.getvalue())
         self.assertIn("Status: FAILED", output.getvalue())
+        self.assertIn("Case: default_17x23", output.getvalue())
+        self.assertIn("Attempts: 1", output.getvalue())
+        self.assertIn("Task report:", output.getvalue())
+        self.assertIn("Failure log:", output.getvalue())
 
     def test_run_dataset_archives_failure_diagnostics(self):
         environment = FakeEnvironment()

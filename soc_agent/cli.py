@@ -414,6 +414,19 @@ def print_dataset_result(result: TaskDatasetResult) -> None:
     if result.stopped_early:
         print("Stopped early: yes")
 
+    for case in result.cases:
+        if case.status == TaskStatus.PASSED:
+            continue
+        print(f"Case: {case.name}")
+        print(f"  Status: {case.status.value.upper()}")
+        print(f"  Attempts: {case.attempts}")
+        if case.error:
+            print(f"  Error: {case.error}")
+        if case.task_result.report_path:
+            print(f"  Task report: {case.task_result.report_path}")
+        if case.task_result.failure_log:
+            print(f"  Failure log: {case.task_result.failure_log}")
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
