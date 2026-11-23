@@ -106,6 +106,17 @@ Stop immediately when a case does not pass:
   --stop-on-failure
 ```
 
+Failure diagnostics can be verified with the intentionally failing dataset:
+
+```bash
+./venv/bin/soc-agent dataset datasets/calculator_failure_case.json
+```
+
+This command is expected to return exit code `1`. Each non-passed task writes a
+`failure.log` beside its report artifacts, and the task JSON report links to it
+through `failure_log`. Dataset output also prints failed case names, attempt
+counts, errors, task reports, and failure log paths.
+
 For local development without the installed command, use
 `./venv/bin/python -m soc_agent` with the same arguments.
 
