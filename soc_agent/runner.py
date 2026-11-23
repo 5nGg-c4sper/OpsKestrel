@@ -83,6 +83,62 @@ class TaskRunner:
                 )
                 break
 
+            if step.condition is not None:
+                condition_started_at = datetime.now(timezone.utc)
+                condition_start_time = self._clock()
+                try:
+                    condition_result = self._check_vision(
+                        step.condition.prompt,
+                        step.condition.expected,
+                        step.condition.attempts,
+                        step.condition.retry_delay_seconds,
+                    )
+                except Exception as error:
+                    status = TaskStatus.FAILED
+                    task_error = str(error)
+                    step_results.append(
+                        StepResult(
+                            index=index,
+                            type=step.type,
+                            status=StepStatus.FAILED,
+                            started_at=condition_started_at,
+                            finished_at=datetime.now(timezone.utc),
+                            duration_seconds=max(
+                                0.0,
+                                self._clock() - condition_start_time,
+                            ),
+                            error=task_error,
+                            screenshot=self._get_artifact(
+                                index,
+                                step,
+                                StepStatus.FAILED,
+                            ),
+                        )
+                    )
+                    break
+
+                if condition_result != step.condition.expected:
+                    skipped_at = datetime.now(timezone.utc)
+                    step_results.append(
+                        StepResult(
+                            index=index,
+                            type=step.type,
+                            status=StepStatus.SKIPPED,
+                            started_at=condition_started_at,
+                            finished_at=skipped_at,
+                            duration_seconds=max(
+                                0.0,
+                                self._clock() - condition_start_time,
+                            ),
+                            error=(
+                                "condition not met: "
+                                f"expected {step.condition.expected}, "
+                                f"got {condition_result}"
+                            ),
+                        )
+                    )
+                    continue
+
             if self.policy is not None:
                 try:
                     self.policy.validate(step)
@@ -143,28 +199,21 @@ class TaskRunner:
 
             try:
                 if step.type == ActionType.VERIFY_VISION:
-                    if self.vision_verifier is None:
+                    verification_result = self._check_vision(
+                        step.prompt,
+                        step.expected_vision_result,
+                        step.verification_attempts,
+                        step.verification_retry_delay_seconds,
+                    )
+                    if (
+                        verification_result
+                        != step.expected_vision_result
+                    ):
                         raise TaskRunnerError(
-                            "verify_vision requires a vision verifier"
-                        )
-                    for attempt in range(step.verification_attempts):
-                        verification_result = self.vision_verifier(
-                            step.prompt
-                        )
-                        if (
-                            verification_result
-                            == step.expected_vision_result
-                        ):
-                            break
-                        if attempt + 1 == step.verification_attempts:
-                            raise TaskRunnerError(
-                                "vision verification failed after "
-                                f"{step.verification_attempts} attempt(s): "
-                                f"expected {step.expected_vision_result}, "
-                                f"got {verification_result}: {step.prompt}"
-                            )
-                        self._sleep(
-                            step.verification_retry_delay_seconds
+                            "vision verification failed after "
+                            f"{step.verification_attempts} attempt(s): "
+                            f"expected {step.expected_vision_result}, "
+                            f"got {verification_result}: {step.prompt}"
                         )
                     outcome = StepOutcome.CONTINUE
                 else:
@@ -232,6 +281,28 @@ class TaskRunner:
             steps=step_results,
             error=task_error,
         )
+
+    def _check_vision(
+        self,
+        prompt: str,
+        expected: bool,
+        attempts: int,
+        retry_delay_seconds: float,
+    ) -> bool:
+        if self.vision_verifier is None:
+            raise TaskRunnerError(
+                "vision verification requires a vision verifier"
+            )
+
+        verification_result = None
+        for attempt in range(attempts):
+            verification_result = self.vision_verifier(prompt)
+            if verification_result == expected:
+                return verification_result
+            if attempt + 1 < attempts:
+                self._sleep(retry_delay_seconds)
+
+        return bool(verification_result)
 
     def _get_artifact(
         self,

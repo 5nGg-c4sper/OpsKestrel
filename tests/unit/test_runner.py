@@ -319,6 +319,125 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertEqual(sleeps, [0.1, 0.1])
         self.assertIn("after 3 attempt(s)", result.error)
 
+    def test_true_condition_executes_step(self):
+        environment = FakeEnvironment()
+        prompts = []
+        runner = TaskRunner(
+            ActionExecutor(environment, settle_delay=0),
+            vision_verifier=lambda prompt: prompts.append(prompt) or True,
+        )
+        task = TaskDefinition.model_validate(
+            {
+                "name": "conditional_write",
+                "steps": [
+                    {
+                        "type": "write",
+                        "content": "conditional",
+                        "condition": {
+                            "type": "vision",
+                            "prompt": "编辑区域是否已打开？",
+                        },
+                    }
+                ],
+            }
+        )
+
+        result = runner.run(task)
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertEqual(result.steps[0].status, StepStatus.PASSED)
+        self.assertEqual(environment.calls, [("write", "conditional")])
+        self.assertEqual(prompts, ["编辑区域是否已打开？"])
+
+    def test_false_condition_skips_step(self):
+        environment = FakeEnvironment()
+        runner = TaskRunner(
+            ActionExecutor(environment, settle_delay=0),
+            vision_verifier=lambda prompt: False,
+        )
+        task = TaskDefinition.model_validate(
+            {
+                "name": "conditional_skip",
+                "steps": [
+                    {
+                        "type": "write",
+                        "content": "must not run",
+                        "condition": {
+                            "type": "vision",
+                            "prompt": "编辑区域是否已打开？",
+                        },
+                    },
+                    {"type": "done", "summary": "finished"},
+                ],
+            }
+        )
+
+        result = runner.run(task)
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertEqual(result.steps[0].status, StepStatus.SKIPPED)
+        self.assertIn("condition not met", result.steps[0].error)
+        self.assertEqual(result.steps[1].status, StepStatus.PASSED)
+        self.assertEqual(environment.calls, [])
+
+    def test_expected_false_condition_executes_step(self):
+        environment = FakeEnvironment()
+        runner = TaskRunner(
+            ActionExecutor(environment, settle_delay=0),
+            vision_verifier=lambda prompt: False,
+        )
+        task = TaskDefinition.model_validate(
+            {
+                "name": "negative_condition",
+                "steps": [
+                    {
+                        "type": "write",
+                        "content": "negative condition",
+                        "condition": {
+                            "type": "vision",
+                            "prompt": "错误提示是否未显示？",
+                            "expected": False,
+                        },
+                    }
+                ],
+            }
+        )
+
+        result = runner.run(task)
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertEqual(environment.calls, [("write", "negative condition")])
+
+    def test_condition_verifier_error_fails_task(self):
+        def verify(prompt):
+            raise RuntimeError("condition provider failed")
+
+        runner = TaskRunner(
+            ActionExecutor(FakeEnvironment(), settle_delay=0),
+            vision_verifier=verify,
+        )
+        task = TaskDefinition.model_validate(
+            {
+                "name": "condition_error",
+                "steps": [
+                    {
+                        "type": "write",
+                        "content": "must not run",
+                        "condition": {
+                            "type": "vision",
+                            "prompt": "条件是否成立？",
+                        },
+                    }
+                ],
+            }
+        )
+
+        result = runner.run(task)
+
+        self.assertEqual(result.status, TaskStatus.FAILED)
+        self.assertEqual(result.steps[0].status, StepStatus.FAILED)
+        self.assertIn("condition provider failed", result.error)
+
     def test_failed_action_records_artifact(self):
         runner = TaskRunner(
             FlakyExecutor(),
