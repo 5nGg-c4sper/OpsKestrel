@@ -43,7 +43,7 @@ Dataset JSON
 | `soc_agent/environments/macos.py` | 封装应用、键鼠、截图和等待操作 |
 | `soc_agent/providers/qwen.py` | 调用 Qwen 完成截图验证 |
 | `soc_agent/safety/policy.py` | 阻止危险快捷键和敏感应用 |
-| `soc_agent/reporting/report.py` | 持久化 JSON 报告和截图 artifacts |
+| `soc_agent/reporting/report.py` | 持久化 JSON 报告、截图和失败诊断日志 |
 | `soc_agent/reporting/dataset_report.py` | 持久化数据集汇总报告 |
 | `soc_agent/suite.py` | 顺序执行多个任务并汇总结果 |
 | `soc_agent/datasets.py` | 加载数据集并解析任务路径 |
@@ -83,3 +83,6 @@ Dataset JSON
 
 失败步骤会记录错误信息和可用截图。批量任务默认继续执行后续任务，也可以通过
 `--stop-on-failure` 提前停止。
+
+非成功任务会额外写入 `failure.log`。任务 JSON 报告通过 `failure_log` 字段引用
+日志位置；数据集汇总报告保留嵌套任务的日志路径、实际尝试次数和是否提前停止。

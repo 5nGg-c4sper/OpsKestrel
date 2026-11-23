@@ -29,18 +29,20 @@ SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优
 - SiliconFlow Qwen 视觉验证 Provider
 - 正向/反向视觉断言和视觉验证重试
 - JSON 执行报告和截图 artifact 归档
+- 结构化 `failure.log` 归档和报告日志路径引用
 - 单任务 CLI
 - 批量任务 suite
 - 数据驱动 dataset 模型、加载器、顺序执行器和汇总报告
-- `soc-agent dataset` 数据集命令和失败停止/重试策略
+- `soc-agent dataset` 数据集命令、失败停止/重试策略和诊断输出
 - 基础安全策略
 - GitHub Actions 单元测试配置
 
 当前验证结果：
 
-- 152 个单元测试通过
+- 161 个单元测试通过
 - 计算器任务连续批量执行成功
 - 两组参数化计算器任务在真实 macOS 上验证成功
+- 双 case 数据集在真实 macOS 上连续执行成功
 - 真实报告包含视觉验证截图
 
 ## 下一里程碑
