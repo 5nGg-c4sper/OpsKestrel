@@ -395,6 +395,24 @@ def print_result(result: TaskResult) -> None:
         print(f"Error: {result.error}")
     if result.failure_log:
         print(f"Failure log: {result.failure_log}")
+    print_condition_diagnostics(result)
+
+
+def print_condition_diagnostics(result: TaskResult) -> None:
+    for step in result.steps:
+        if step.condition_prompt is None:
+            continue
+        print(
+            f"Condition [{step.index}] {step.status.value}: "
+            f"expected={step.condition_expected}, "
+            f"actual={step.condition_actual}, "
+            f"duration={step.condition_duration_seconds or 0.0:.2f}s"
+        )
+        print(f"  Prompt: {step.condition_prompt}")
+        if step.condition_screenshot:
+            print(
+                f"  Screenshot: {step.condition_screenshot}"
+            )
 
 
 def print_suite_result(result: SuiteResult) -> None:

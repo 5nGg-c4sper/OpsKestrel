@@ -24,7 +24,14 @@ from soc_agent.cli import (
     terminal_confirmation_handler,
 )
 from soc_agent.reporting.report import ReportWriter
-from soc_agent.task_models import TaskResult, TaskStatus, TaskStep
+from soc_agent.task_models import (
+    ActionType,
+    StepResult,
+    StepStatus,
+    TaskResult,
+    TaskStatus,
+    TaskStep,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -279,6 +286,43 @@ class CLITests(unittest.TestCase):
         self.assertIn(
             "Failure log: artifacts/report/failure.log",
             output.getvalue(),
+        )
+
+    def test_print_result_includes_condition_diagnostics(self):
+        timestamp = datetime.now(timezone.utc)
+        result = TaskResult(
+            task_name="conditional_task",
+            status=TaskStatus.PASSED,
+            started_at=timestamp,
+            finished_at=timestamp,
+            steps=[
+                StepResult(
+                    index=0,
+                    type=ActionType.WAIT,
+                    status=StepStatus.SKIPPED,
+                    started_at=timestamp,
+                    finished_at=timestamp,
+                    condition_prompt="结果是否为 999？",
+                    condition_expected=True,
+                    condition_actual=False,
+                    condition_duration_seconds=1.25,
+                    condition_screenshot="condition-step-000.png",
+                )
+            ],
+        )
+        output = StringIO()
+
+        with redirect_stdout(output):
+            print_result(result)
+
+        printed = output.getvalue()
+        self.assertIn("Condition [0] skipped", printed)
+        self.assertIn("expected=True, actual=False", printed)
+        self.assertIn("duration=1.25s", printed)
+        self.assertIn("Prompt: 结果是否为 999？", printed)
+        self.assertIn(
+            "Screenshot: condition-step-000.png",
+            printed,
         )
 
     def test_terminal_confirmation_accepts_yes(self):

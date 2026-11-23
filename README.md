@@ -134,6 +134,10 @@ match, the step is recorded as `skipped` and the task continues:
 ./venv/bin/soc-agent run tasks/examples/conditional_step_skip.json
 ```
 
+Condition diagnostics include the prompt, expected and actual values, condition
+duration, and an archived `condition_screenshot`. These fields are also shown
+in terminal output and included in failure logs when condition evaluation fails.
+
 For local development without the installed command, use
 `./venv/bin/python -m soc_agent` with the same arguments.
 
