@@ -127,6 +127,13 @@ Run the safe cross-application activation example:
 application to the foreground, including applications already opened earlier in
 the same task.
 
+Any regular step can include a vision `condition`. When the condition does not
+match, the step is recorded as `skipped` and the task continues:
+
+```bash
+./venv/bin/soc-agent run tasks/examples/conditional_step_skip.json
+```
+
 For local development without the installed command, use
 `./venv/bin/python -m soc_agent` with the same arguments.
 

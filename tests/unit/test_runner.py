@@ -154,6 +154,22 @@ class TaskRunnerTests(unittest.TestCase):
         )
         self.assertEqual(task.steps[6].app, "计算器")
 
+    def test_conditional_step_skip_task_is_valid(self):
+        task_path = (
+            PROJECT_ROOT
+            / "tasks"
+            / "examples"
+            / "conditional_step_skip.json"
+        )
+
+        task = TaskRunner.load_task(task_path)
+
+        self.assertEqual(task.name, "conditional_step_skip")
+        self.assertEqual(task.steps[4].type, ActionType.WAIT)
+        self.assertIsNotNone(task.steps[4].condition)
+        self.assertTrue(task.steps[4].condition.expected)
+        self.assertIn("999", task.steps[4].condition.prompt)
+
     def test_successful_task(self):
         environment = FakeEnvironment()
         runner = TaskRunner(

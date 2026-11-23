@@ -1,0 +1,37 @@
+{
+  "name": "conditional_step_skip",
+  "description": "计算 17*23，并验证条件不满足时跳过后续等待步骤",
+  "max_steps": 8,
+  "max_duration_seconds": 60,
+  "steps": [
+    {
+      "type": "open_app",
+      "app": "计算器"
+    },
+    {
+      "type": "write",
+      "content": "17*23"
+    },
+    {
+      "type": "press",
+      "keys": ["enter"]
+    },
+    {
+      "type": "verify_vision",
+      "prompt": "计算器是否显示结果 391？只返回 true 或 false。"
+    },
+    {
+      "type": "wait",
+      "seconds": 0.1,
+      "condition": {
+        "type": "vision",
+        "prompt": "计算器是否显示结果 999？只返回 true 或 false。",
+        "expected": true
+      }
+    },
+    {
+      "type": "done",
+      "summary": "条件步骤已按预期跳过"
+    }
+  ]
+}
