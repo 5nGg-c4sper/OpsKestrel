@@ -36,6 +36,17 @@ class SafetyPolicyTests(unittest.TestCase):
                 TaskStep(type="open_app", app="Terminal")
             )
 
+    def test_blocks_activate_terminal(self):
+        with self.assertRaisesRegex(SafetyViolation, "Terminal"):
+            self.policy.validate(
+                TaskStep(type="activate_app", app="Terminal")
+            )
+
+    def test_allows_normal_activate_app(self):
+        self.policy.validate(
+            TaskStep(type="activate_app", app="Safari")
+        )
+
     def test_blocks_system_settings(self):
         with self.assertRaises(SafetyViolation):
             self.policy.validate(

@@ -33,9 +33,12 @@ class SafetyPolicy:
             if "q" in keys and ("command" in keys or "cmd" in keys):
                 raise SafetyViolation("Command+Q is not allowed")
 
-        if step.type == ActionType.OPEN_APP:
+        if step.type in {
+            ActionType.OPEN_APP,
+            ActionType.ACTIVATE_APP,
+        }:
             app_name = (step.app or "").strip().casefold()
             if app_name in self.blocked_apps:
                 raise SafetyViolation(
-                    f"opening application is not allowed: {step.app}"
+                    f"application access is not allowed: {step.app}"
                 )
