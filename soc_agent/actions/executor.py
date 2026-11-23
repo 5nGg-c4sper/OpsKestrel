@@ -31,6 +31,11 @@ class ActionExecutor:
             self._settle()
             return StepOutcome.CONTINUE
 
+        if step.type == ActionType.ACTIVATE_APP:
+            self.environment.activate_app(step.app)
+            self._settle()
+            return StepOutcome.CONTINUE
+
         if step.type == ActionType.WRITE:
             self.environment.write(step.content)
             return StepOutcome.CONTINUE

@@ -17,6 +17,9 @@ class FakeEnvironment:
     def open_app(self, app):
         self.calls.append(("open_app", app))
 
+    def activate_app(self, app):
+        self.calls.append(("activate_app", app))
+
     def write(self, content):
         self.calls.append(("write", content))
 
@@ -47,6 +50,17 @@ class ActionExecutorTests(unittest.TestCase):
         self.assertEqual(
             self.environment.calls,
             [("open_app", "计算器"), ("wait", 0.6)],
+        )
+
+    def test_activate_app(self):
+        result = self.executor.execute(
+            TaskStep(type="activate_app", app="Safari")
+        )
+
+        self.assertEqual(result, StepOutcome.CONTINUE)
+        self.assertEqual(
+            self.environment.calls,
+            [("activate_app", "Safari"), ("wait", 0.6)],
         )
 
     def test_write(self):
