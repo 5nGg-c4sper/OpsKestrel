@@ -16,6 +16,7 @@ from soc_agent.environments.macos import MacOSEnvironment
 from soc_agent.providers.qwen import QwenVisionProvider
 from soc_agent.reporting.dataset_report import DatasetReportWriter
 from soc_agent.reporting.report import ReportWriter
+from soc_agent.reporting.suite_report import SuiteReportWriter
 from soc_agent.runner import TaskRunner
 from soc_agent.safety.policy import SafetyPolicy
 from soc_agent.suite import SuiteResult, SuiteRunner
@@ -349,10 +350,12 @@ def run_suite(
         print(f"Status: {result.status.value.upper()}")
         return result
 
-    return SuiteRunner(
+    result = SuiteRunner(
         execute_task,
         stop_on_failure=stop_on_failure,
     ).run(suite_path)
+    SuiteReportWriter(reporter.output_dir).write(result)
+    return result
 
 
 def run_dataset(
@@ -416,12 +419,15 @@ def print_condition_diagnostics(result: TaskResult) -> None:
 
 
 def print_suite_result(result: SuiteResult) -> None:
+    print(f"Suite: {result.suite_name}")
     print(f"Total: {result.total}")
     print(f"Passed: {result.passed}")
     print(f"Failed: {result.failed}")
     print(f"Timed out: {result.timed_out}")
     print(f"Cancelled: {result.cancelled}")
     print(f"Duration: {result.duration_seconds:.2f} seconds")
+    if result.report_path:
+        print(f"Report: {result.report_path}")
     if result.stopped_early:
         print("Stopped early: yes")
 

@@ -522,8 +522,18 @@ class CLITests(unittest.TestCase):
 
         self.assertTrue(suite_result.successful)
         self.assertEqual(suite_result.total, 2)
+        self.assertTrue(Path(suite_result.report_path).is_file())
         self.assertIn(("write", "17*23"), environment.calls)
         self.assertIn(("write", "125*23"), environment.calls)
+
+        payload = json.loads(
+            Path(suite_result.report_path).read_text(encoding="utf-8")
+        )
+        self.assertEqual(payload["suite_name"], suite_path.name)
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(len(payload["results"]), 2)
+        for task_payload in payload["results"]:
+            self.assertTrue(Path(task_payload["report_path"]).is_file())
 
     def test_main_passes_cli_parameters_to_suite(self):
         suite_path = self.write_parameterized_suite()
@@ -537,6 +547,7 @@ class CLITests(unittest.TestCase):
             self.assertEqual(args.param, ["right=23"])
             return environment, executor, vision_provider, reporter
 
+        output = StringIO()
         with (
             patch("soc_agent.cli.load_dotenv"),
             patch.dict(
@@ -544,7 +555,7 @@ class CLITests(unittest.TestCase):
                 {"OPENAI_API_KEY": "test-key"},
                 clear=False,
             ),
-            redirect_stdout(StringIO()),
+            redirect_stdout(output),
         ):
             exit_code = main(
                 [
@@ -557,6 +568,8 @@ class CLITests(unittest.TestCase):
             )
 
         self.assertEqual(exit_code, 0)
+        self.assertIn("Suite: suite", output.getvalue())
+        self.assertIn("Report:", output.getvalue())
         self.assertIn(("write", "17*23"), environment.calls)
         self.assertIn(("write", "125*23"), environment.calls)
 
