@@ -53,6 +53,14 @@ Dataset JSON
 | `soc_agent/cli.py` | 参数解析和依赖装配 |
 | `soc_agent/config.py` | 从环境变量加载并验证运行配置 |
 
+## CI 边界
+
+- Ubuntu 单元测试工作流在每次 push 和 pull request 时运行。
+- 真实 GUI 冒烟工作流只允许 `workflow_dispatch` 手动触发。
+- GUI 工作流固定使用 `self-hosted`、`macOS`、`soc-gui` 标签，并串行执行。
+- 执行前检查登录态桌面、Accessibility、Screen Recording 和 API Key。
+- GUI 报告默认只保留在 Runner 本机；截图 artifact 上传必须显式选择。
+
 ## 任务动作
 
 - `open_app`：按名称打开应用

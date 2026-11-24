@@ -220,6 +220,30 @@ also produce their own summary reports. Verification screenshots are archived
 under `reports/artifacts/<report-name>/`. Reports and screenshots are ignored by
 Git because they may contain sensitive desktop content.
 
+## Manual macOS GUI CI
+
+The `macOS GUI Smoke` GitHub Actions workflow runs deterministic tasks on a
+self-hosted Mac in a logged-in GUI session. It is manual-only and never runs on
+pushes or pull requests, preventing ordinary CI jobs from taking control of a
+developer desktop.
+
+Prepare the self-hosted runner:
+
+1. Register a repository-level macOS runner and add the custom `soc-gui` label.
+2. Start the runner from Terminal while the same user is logged into an
+   unlocked desktop session. Do not install it as a background-only service.
+3. Grant the runner host application Accessibility and Screen Recording
+   permissions in macOS System Settings.
+4. Create the repository secret `OPENAI_API_KEY`.
+5. Optionally create the repository variable `OPENAI_BASE_URL`. It defaults to
+   `https://api.siliconflow.cn/v1`.
+
+From GitHub, open **Actions**, select **macOS GUI Smoke**, choose the task and
+model, then run the workflow. Only a small allowlist of reviewed tasks is
+available. Report upload is disabled by default because screenshots may contain
+sensitive desktop content; enable `upload_reports` only when a seven-day private
+artifact is acceptable.
+
 The project keeps the original MIT license and remains a derivative of the
 OthersideAI Self-Operating Computer project.
 
