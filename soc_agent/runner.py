@@ -86,6 +86,26 @@ class TaskRunner:
                 step_results,
                 start_time,
             )
+        else:
+            self._append_skipped(
+                step_results,
+                task.steps,
+                0,
+                StepPhase.MAIN,
+                "setup did not pass",
+            )
+
+        cleanup_status, cleanup_error = self._run_sequence(
+            task,
+            task.cleanup_steps,
+            StepPhase.CLEANUP,
+            step_results,
+            start_time,
+            enforce_timeout=False,
+        )
+        if cleanup_status != TaskStatus.PASSED and status == TaskStatus.PASSED:
+            status = cleanup_status
+            task_error = cleanup_error
 
         finished_at = datetime.now(timezone.utc)
 
@@ -106,6 +126,7 @@ class TaskRunner:
         phase: StepPhase,
         step_results,
         start_time: float,
+        enforce_timeout: bool = True,
     ):
         status = TaskStatus.PASSED
         task_error = None
@@ -127,7 +148,11 @@ class TaskRunner:
             )
             iterations_completed = 0
 
-            if self._clock() - start_time > task.max_duration_seconds:
+            if (
+                enforce_timeout
+                and self._clock() - start_time
+                > task.max_duration_seconds
+            ):
                 status = TaskStatus.TIMED_OUT
                 task_error = (
                     f"task exceeded {task.max_duration_seconds} seconds"

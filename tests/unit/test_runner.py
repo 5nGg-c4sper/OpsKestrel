@@ -222,6 +222,9 @@ class TaskRunnerTests(unittest.TestCase):
                     {"type": "write", "content": "main"},
                     {"type": "done", "summary": "finished"},
                 ],
+                "cleanup_steps": [
+                    {"type": "write", "content": "cleanup"}
+                ],
             }
         )
 
@@ -230,16 +233,84 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertEqual(result.status, TaskStatus.PASSED)
         self.assertEqual(
             environment.calls,
-            [("write", "prepare"), ("write", "main")],
+            [
+                ("write", "prepare"),
+                ("write", "main"),
+                ("write", "cleanup"),
+            ],
         )
         self.assertEqual(
             [step.phase for step in result.steps],
-            [StepPhase.SETUP, StepPhase.MAIN, StepPhase.MAIN],
+            [
+                StepPhase.SETUP,
+                StepPhase.MAIN,
+                StepPhase.MAIN,
+                StepPhase.CLEANUP,
+            ],
         )
         self.assertEqual(
             [step.index for step in result.steps],
-            [0, 1, 2],
+            [0, 1, 2, 3],
         )
+
+    def test_cleanup_runs_after_main_failure(self):
+        class FailingEnvironment(FakeEnvironment):
+            def write(self, content):
+                self.calls.append(("write", content))
+                if content == "main":
+                    raise RuntimeError("main failed")
+
+        environment = FailingEnvironment()
+        runner = TaskRunner(
+            ActionExecutor(environment, settle_delay=0)
+        )
+        task = TaskDefinition.model_validate(
+            {
+                "name": "cleanup_after_failure",
+                "steps": [{"type": "write", "content": "main"}],
+                "cleanup_steps": [
+                    {"type": "write", "content": "cleanup"}
+                ],
+            }
+        )
+
+        result = runner.run(task)
+
+        self.assertEqual(result.status, TaskStatus.FAILED)
+        self.assertEqual(
+            environment.calls,
+            [("write", "main"), ("write", "cleanup")],
+        )
+        self.assertEqual(result.steps[-1].phase, StepPhase.CLEANUP)
+        self.assertEqual(result.steps[-1].status, StepStatus.PASSED)
+
+    def test_cleanup_failure_changes_passed_task_status(self):
+        class CleanupFailEnvironment(FakeEnvironment):
+            def write(self, content):
+                self.calls.append(("write", content))
+                if content == "cleanup":
+                    raise RuntimeError("cleanup failed")
+
+        environment = CleanupFailEnvironment()
+        runner = TaskRunner(
+            ActionExecutor(environment, settle_delay=0)
+        )
+        task = TaskDefinition.model_validate(
+            {
+                "name": "cleanup_failure",
+                "steps": [{"type": "done", "summary": "finished"}],
+                "cleanup_steps": [
+                    {"type": "write", "content": "cleanup"}
+                ],
+            }
+        )
+
+        result = runner.run(task)
+
+        self.assertEqual(result.status, TaskStatus.FAILED)
+        self.assertIn("cleanup failed", result.error)
+        self.assertEqual(result.steps[-1].phase, StepPhase.CLEANUP)
+        self.assertEqual(result.steps[-1].status, StepStatus.FAILED)
 
     def test_artifact_provider_records_step_screenshot(self):
         environment = FakeEnvironment()
