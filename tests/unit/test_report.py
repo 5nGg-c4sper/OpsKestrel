@@ -8,6 +8,8 @@ from pathlib import Path
 
 from soc_agent.reporting.dataset_report import DatasetReportWriter
 from soc_agent.reporting.report import ReportWriter
+from soc_agent.reporting.suite_report import SuiteReportWriter
+from soc_agent.suite import SuiteResult
 from soc_agent.task_models import (
     ActionType,
     StepResult,
@@ -383,6 +385,114 @@ class DatasetReportWriterTests(unittest.TestCase):
 
         self.assertEqual(payload["cases"][0]["attempts"], 2)
         self.assertTrue(payload["stopped_early"])
+
+
+class SuiteReportWriterTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.root = Path(self.temporary_directory.name)
+        self.output_dir = self.root / "reports"
+        self.timestamp = datetime(
+            2026,
+            11,
+            24,
+            8,
+            30,
+            0,
+            tzinfo=timezone.utc,
+        )
+
+    def make_suite_result(self, suite_name="calculator_suite"):
+        passed_task = TaskResult(
+            task_name="calculator_parameterized",
+            status=TaskStatus.PASSED,
+            started_at=self.timestamp,
+            finished_at=self.timestamp,
+            duration_seconds=3.5,
+            report_path="reports/default_17x23.json",
+        )
+        failed_task = TaskResult(
+            task_name="calculator_failure",
+            status=TaskStatus.FAILED,
+            started_at=self.timestamp,
+            finished_at=self.timestamp,
+            duration_seconds=1.5,
+            error="verification failed",
+            report_path="reports/failure.json",
+            failure_log=(
+                "artifacts/20261124-083000-calculator_failure/"
+                "failure.log"
+            ),
+        )
+        return SuiteResult(
+            results=[passed_task, failed_task],
+            suite_name=suite_name,
+            started_at=self.timestamp,
+            finished_at=self.timestamp,
+            duration_seconds=5.0,
+        )
+
+    def test_writes_suite_summary_report(self):
+        result = self.make_suite_result()
+        writer = SuiteReportWriter(self.output_dir)
+
+        path = writer.write(result)
+
+        self.assertTrue(path.is_file())
+        self.assertEqual(result.report_path, str(path))
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["suite_name"], "calculator_suite")
+        self.assertEqual(payload["status"], "failed")
+        self.assertEqual(payload["total"], 2)
+        self.assertEqual(payload["passed"], 1)
+        self.assertEqual(payload["failed"], 1)
+        self.assertEqual(payload["duration_seconds"], 5.0)
+        self.assertEqual(payload["report_path"], str(path))
+
+    def test_preserves_nested_task_report_and_failure_paths(self):
+        result = self.make_suite_result()
+        writer = SuiteReportWriter(self.output_dir)
+
+        path = writer.write(result)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            payload["results"][0]["report_path"],
+            "reports/default_17x23.json",
+        )
+        self.assertEqual(
+            payload["results"][1]["report_path"],
+            "reports/failure.json",
+        )
+        self.assertEqual(
+            payload["results"][1]["failure_log"],
+            result.results[1].failure_log,
+        )
+
+    def test_sanitizes_suite_name(self):
+        result = self.make_suite_result("calculator / regression")
+        writer = SuiteReportWriter(self.output_dir)
+
+        path = writer.write(result)
+
+        self.assertEqual(
+            path.name,
+            "20261124-083000-calculator-regression.json",
+        )
+
+    def test_avoids_overwriting_existing_report(self):
+        result = self.make_suite_result()
+        writer = SuiteReportWriter(self.output_dir)
+
+        first_path = writer.write(result)
+        second_path = writer.write(result)
+
+        self.assertNotEqual(first_path, second_path)
+        self.assertEqual(
+            second_path.name,
+            "20261124-083000-calculator_suite-1.json",
+        )
 
 
 if __name__ == "__main__":
