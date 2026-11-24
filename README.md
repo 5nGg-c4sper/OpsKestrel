@@ -147,6 +147,16 @@ Deterministic steps can repeat without duplicating JSON:
 `loop.count` is the total execution count and `loop.delay_seconds` is the delay
 between iterations. Conditions are evaluated once before entering a loop.
 
+Tasks can define `setup_steps` and `cleanup_steps` around the main `steps`:
+
+```bash
+./venv/bin/soc-agent run tasks/examples/setup_cleanup.json
+```
+
+Setup runs before the main flow. Cleanup runs after success, failure, timeout, or
+early completion. A cleanup failure changes a previously passed task to failed,
+but does not replace an existing main-flow failure.
+
 For local development without the installed command, use
 `./venv/bin/python -m soc_agent` with the same arguments.
 

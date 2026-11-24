@@ -184,6 +184,23 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertEqual(task.steps[2].loop.count, 3)
         self.assertEqual(task.steps[2].loop.delay_seconds, 0.2)
 
+    def test_setup_cleanup_example_is_valid(self):
+        task_path = (
+            PROJECT_ROOT / "tasks" / "examples" / "setup_cleanup.json"
+        )
+
+        task = TaskRunner.load_task(task_path)
+
+        self.assertEqual(task.name, "setup_cleanup")
+        self.assertEqual(len(task.setup_steps), 2)
+        self.assertEqual(len(task.steps), 3)
+        self.assertEqual(len(task.cleanup_steps), 1)
+        self.assertEqual(task.setup_steps[0].type, ActionType.OPEN_APP)
+        self.assertEqual(
+            task.cleanup_steps[0].content,
+            "CLEANUP ",
+        )
+
     def test_successful_task(self):
         environment = FakeEnvironment()
         runner = TaskRunner(

@@ -70,6 +70,8 @@ Dataset JSON
 文件名，避免覆盖普通视觉验证截图。
 确定性动作可配置 `loop.count` 和 `loop.delay_seconds`。循环结果记录配置次数、
 实际完成次数和间隔；`verify_vision`、`done` 不允许配置循环。
+任务可按 `setup_steps → steps → cleanup_steps` 三阶段执行。每个
+`StepResult.phase` 标识所属阶段；cleanup 在主流程结束或失败后都会执行。
 
 ## 数据与隐私
 

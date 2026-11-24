@@ -1,0 +1,36 @@
+{
+  "name": "setup_cleanup",
+  "description": "准备 TextEdit 文稿，执行主流程，并在结束后写入清理标记，不保存文件",
+  "max_steps": 8,
+  "max_duration_seconds": 60,
+  "setup_steps": [
+    {
+      "type": "open_app",
+      "app": "文本编辑"
+    },
+    {
+      "type": "press",
+      "keys": ["command", "n"]
+    }
+  ],
+  "steps": [
+    {
+      "type": "write",
+      "content": "MAIN "
+    },
+    {
+      "type": "verify_vision",
+      "prompt": "文稿中是否出现 MAIN 文本？只返回 true 或 false。"
+    },
+    {
+      "type": "done",
+      "summary": "主流程完成"
+    }
+  ],
+  "cleanup_steps": [
+    {
+      "type": "write",
+      "content": "CLEANUP "
+    }
+  ]
+}
