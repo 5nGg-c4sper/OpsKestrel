@@ -70,6 +70,52 @@ Every task in a parameterized suite must declare each shared parameter. A task
 that does not declare a supplied parameter fails with an unknown parameter
 error.
 
+Every task still writes its own report and artifacts. After the suite finishes,
+SOC Agent also writes a summary report under `reports/` named
+`<timestamp>-<suite-name>.json` and prints its path:
+
+```text
+Suite: tasks
+Total: 2
+Passed: 2
+Failed: 0
+Timed out: 0
+Cancelled: 0
+Duration: 8.72 seconds
+Report: reports/20261124-090000-tasks.json
+```
+
+The suite report includes overall counts, status, timing, whether execution
+stopped early, and every nested task result. Task `report_path` and
+`failure_log` values are preserved so an inspector can trace the summary back
+to the original diagnostics:
+
+```json
+{
+  "suite_name": "tasks",
+  "status": "passed",
+  "total": 1,
+  "passed": 1,
+  "failed": 0,
+  "timed_out": 0,
+  "cancelled": 0,
+  "stopped_early": false,
+  "results": [
+    {
+      "task_name": "calculator_17x23",
+      "status": "passed",
+      "report_path": "reports/20261124-090000-calculator_17x23.json",
+      "failure_log": null
+    }
+  ],
+  "report_path": "reports/20261124-090000-tasks.json"
+}
+```
+
+Suite names are sanitized for filenames. A repeated run with the same timestamp
+uses a `-1`, `-2`, and subsequent suffix instead of overwriting an earlier
+report.
+
 Run a data-driven task dataset:
 
 ```bash
@@ -169,9 +215,10 @@ The package must be installed in editable mode after changing entry points:
 If the environment uses legacy `setuptools` without editable-install support,
 use `./venv/bin/python setup.py develop` instead.
 
-Each task produces a JSON report under `reports/`. Verification screenshots are
-archived under `reports/artifacts/<report-name>/`. Reports and screenshots are
-ignored by Git because they may contain sensitive desktop content.
+Each task produces a JSON report under `reports/`. Suite and dataset commands
+also produce their own summary reports. Verification screenshots are archived
+under `reports/artifacts/<report-name>/`. Reports and screenshots are ignored by
+Git because they may contain sensitive desktop content.
 
 The project keeps the original MIT license and remains a derivative of the
 OthersideAI Self-Operating Computer project.
