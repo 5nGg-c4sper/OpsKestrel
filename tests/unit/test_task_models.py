@@ -9,6 +9,7 @@ from soc_agent.task_models import (
     ActionType,
     ConditionType,
     StepResult,
+    StepPhase,
     StepStatus,
     TaskCaseResult,
     TaskCondition,
@@ -144,6 +145,26 @@ class TaskDefinitionTests(unittest.TestCase):
         self.assertEqual(len(task.steps), 5)
         self.assertEqual(task.steps[0].type, ActionType.OPEN_APP)
         self.assertEqual(task.steps[1].content, "17*23")
+        self.assertEqual(task.setup_steps, [])
+        self.assertEqual(task.cleanup_steps, [])
+
+    def test_task_accepts_setup_and_cleanup_steps(self):
+        task_data = {
+            **self.valid_task,
+            "setup_steps": [
+                {"type": "open_app", "app": "文本编辑"},
+            ],
+            "cleanup_steps": [
+                {"type": "press", "keys": ["escape"]},
+            ],
+        }
+
+        task = TaskDefinition.model_validate(task_data)
+
+        self.assertEqual(len(task.setup_steps), 1)
+        self.assertEqual(task.setup_steps[0].app, "文本编辑")
+        self.assertEqual(len(task.cleanup_steps), 1)
+        self.assertEqual(task.cleanup_steps[0].keys, ["escape"])
 
     def test_parameters_with_defaults_and_required_values_are_parsed(self):
         task_data = {

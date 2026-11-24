@@ -38,6 +38,12 @@ class StepStatus(str, Enum):
     SKIPPED = "skipped"
 
 
+class StepPhase(str, Enum):
+    SETUP = "setup"
+    MAIN = "main"
+    CLEANUP = "cleanup"
+
+
 class TaskStatus(str, Enum):
     PASSED = "passed"
     FAILED = "failed"
@@ -172,7 +178,9 @@ class TaskDefinition(StrictModel):
 
     max_steps: int = Field(default=20, ge=1, le=100)
     max_duration_seconds: float = Field(default=120.0, gt=0, le=3600)
+    setup_steps: List[TaskStep] = Field(default_factory=list)
     steps: List[TaskStep] = Field(min_length=1)
+    cleanup_steps: List[TaskStep] = Field(default_factory=list)
 
     @field_validator("name")
     @classmethod
@@ -366,6 +374,7 @@ class StepResult(StrictModel):
     index: int = Field(ge=0)
     type: ActionType
     status: StepStatus
+    phase: StepPhase = StepPhase.MAIN
 
     started_at: datetime
     finished_at: Optional[datetime] = None
