@@ -287,7 +287,12 @@ class TaskDefinition(StrictModel):
         if data["app"] is not None:
             data["app"] = render_text(data["app"])
 
-        for step in data["steps"]:
+        all_steps = (
+            data["setup_steps"]
+            + data["steps"]
+            + data["cleanup_steps"]
+        )
+        for step in all_steps:
             for field_name in ("app", "content", "prompt", "summary"):
                 if step[field_name] is not None:
                     step[field_name] = render_text(step[field_name])
@@ -306,10 +311,22 @@ class TaskDefinition(StrictModel):
 
     @model_validator(mode="after")
     def validate_step_count(self):
-        if len(self.steps) > self.max_steps:
+        total_steps = (
+            len(self.setup_steps)
+            + len(self.steps)
+            + len(self.cleanup_steps)
+        )
+        if total_steps > self.max_steps:
             raise ValueError(
-                f"task has {len(self.steps)} steps, "
+                f"task has {total_steps} steps, "
                 f"but max_steps is {self.max_steps}"
+            )
+        if any(
+            step.type == ActionType.DONE
+            for step in self.setup_steps + self.cleanup_steps
+        ):
+            raise ValueError(
+                "done is only supported in main steps"
             )
         return self
 

@@ -166,6 +166,68 @@ class TaskDefinitionTests(unittest.TestCase):
         self.assertEqual(len(task.cleanup_steps), 1)
         self.assertEqual(task.cleanup_steps[0].keys, ["escape"])
 
+    def test_step_count_includes_setup_and_cleanup(self):
+        task = {
+            "name": "too_many_phase_steps",
+            "max_steps": 2,
+            "setup_steps": [{"type": "wait", "seconds": 0.1}],
+            "steps": [{"type": "wait", "seconds": 0.1}],
+            "cleanup_steps": [{"type": "wait", "seconds": 0.1}],
+        }
+
+        with self.assertRaisesRegex(ValidationError, "max_steps"):
+            TaskDefinition.model_validate(task)
+
+    def test_done_is_rejected_in_setup_or_cleanup(self):
+        for field_name in ("setup_steps", "cleanup_steps"):
+            with self.subTest(field_name=field_name):
+                task = {
+                    "name": "invalid_done",
+                    "steps": [{"type": "done", "summary": "finished"}],
+                    field_name: [
+                        {"type": "done", "summary": "phase finished"}
+                    ],
+                }
+                with self.assertRaisesRegex(
+                    ValidationError,
+                    "done is only supported in main steps",
+                ):
+                    TaskDefinition.model_validate(task)
+
+    def test_setup_and_cleanup_parameters_are_rendered(self):
+        task = TaskDefinition.model_validate(
+            {
+                "name": "phase_parameters",
+                "parameters": {
+                    "setup_text": {},
+                    "cleanup_text": {},
+                },
+                "setup_steps": [
+                    {"type": "write", "content": "${setup_text}"}
+                ],
+                "steps": [{"type": "done", "summary": "finished"}],
+                "cleanup_steps": [
+                    {"type": "write", "content": "${cleanup_text}"}
+                ],
+            }
+        )
+
+        rendered = task.render_parameters(
+            {
+                "setup_text": "prepared",
+                "cleanup_text": "cleaned",
+            }
+        )
+
+        self.assertEqual(
+            rendered.setup_steps[0].content,
+            "prepared",
+        )
+        self.assertEqual(
+            rendered.cleanup_steps[0].content,
+            "cleaned",
+        )
+
     def test_parameters_with_defaults_and_required_values_are_parsed(self):
         task_data = {
             **self.valid_task,
