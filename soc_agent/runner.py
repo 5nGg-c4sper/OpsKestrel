@@ -10,6 +10,7 @@ from soc_agent.actions.executor import ActionExecutor, StepOutcome
 from soc_agent.safety.policy import SafetyPolicy, SafetyViolation
 from soc_agent.task_models import (
     ActionType,
+    StepPhase,
     StepResult,
     StepStatus,
     TaskDefinition,
@@ -70,10 +71,47 @@ class TaskRunner:
         start_time = self._clock()
         step_results = []
 
+        status, task_error = self._run_sequence(
+            task,
+            task.setup_steps,
+            StepPhase.SETUP,
+            step_results,
+            start_time,
+        )
+        if status == TaskStatus.PASSED:
+            status, task_error = self._run_sequence(
+                task,
+                task.steps,
+                StepPhase.MAIN,
+                step_results,
+                start_time,
+            )
+
+        finished_at = datetime.now(timezone.utc)
+
+        return TaskResult(
+            task_name=task.name,
+            status=status,
+            started_at=started_at,
+            finished_at=finished_at,
+            duration_seconds=max(0.0, self._clock() - start_time),
+            steps=step_results,
+            error=task_error,
+        )
+
+    def _run_sequence(
+        self,
+        task: TaskDefinition,
+        steps,
+        phase: StepPhase,
+        step_results,
+        start_time: float,
+    ):
         status = TaskStatus.PASSED
         task_error = None
 
-        for index, step in enumerate(task.steps):
+        for position, step in enumerate(steps):
+            index = len(step_results)
             condition_prompt = None
             condition_expected = None
             condition_actual = None
@@ -96,8 +134,9 @@ class TaskRunner:
                 )
                 self._append_skipped(
                     step_results,
-                    task,
-                    index,
+                    steps,
+                    position,
+                    phase,
                     task_error,
                 )
                 break
@@ -129,6 +168,7 @@ class TaskRunner:
                             index=index,
                             type=step.type,
                             status=StepStatus.FAILED,
+                            phase=phase,
                             started_at=condition_started_at,
                             finished_at=datetime.now(timezone.utc),
                             duration_seconds=condition_duration,
@@ -169,6 +209,7 @@ class TaskRunner:
                             index=index,
                             type=step.type,
                             status=StepStatus.SKIPPED,
+                            phase=phase,
                             started_at=condition_started_at,
                             finished_at=skipped_at,
                             duration_seconds=condition_duration,
@@ -199,8 +240,9 @@ class TaskRunner:
                     )
                     self._append_skipped(
                         step_results,
-                        task,
-                        index,
+                        steps,
+                        position,
+                        phase,
                         task_error,
                     )
                     break
@@ -214,8 +256,9 @@ class TaskRunner:
                     )
                     self._append_skipped(
                         step_results,
-                        task,
-                        index,
+                        steps,
+                        position,
+                        phase,
                         task_error,
                     )
                     break
@@ -227,8 +270,9 @@ class TaskRunner:
                     task_error = str(error)
                     self._append_skipped(
                         step_results,
-                        task,
-                        index,
+                        steps,
+                        position,
+                        phase,
                         task_error,
                     )
                     break
@@ -238,8 +282,9 @@ class TaskRunner:
                     task_error = f"step {index} was rejected"
                     self._append_skipped(
                         step_results,
-                        task,
-                        index,
+                        steps,
+                        position,
+                        phase,
                         task_error,
                     )
                     break
@@ -282,6 +327,7 @@ class TaskRunner:
                         index=index,
                         type=step.type,
                         status=StepStatus.FAILED,
+                        phase=phase,
                         started_at=step_started_at,
                         finished_at=datetime.now(timezone.utc),
                         duration_seconds=max(
@@ -311,6 +357,7 @@ class TaskRunner:
                     index=index,
                     type=step.type,
                     status=StepStatus.PASSED,
+                    phase=phase,
                     started_at=step_started_at,
                     finished_at=datetime.now(timezone.utc),
                     duration_seconds=max(
@@ -336,23 +383,14 @@ class TaskRunner:
             if outcome == StepOutcome.DONE:
                 self._append_skipped(
                     step_results,
-                    task,
-                    index + 1,
+                    steps,
+                    position + 1,
+                    phase,
                     "task already completed",
                 )
                 break
 
-        finished_at = datetime.now(timezone.utc)
-
-        return TaskResult(
-            task_name=task.name,
-            status=status,
-            started_at=started_at,
-            finished_at=finished_at,
-            duration_seconds=max(0.0, self._clock() - start_time),
-            steps=step_results,
-            error=task_error,
-        )
+        return status, task_error
 
     def _check_vision(
         self,
@@ -410,18 +448,20 @@ class TaskRunner:
     @staticmethod
     def _append_skipped(
         step_results,
-        task: TaskDefinition,
-        start_index: int,
+        steps,
+        start_position: int,
+        phase: StepPhase,
         reason: str,
     ) -> None:
-        for index in range(start_index, len(task.steps)):
-            step = task.steps[index]
+        for position in range(start_position, len(steps)):
+            step = steps[position]
             skipped_at = datetime.now(timezone.utc)
             step_results.append(
                 StepResult(
-                    index=index,
+                    index=len(step_results),
                     type=step.type,
                     status=StepStatus.SKIPPED,
+                    phase=phase,
                     started_at=skipped_at,
                     finished_at=skipped_at,
                     duration_seconds=0.0,

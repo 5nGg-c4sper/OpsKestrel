@@ -10,6 +10,7 @@ from soc_agent.runner import TaskRunner
 from soc_agent.safety.policy import SafetyPolicy
 from soc_agent.task_models import (
     ActionType,
+    StepPhase,
     StepStatus,
     TaskDefinition,
     TaskStatus,
@@ -204,6 +205,40 @@ class TaskRunnerTests(unittest.TestCase):
                 ("write", "17*23"),
                 ("press", ["enter"]),
             ],
+        )
+
+    def test_setup_steps_run_before_main_steps(self):
+        environment = FakeEnvironment()
+        runner = TaskRunner(
+            ActionExecutor(environment, settle_delay=0)
+        )
+        task = TaskDefinition.model_validate(
+            {
+                "name": "setup_task",
+                "setup_steps": [
+                    {"type": "write", "content": "prepare"}
+                ],
+                "steps": [
+                    {"type": "write", "content": "main"},
+                    {"type": "done", "summary": "finished"},
+                ],
+            }
+        )
+
+        result = runner.run(task)
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertEqual(
+            environment.calls,
+            [("write", "prepare"), ("write", "main")],
+        )
+        self.assertEqual(
+            [step.phase for step in result.steps],
+            [StepPhase.SETUP, StepPhase.MAIN, StepPhase.MAIN],
+        )
+        self.assertEqual(
+            [step.index for step in result.steps],
+            [0, 1, 2],
         )
 
     def test_artifact_provider_records_step_screenshot(self):
