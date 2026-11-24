@@ -41,6 +41,9 @@ class SuiteRunnerTests(unittest.TestCase):
         self.assertEqual(result.total, 3)
         self.assertEqual(result.passed, 3)
         self.assertTrue(result.successful)
+        self.assertIsNotNone(result.started_at)
+        self.assertIsNotNone(result.finished_at)
+        self.assertIsNone(result.report_path)
 
     def test_failure_continues_by_default(self):
         calls = []
