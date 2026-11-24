@@ -39,6 +39,7 @@ class SuiteRunnerTests(unittest.TestCase):
 
         self.assertEqual(calls, ["a.json", "b.json", "c.json"])
         self.assertEqual(result.total, 3)
+        self.assertEqual(result.suite_name, self.root.name)
         self.assertEqual(result.passed, 3)
         self.assertTrue(result.successful)
         self.assertIsNotNone(result.started_at)
@@ -91,6 +92,7 @@ class SuiteRunnerTests(unittest.TestCase):
         result = SuiteRunner(execute).run(self.root / "a.json")
 
         self.assertEqual(result.total, 1)
+        self.assertEqual(result.suite_name, "a")
         self.assertEqual(result.failed, 1)
         self.assertIn("runner crashed", result.results[0].error)
 
