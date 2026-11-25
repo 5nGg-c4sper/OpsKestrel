@@ -124,6 +124,10 @@ class SQLiteQueueStoreTests(unittest.TestCase):
         )
 
         claimed = self.store.claim_next()
+        self.store.complete(
+            claimed.job_id,
+            QueueState.CANCELLED,
+        )
         remaining = self.store.claim_next()
 
         self.assertEqual(claimed.job_id, "high")
@@ -156,6 +160,10 @@ class SQLiteQueueStoreTests(unittest.TestCase):
         general = self.store.claim_next(
             "worker-a",
             worker_labels=["office-mac"],
+        )
+        self.store.complete(
+            general.job_id,
+            QueueState.CANCELLED,
         )
         labeled = self.store.claim_next(
             "worker-b",

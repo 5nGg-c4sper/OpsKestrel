@@ -1,6 +1,7 @@
 """Tests for persistent queue job execution."""
 
 import tempfile
+import threading
 import time
 import unittest
 from datetime import datetime, timezone
@@ -280,6 +281,7 @@ class QueueWorkerTests(unittest.TestCase):
                 hostname,
                 pid,
                 labels=None,
+                max_concurrency=1,
             ):
                 self.registered = True
                 return None
@@ -347,6 +349,63 @@ class QueueWorkerTests(unittest.TestCase):
         self.assertGreaterEqual(len(store.worker_heartbeats), 1)
         self.assertTrue(store.offline)
         self.assertEqual(completed.state, QueueState.PASSED)
+
+    def test_parallel_safe_jobs_use_worker_capacity(self):
+        for index in range(2):
+            self.store.enqueue(
+                DatasetTargetType.TASK,
+                f"parallel-{index}.json",
+                parallel_safe=True,
+            )
+        lock = threading.Lock()
+        active = [0]
+        maximum = [0]
+
+        def execute_job(job):
+            with lock:
+                active[0] += 1
+                maximum[0] = max(maximum[0], active[0])
+            time.sleep(0.05)
+            with lock:
+                active[0] -= 1
+            return self.make_task_result()
+
+        completed = QueueWorker(
+            self.store,
+            execute_job,
+            max_concurrency=2,
+        ).run_until_empty(max_jobs=2)
+
+        self.assertEqual(len(completed), 2)
+        self.assertEqual(maximum[0], 2)
+
+    def test_gui_jobs_remain_globally_serialized(self):
+        for index in range(2):
+            self.store.enqueue(
+                DatasetTargetType.TASK,
+                f"serial-{index}.json",
+            )
+        lock = threading.Lock()
+        active = [0]
+        maximum = [0]
+
+        def execute_job(job):
+            with lock:
+                active[0] += 1
+                maximum[0] = max(maximum[0], active[0])
+            time.sleep(0.05)
+            with lock:
+                active[0] -= 1
+            return self.make_task_result()
+
+        completed = QueueWorker(
+            self.store,
+            execute_job,
+            max_concurrency=2,
+        ).run_until_empty(max_jobs=2)
+
+        self.assertEqual(len(completed), 2)
+        self.assertEqual(maximum[0], 1)
 
 
 if __name__ == "__main__":

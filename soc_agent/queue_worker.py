@@ -4,6 +4,11 @@ import os
 import socket
 import threading
 import uuid
+from concurrent.futures import (
+    FIRST_COMPLETED,
+    ThreadPoolExecutor,
+    wait,
+)
 from typing import Callable, List, Optional, Union
 
 from soc_agent.queue_models import QueueJob, QueueState
@@ -26,11 +31,14 @@ class QueueWorker:
         worker_id: Optional[str] = None,
         labels: Optional[List[str]] = None,
         heartbeat_interval_seconds: Optional[float] = None,
+        max_concurrency: int = 1,
     ):
         if stale_after_seconds <= 0:
             raise ValueError("stale_after_seconds must be greater than 0")
         if max_attempts < 1:
             raise ValueError("max_attempts must be at least 1")
+        if max_concurrency < 1:
+            raise ValueError("max_concurrency must be at least 1")
         heartbeat_interval_seconds = (
             heartbeat_interval_seconds
             if heartbeat_interval_seconds is not None
@@ -57,6 +65,7 @@ class QueueWorker:
         if any(not label for label in self.labels):
             raise ValueError("worker labels must not be empty")
         self.heartbeat_interval_seconds = heartbeat_interval_seconds
+        self.max_concurrency = max_concurrency
 
     def run_once(self) -> Optional[QueueJob]:
         self.store.register_worker(
@@ -64,6 +73,7 @@ class QueueWorker:
             self.hostname,
             self.pid,
             labels=self.labels,
+            max_concurrency=self.max_concurrency,
         )
         self.store.recover_stale_jobs(
             stale_after_seconds=self.stale_after_seconds,
@@ -77,8 +87,15 @@ class QueueWorker:
             self.store.mark_worker_offline(self.worker_id)
             return None
 
+        return self._execute_claimed(job, self.worker_id)
+
+    def _execute_claimed(
+        self,
+        job: QueueJob,
+        worker_id: str,
+    ) -> QueueJob:
         self.store.heartbeat_worker(
-            self.worker_id,
+            worker_id,
             QueueState.RUNNING,
             current_job_id=job.job_id,
         )
@@ -93,10 +110,10 @@ class QueueWorker:
                 try:
                     self.store.heartbeat(
                         job.job_id,
-                        worker_id=self.worker_id,
+                        worker_id=worker_id,
                     )
                     self.store.heartbeat_worker(
-                        self.worker_id,
+                        worker_id,
                         QueueState.RUNNING,
                         current_job_id=job.job_id,
                     )
@@ -129,7 +146,7 @@ class QueueWorker:
                         "queue worker execution failed: "
                         f"{execution_error}"
                     ),
-                    worker_id=self.worker_id,
+                    worker_id=worker_id,
                 )
             else:
                 completed = self.store.complete(
@@ -137,7 +154,7 @@ class QueueWorker:
                     self._queue_state(result.status),
                     report_path=result.report_path,
                     error=result.error,
-                    worker_id=self.worker_id,
+                    worker_id=worker_id,
                 )
         except QueueStoreError as error:
             if heartbeat_errors:
@@ -146,7 +163,7 @@ class QueueWorker:
                 ) from error
             raise
         finally:
-            self.store.mark_worker_offline(self.worker_id)
+            self.store.mark_worker_offline(worker_id)
 
         return completed
 
@@ -156,6 +173,8 @@ class QueueWorker:
     ) -> List[QueueJob]:
         if max_jobs is not None and max_jobs < 1:
             raise ValueError("max_jobs must be at least 1")
+        if self.max_concurrency > 1:
+            return self._run_until_empty_concurrent(max_jobs)
 
         completed_jobs = []
         while max_jobs is None or len(completed_jobs) < max_jobs:
@@ -163,6 +182,75 @@ class QueueWorker:
             if completed is None:
                 break
             completed_jobs.append(completed)
+        return completed_jobs
+
+    def _run_until_empty_concurrent(
+        self,
+        max_jobs: Optional[int],
+    ) -> List[QueueJob]:
+        self.store.recover_stale_jobs(
+            stale_after_seconds=self.stale_after_seconds,
+            max_attempts=self.max_attempts,
+        )
+        completed_jobs = []
+        active = {}
+        slot_index = 0
+
+        with ThreadPoolExecutor(
+            max_workers=self.max_concurrency
+        ) as executor:
+            while max_jobs is None or len(completed_jobs) < max_jobs:
+                while (
+                    (
+                        max_jobs is None
+                        or len(active) + len(completed_jobs) < max_jobs
+                    )
+                    and len(active) < self.max_concurrency
+                ):
+                    slot_index += 1
+                    slot_id = f"{self.worker_id}#slot-{slot_index}"
+                    self.store.register_worker(
+                        slot_id,
+                        self.hostname,
+                        self.pid,
+                        labels=self.labels,
+                        max_concurrency=1,
+                    )
+                    job = self.store.claim_next(
+                        slot_id,
+                        worker_labels=self.labels,
+                    )
+                    if job is None:
+                        self.store.mark_worker_offline(slot_id)
+                        break
+                    future = executor.submit(
+                        self._execute_claimed,
+                        job,
+                        slot_id,
+                    )
+                    active[future] = job.job_id
+
+                if not active:
+                    break
+
+                done, _ = wait(
+                    active,
+                    return_when=FIRST_COMPLETED,
+                )
+                for future in done:
+                    active.pop(future)
+                    completed_jobs.append(future.result())
+                    if (
+                        max_jobs is not None
+                        and len(completed_jobs) >= max_jobs
+                    ):
+                        break
+                if (
+                    max_jobs is not None
+                    and len(completed_jobs) >= max_jobs
+                ):
+                    break
+
         return completed_jobs
 
     @staticmethod

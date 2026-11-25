@@ -69,6 +69,7 @@ QueueJob
   -> SQLiteQueueStore
   -> 应用/动作权限白名单
   -> Worker 标签匹配
+  -> GUI 任务全局串行 / parallel_safe 任务可并发
   -> 按 priority/created_at 原子领取
   -> RUNNING
   -> PASSED / FAILED / TIMED_OUT / CANCELLED
@@ -218,3 +219,7 @@ worker 所有权，旧 Worker 无法覆盖已经被恢复或重新领取的任�
 QueueJob 的 `required_labels` 必须全部包含在 Worker `labels` 中才会被领取；
 标签比较大小写不敏感。无标签任务可由任意 Worker 执行，标签不匹配的高优先级
 任务会保持 pending，并允许 Worker 继续领取下一个可匹配任务。
+
+QueueJob 默认 `parallel_safe=false`。SQLite 领取事务会检查全局是否存在正在运行
+的非并行安全任务；存在时只允许继续领取显式 `parallel_safe=true` 的 Job。
+Worker `max_concurrency` 只提供并行槽位，不会绕过 GUI 全局串行约束。

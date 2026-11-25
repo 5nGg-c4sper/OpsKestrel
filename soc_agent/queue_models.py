@@ -50,6 +50,7 @@ class QueueJob(StrictModel):
         default_factory=ExecutionPermissions
     )
     required_labels: List[str] = Field(default_factory=list)
+    parallel_safe: bool = False
 
     created_at: datetime
     updated_at: datetime
@@ -103,6 +104,7 @@ class QueueWorkerRecord(StrictModel):
     state: WorkerState = WorkerState.IDLE
     current_job_id: Optional[str] = None
     labels: List[str] = Field(default_factory=list)
+    max_concurrency: int = Field(default=1, ge=1)
 
     started_at: datetime
     last_heartbeat: datetime

@@ -147,6 +147,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Worker label required by this job; may be repeated",
     )
     queue_enqueue.add_argument(
+        "--parallel-safe",
+        action="store_true",
+        help="Allow this job to run alongside other parallel-safe jobs",
+    )
+    queue_enqueue.add_argument(
         "--job-id",
         default=None,
         help="Optional caller-supplied job ID",
@@ -231,6 +236,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=None,
         help="Worker capability label; may be repeated",
+    )
+    queue_run.add_argument(
+        "--max-concurrency",
+        type=int,
+        default=1,
+        help="Maximum parallel jobs; GUI jobs remain globally serialized",
     )
     add_execution_options(
         queue_run,
@@ -513,6 +524,7 @@ def main(
                 max_attempts=args.max_attempts,
                 worker_id=args.worker_id,
                 worker_labels=args.label,
+                max_concurrency=args.max_concurrency,
             )
             print_queue_jobs(completed_jobs)
             return (
@@ -564,6 +576,7 @@ def enqueue_queue_job(args, parameters: Dict[str, str]) -> int:
                 ] or None,
             ),
             required_labels=args.require_label,
+            parallel_safe=args.parallel_safe,
             priority=args.priority,
             job_id=args.job_id,
         )
@@ -619,6 +632,8 @@ def list_queue_jobs(args) -> int:
                 "  Required labels: "
                 + ", ".join(job.required_labels)
             )
+        if job.parallel_safe:
+            print("  Parallel-safe: yes")
     return 0
 
 
@@ -634,6 +649,7 @@ def run_queue(
     max_attempts: int = 3,
     worker_id: Optional[str] = None,
     worker_labels: Optional[List[str]] = None,
+    max_concurrency: int = 1,
 ) -> list:
     store = SQLiteQueueStore(queue_db)
 
@@ -671,6 +687,7 @@ def run_queue(
         max_attempts=max_attempts,
         worker_id=worker_id,
         labels=worker_labels,
+        max_concurrency=max_concurrency,
     ).run_until_empty(max_jobs=max_jobs)
 
 

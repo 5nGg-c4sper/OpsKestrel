@@ -281,6 +281,7 @@ class CLITests(unittest.TestCase):
                 "write",
                 "--require-label",
                 "office-mac",
+                "--parallel-safe",
             ]
         )
         run_args = build_parser().parse_args(
@@ -296,6 +297,8 @@ class CLITests(unittest.TestCase):
                 "worker-test",
                 "--label",
                 "office-mac",
+                "--max-concurrency",
+                "3",
                 "--non-interactive",
             ]
         )
@@ -318,12 +321,14 @@ class CLITests(unittest.TestCase):
             ["open_app", "write"],
         )
         self.assertEqual(enqueue_args.require_label, ["office-mac"])
+        self.assertTrue(enqueue_args.parallel_safe)
         self.assertEqual(run_args.queue_command, "run")
         self.assertTrue(run_args.drain)
         self.assertEqual(run_args.stale_after_seconds, 120)
         self.assertEqual(run_args.max_attempts, 4)
         self.assertEqual(run_args.worker_id, "worker-test")
         self.assertEqual(run_args.label, ["office-mac"])
+        self.assertEqual(run_args.max_concurrency, 3)
         self.assertTrue(run_args.non_interactive)
         self.assertEqual(workers_args.queue_command, "workers")
         self.assertEqual(workers_args.online_within_seconds, 60)

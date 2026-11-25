@@ -272,7 +272,8 @@ Manage the persistent execution queue:
   --allow-action press \
   --allow-action verify_vision \
   --allow-action done \
-  --require-label office-mac
+  --require-label office-mac \
+  --parallel-safe
 
 ./venv/bin/soc-agent queue enqueue workflow \
   workflows/textedit_calculator.json \
@@ -286,6 +287,7 @@ Manage the persistent execution queue:
 ./venv/bin/soc-agent queue run --stale-after-seconds 3600 --max-attempts 3
 ./venv/bin/soc-agent queue run --worker-id macbook-runner-1
 ./venv/bin/soc-agent queue run --label office-mac
+./venv/bin/soc-agent queue run --label office-mac --max-concurrency 2
 ```
 
 The queue is stored in `reports/queue.db` by default. `queue run` processes one
@@ -307,6 +309,11 @@ online window.
 `--require-label` restricts a job to Workers advertising every required label.
 `queue run --label` advertises capabilities for the current Worker. Matching is
 case-insensitive; jobs with no required labels can run on any Worker.
+
+`--max-concurrency` controls Worker slots, but GUI safety remains the default:
+jobs without `parallel_safe=true` are globally serialized so two tasks cannot
+compete for the mouse and keyboard. Only explicitly parallel-safe jobs may use
+additional slots.
 
 `--allow-app` and `--allow-action` create a per-job execution permission
 profile. When omitted, the default SafetyPolicy remains in effect. When

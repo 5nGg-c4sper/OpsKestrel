@@ -45,6 +45,7 @@ class SQLiteQueueStore:
         parameters: Optional[Dict[str, str]] = None,
         permissions: Optional[ExecutionPermissions] = None,
         required_labels: Optional[List[str]] = None,
+        parallel_safe: bool = False,
         priority: int = 0,
         job_id: Optional[str] = None,
     ) -> QueueJob:
@@ -56,6 +57,7 @@ class SQLiteQueueStore:
             parameters=dict(parameters or {}),
             permissions=permissions or ExecutionPermissions(),
             required_labels=list(required_labels or []),
+            parallel_safe=parallel_safe,
             priority=priority,
             created_at=now,
             updated_at=now,
@@ -70,6 +72,7 @@ class SQLiteQueueStore:
                     parameters_json,
                     permissions_json,
                     required_labels_json,
+                    parallel_safe,
                     state,
                     priority,
                     created_at,
@@ -83,7 +86,7 @@ class SQLiteQueueStore:
                     report_path,
                     error
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
                 """,
                 self._to_row(job),
@@ -128,13 +131,26 @@ class SQLiteQueueStore:
             connection.execute("BEGIN IMMEDIATE")
             rows = connection.execute(
                 """
-                SELECT job_id, required_labels_json
+                SELECT job_id, state, required_labels_json, parallel_safe
                 FROM queue_jobs
-                WHERE state = ?
+                WHERE state IN (?, ?)
                 ORDER BY priority DESC, created_at ASC, job_id ASC
                 """,
-                (QueueState.PENDING.value,),
+                (
+                    QueueState.PENDING.value,
+                    QueueState.RUNNING.value,
+                ),
             ).fetchall()
+            pending_rows = [
+                row
+                for row in rows
+                if row["state"] == QueueState.PENDING.value
+            ]
+            has_running_unsafe = any(
+                row["state"] == QueueState.RUNNING.value
+                and not row["parallel_safe"]
+                for row in rows
+            )
             available_labels = {
                 label.casefold()
                 for label in (worker_labels or [])
@@ -142,8 +158,12 @@ class SQLiteQueueStore:
             row = next(
                 (
                     candidate
-                    for candidate in rows
-                    if {
+                    for candidate in pending_rows
+                    if (
+                        candidate["parallel_safe"]
+                        or not has_running_unsafe
+                    )
+                    and {
                         label.casefold()
                         for label in json.loads(
                             candidate["required_labels_json"]
@@ -295,6 +315,7 @@ class SQLiteQueueStore:
         hostname: str,
         pid: int,
         labels: Optional[List[str]] = None,
+        max_concurrency: int = 1,
     ) -> QueueWorkerRecord:
         if not worker_id.strip():
             raise QueueStoreError("worker_id must not be empty")
@@ -303,15 +324,17 @@ class SQLiteQueueStore:
             connection.execute(
                 """
                 INSERT INTO queue_workers (
-                    worker_id, hostname, pid, state, current_job_id, labels_json,
+                    worker_id, hostname, pid, state, current_job_id,
+                    labels_json, max_concurrency,
                     started_at, last_heartbeat, stopped_at
-                ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, NULL)
+                ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL)
                 ON CONFLICT(worker_id) DO UPDATE SET
                     hostname = excluded.hostname,
                     pid = excluded.pid,
                     state = excluded.state,
                     current_job_id = NULL,
                     labels_json = excluded.labels_json,
+                    max_concurrency = excluded.max_concurrency,
                     started_at = excluded.started_at,
                     last_heartbeat = excluded.last_heartbeat,
                     stopped_at = NULL
@@ -326,6 +349,7 @@ class SQLiteQueueStore:
                         ensure_ascii=False,
                         sort_keys=True,
                     ),
+                    max_concurrency,
                     now.isoformat(),
                     now.isoformat(),
                 ),
@@ -469,6 +493,7 @@ class SQLiteQueueStore:
                     parameters_json TEXT NOT NULL,
                     permissions_json TEXT NOT NULL,
                     required_labels_json TEXT NOT NULL DEFAULT '[]',
+                    parallel_safe INTEGER NOT NULL DEFAULT 0,
                     state TEXT NOT NULL,
                     priority INTEGER NOT NULL,
                     created_at TEXT NOT NULL,
@@ -493,6 +518,7 @@ class SQLiteQueueStore:
                     state TEXT NOT NULL,
                     current_job_id TEXT,
                     labels_json TEXT NOT NULL DEFAULT '[]',
+                    max_concurrency INTEGER NOT NULL DEFAULT 1,
                     started_at TEXT NOT NULL,
                     last_heartbeat TEXT NOT NULL,
                     stopped_at TEXT
@@ -521,6 +547,10 @@ class SQLiteQueueStore:
                     "ALTER TABLE queue_jobs ADD COLUMN "
                     "required_labels_json TEXT NOT NULL DEFAULT '[]'"
                 ),
+                "parallel_safe": (
+                    "ALTER TABLE queue_jobs ADD COLUMN "
+                    "parallel_safe INTEGER NOT NULL DEFAULT 0"
+                ),
                 "worker_id": (
                     "ALTER TABLE queue_jobs ADD COLUMN worker_id TEXT"
                 ),
@@ -546,6 +576,11 @@ class SQLiteQueueStore:
                 connection.execute(
                     "ALTER TABLE queue_workers ADD COLUMN "
                     "labels_json TEXT NOT NULL DEFAULT '[]'"
+                )
+            if "max_concurrency" not in worker_columns:
+                connection.execute(
+                    "ALTER TABLE queue_workers ADD COLUMN "
+                    "max_concurrency INTEGER NOT NULL DEFAULT 1"
                 )
 
     def _connect(self) -> sqlite3.Connection:
@@ -587,6 +622,7 @@ class SQLiteQueueStore:
                 ensure_ascii=False,
                 sort_keys=True,
             ),
+            int(job.parallel_safe),
             job.state.value,
             job.priority,
             job.created_at.isoformat(),
@@ -612,6 +648,7 @@ class SQLiteQueueStore:
                 row["permissions_json"]
             ),
             required_labels=json.loads(row["required_labels_json"]),
+            parallel_safe=bool(row["parallel_safe"]),
             state=QueueState(row["state"]),
             priority=row["priority"],
             created_at=datetime.fromisoformat(row["created_at"]),
@@ -647,6 +684,7 @@ class SQLiteQueueStore:
             state=WorkerState(row["state"]),
             current_job_id=row["current_job_id"],
             labels=json.loads(row["labels_json"]),
+            max_concurrency=row["max_concurrency"],
             started_at=datetime.fromisoformat(row["started_at"]),
             last_heartbeat=datetime.fromisoformat(
                 row["last_heartbeat"]
