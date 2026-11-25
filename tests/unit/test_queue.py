@@ -79,6 +79,7 @@ class SQLiteQueueStoreTests(unittest.TestCase):
                     ActionType.WRITE,
                 ],
             ),
+            required_labels=["office-mac", "high-memory"],
             job_id="job-1",
         )
 
@@ -101,6 +102,10 @@ class SQLiteQueueStoreTests(unittest.TestCase):
         self.assertEqual(
             reloaded.permissions.allowed_actions,
             [ActionType.OPEN_APP, ActionType.WRITE],
+        )
+        self.assertEqual(
+            reloaded.required_labels,
+            ["office-mac", "high-memory"],
         )
 
     def test_claim_next_uses_priority_and_marks_running(self):
@@ -132,6 +137,33 @@ class SQLiteQueueStoreTests(unittest.TestCase):
 
     def test_claim_next_returns_none_for_empty_queue(self):
         self.assertIsNone(self.store.claim_next())
+
+    def test_claim_next_routes_by_worker_labels(self):
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "labeled.json",
+            required_labels=["office-mac", "high-memory"],
+            priority=10,
+            job_id="labeled",
+        )
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "general.json",
+            priority=1,
+            job_id="general",
+        )
+
+        general = self.store.claim_next(
+            "worker-a",
+            worker_labels=["office-mac"],
+        )
+        labeled = self.store.claim_next(
+            "worker-b",
+            worker_labels=["OFFICE-MAC", "high-memory"],
+        )
+
+        self.assertEqual(general.job_id, "general")
+        self.assertEqual(labeled.job_id, "labeled")
 
     def test_complete_records_terminal_metadata(self):
         self.store.enqueue(
@@ -311,11 +343,16 @@ class SQLiteQueueStoreTests(unittest.TestCase):
             "worker-a",
             "macbook",
             123,
+            labels=["office-mac", "high-memory"],
         )
 
         self.assertEqual(registered.state, WorkerState.IDLE)
         self.assertEqual(registered.hostname, "macbook")
         self.assertEqual(registered.pid, 123)
+        self.assertEqual(
+            registered.labels,
+            ["office-mac", "high-memory"],
+        )
 
         self.advance()
         self.store.heartbeat_worker(

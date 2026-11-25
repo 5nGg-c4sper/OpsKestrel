@@ -3,7 +3,7 @@
 import re
 from enum import Enum
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from pydantic import Field, field_validator
 
@@ -49,6 +49,7 @@ class QueueJob(StrictModel):
     permissions: ExecutionPermissions = Field(
         default_factory=ExecutionPermissions
     )
+    required_labels: List[str] = Field(default_factory=list)
 
     created_at: datetime
     updated_at: datetime
@@ -85,6 +86,11 @@ class QueueJob(StrictModel):
             raise ValueError("queue parameter values must be strings")
         return value
 
+    @field_validator("required_labels")
+    @classmethod
+    def validate_required_labels(cls, value):
+        return _normalize_labels(value, "required labels")
+
     @property
     def terminal(self) -> bool:
         return self.state in TERMINAL_QUEUE_STATES
@@ -96,6 +102,7 @@ class QueueWorkerRecord(StrictModel):
     pid: int = Field(ge=1)
     state: WorkerState = WorkerState.IDLE
     current_job_id: Optional[str] = None
+    labels: List[str] = Field(default_factory=list)
 
     started_at: datetime
     last_heartbeat: datetime
@@ -107,3 +114,18 @@ class QueueWorkerRecord(StrictModel):
         if not value.strip():
             raise ValueError("must not be empty")
         return value
+
+    @field_validator("labels")
+    @classmethod
+    def validate_labels(cls, value):
+        return _normalize_labels(value, "worker labels")
+
+
+def _normalize_labels(values, label_name):
+    labels = [value.strip() for value in (values or [])]
+    if any(not label for label in labels):
+        raise ValueError(f"{label_name} must not be empty")
+    normalized = [label.casefold() for label in labels]
+    if len(set(normalized)) != len(normalized):
+        raise ValueError(f"{label_name} must be unique")
+    return labels

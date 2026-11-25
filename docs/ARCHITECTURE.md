@@ -68,6 +68,7 @@ Dataset JSON
 QueueJob
   -> SQLiteQueueStore
   -> 应用/动作权限白名单
+  -> Worker 标签匹配
   -> 按 priority/created_at 原子领取
   -> RUNNING
   -> PASSED / FAILED / TIMED_OUT / CANCELLED
@@ -213,3 +214,7 @@ worker 所有权，旧 Worker 无法覆盖已经被恢复或重新领取的任�
 `queue_workers` 表记录 Worker 的主机名、PID、运行状态、当前 Job、启动时间、
 最后心跳和离线时间。`queue workers` 命令可按最近心跳窗口查询活跃 Worker，
 为后续多机器调度和运行监控提供基础。
+
+QueueJob 的 `required_labels` 必须全部包含在 Worker `labels` 中才会被领取；
+标签比较大小写不敏感。无标签任务可由任意 Worker 执行，标签不匹配的高优先级
+任务会保持 pending，并允许 Worker 继续领取下一个可匹配任务。

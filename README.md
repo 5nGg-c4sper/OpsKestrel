@@ -271,7 +271,8 @@ Manage the persistent execution queue:
   --allow-action write \
   --allow-action press \
   --allow-action verify_vision \
-  --allow-action done
+  --allow-action done \
+  --require-label office-mac
 
 ./venv/bin/soc-agent queue enqueue workflow \
   workflows/textedit_calculator.json \
@@ -284,6 +285,7 @@ Manage the persistent execution queue:
 ./venv/bin/soc-agent queue run --drain
 ./venv/bin/soc-agent queue run --stale-after-seconds 3600 --max-attempts 3
 ./venv/bin/soc-agent queue run --worker-id macbook-runner-1
+./venv/bin/soc-agent queue run --label office-mac
 ```
 
 The queue is stored in `reports/queue.db` by default. `queue run` processes one
@@ -301,6 +303,10 @@ managed runners.
 `queue workers` shows recently active Worker IDs, hostnames, PIDs, current
 jobs, and last heartbeat times. Use `--online-within-seconds` to control the
 online window.
+
+`--require-label` restricts a job to Workers advertising every required label.
+`queue run --label` advertises capabilities for the current Worker. Matching is
+case-insensitive; jobs with no required labels can run on any Worker.
 
 `--allow-app` and `--allow-action` create a per-job execution permission
 profile. When omitted, the default SafetyPolicy remains in effect. When

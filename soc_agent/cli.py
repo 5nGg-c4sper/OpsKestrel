@@ -4,7 +4,7 @@ import argparse
 import sys
 import tempfile
 from pathlib import Path
-from typing import Dict, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
 
 from dotenv import load_dotenv
 
@@ -141,6 +141,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Allowed action type; may be repeated",
     )
     queue_enqueue.add_argument(
+        "--require-label",
+        action="append",
+        default=None,
+        help="Worker label required by this job; may be repeated",
+    )
+    queue_enqueue.add_argument(
         "--job-id",
         default=None,
         help="Optional caller-supplied job ID",
@@ -219,6 +225,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--worker-id",
         default=None,
         help="Optional stable worker ID",
+    )
+    queue_run.add_argument(
+        "--label",
+        action="append",
+        default=None,
+        help="Worker capability label; may be repeated",
     )
     add_execution_options(
         queue_run,
@@ -500,6 +512,7 @@ def main(
                 stale_after_seconds=args.stale_after_seconds,
                 max_attempts=args.max_attempts,
                 worker_id=args.worker_id,
+                worker_labels=args.label,
             )
             print_queue_jobs(completed_jobs)
             return (
@@ -550,6 +563,7 @@ def enqueue_queue_job(args, parameters: Dict[str, str]) -> int:
                     for value in args.allow_action or []
                 ] or None,
             ),
+            required_labels=args.require_label,
             priority=args.priority,
             job_id=args.job_id,
         )
@@ -600,6 +614,11 @@ def list_queue_jobs(args) -> int:
                     for action in job.permissions.allowed_actions
                 )
             )
+        if job.required_labels:
+            print(
+                "  Required labels: "
+                + ", ".join(job.required_labels)
+            )
     return 0
 
 
@@ -614,6 +633,7 @@ def run_queue(
     stale_after_seconds: float = 3600,
     max_attempts: int = 3,
     worker_id: Optional[str] = None,
+    worker_labels: Optional[List[str]] = None,
 ) -> list:
     store = SQLiteQueueStore(queue_db)
 
@@ -650,6 +670,7 @@ def run_queue(
         stale_after_seconds=stale_after_seconds,
         max_attempts=max_attempts,
         worker_id=worker_id,
+        labels=worker_labels,
     ).run_until_empty(max_jobs=max_jobs)
 
 
@@ -675,6 +696,8 @@ def list_queue_workers(args) -> int:
         print(f"  Last heartbeat: {worker.last_heartbeat.isoformat()}")
         if worker.current_job_id:
             print(f"  Current job: {worker.current_job_id}")
+        if worker.labels:
+            print(f"  Labels: {', '.join(worker.labels)}")
     return 0
 
 

@@ -24,6 +24,7 @@ class QueueWorker:
         stale_after_seconds: float = 3600,
         max_attempts: int = 3,
         worker_id: Optional[str] = None,
+        labels: Optional[List[str]] = None,
         heartbeat_interval_seconds: Optional[float] = None,
     ):
         if stale_after_seconds <= 0:
@@ -50,6 +51,11 @@ class QueueWorker:
         )
         self.hostname = socket.gethostname()
         self.pid = os.getpid()
+        self.labels = [
+            label.strip() for label in (labels or [])
+        ]
+        if any(not label for label in self.labels):
+            raise ValueError("worker labels must not be empty")
         self.heartbeat_interval_seconds = heartbeat_interval_seconds
 
     def run_once(self) -> Optional[QueueJob]:
@@ -57,12 +63,16 @@ class QueueWorker:
             self.worker_id,
             self.hostname,
             self.pid,
+            labels=self.labels,
         )
         self.store.recover_stale_jobs(
             stale_after_seconds=self.stale_after_seconds,
             max_attempts=self.max_attempts,
         )
-        job = self.store.claim_next(self.worker_id)
+        job = self.store.claim_next(
+            self.worker_id,
+            worker_labels=self.labels,
+        )
         if job is None:
             self.store.mark_worker_offline(self.worker_id)
             return None

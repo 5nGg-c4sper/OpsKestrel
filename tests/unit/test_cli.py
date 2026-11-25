@@ -279,6 +279,8 @@ class CLITests(unittest.TestCase):
                 "open_app",
                 "--allow-action",
                 "write",
+                "--require-label",
+                "office-mac",
             ]
         )
         run_args = build_parser().parse_args(
@@ -292,6 +294,8 @@ class CLITests(unittest.TestCase):
                 "4",
                 "--worker-id",
                 "worker-test",
+                "--label",
+                "office-mac",
                 "--non-interactive",
             ]
         )
@@ -313,11 +317,13 @@ class CLITests(unittest.TestCase):
             enqueue_args.allow_action,
             ["open_app", "write"],
         )
+        self.assertEqual(enqueue_args.require_label, ["office-mac"])
         self.assertEqual(run_args.queue_command, "run")
         self.assertTrue(run_args.drain)
         self.assertEqual(run_args.stale_after_seconds, 120)
         self.assertEqual(run_args.max_attempts, 4)
         self.assertEqual(run_args.worker_id, "worker-test")
+        self.assertEqual(run_args.label, ["office-mac"])
         self.assertTrue(run_args.non_interactive)
         self.assertEqual(workers_args.queue_command, "workers")
         self.assertEqual(workers_args.online_within_seconds, 60)
@@ -833,6 +839,7 @@ class CLITests(unittest.TestCase):
             "worker-visible",
             "test-mac",
             999,
+            labels=["office-mac"],
         )
         output = StringIO()
 
@@ -851,6 +858,7 @@ class CLITests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertIn("worker-visible idle test-mac:999", output.getvalue())
+        self.assertIn("Labels: office-mac", output.getvalue())
         load_dotenv.assert_not_called()
 
     def test_main_runs_queued_task(self):
@@ -1025,6 +1033,93 @@ class CLITests(unittest.TestCase):
         self.assertEqual(
             SQLiteQueueStore(queue_db).get("restricted-job").state,
             QueueState.CANCELLED,
+        )
+
+    def test_queue_worker_label_routing_controls_claim(self):
+        task_path = self.root / "labeled_task.json"
+        task_path.write_text(
+            json.dumps(
+                {
+                    "name": "labeled_task",
+                    "steps": [
+                        {
+                            "type": "write",
+                            "content": "labeled task",
+                        },
+                        {"type": "done", "summary": "finished"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        queue_db = self.root / "queue.db"
+        store = SQLiteQueueStore(queue_db)
+        store.enqueue(
+            DatasetTargetType.TASK,
+            task_path,
+            required_labels=["office-mac"],
+            job_id="labeled-job",
+        )
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+        reporter = ReportWriter(self.root / "reports")
+
+        def dependency_factory(args, config):
+            return (
+                environment,
+                executor,
+                FakeVisionProvider(),
+                reporter,
+            )
+
+        first_output = StringIO()
+        second_output = StringIO()
+        with (
+            patch("soc_agent.cli.load_dotenv"),
+            patch.dict(
+                os.environ,
+                {"OPENAI_API_KEY": "test-key"},
+                clear=False,
+            ),
+        ):
+            with redirect_stdout(first_output):
+                first_code = main(
+                    [
+                        "queue",
+                        "run",
+                        "--queue-db",
+                        str(queue_db),
+                    ],
+                    dependency_factory=dependency_factory,
+                )
+            self.assertEqual(
+                store.get("labeled-job").state,
+                QueueState.PENDING,
+            )
+
+            with redirect_stdout(second_output):
+                second_code = main(
+                    [
+                        "queue",
+                        "run",
+                        "--queue-db",
+                        str(queue_db),
+                        "--label",
+                        "office-mac",
+                    ],
+                    dependency_factory=dependency_factory,
+                )
+
+        self.assertEqual(first_code, 0)
+        self.assertIn(
+            "No queued jobs were run.",
+            first_output.getvalue(),
+        )
+        self.assertEqual(second_code, 0)
+        self.assertIn(("write", "labeled task"), environment.calls)
+        self.assertEqual(
+            store.get("labeled-job").state,
+            QueueState.PASSED,
         )
 
     def test_main_passes_cli_parameters_to_suite(self):

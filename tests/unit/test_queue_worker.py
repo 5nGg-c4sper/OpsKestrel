@@ -274,14 +274,20 @@ class QueueWorkerTests(unittest.TestCase):
                 self.registered = False
                 self.offline = False
 
-            def register_worker(self, worker_id, hostname, pid):
+            def register_worker(
+                self,
+                worker_id,
+                hostname,
+                pid,
+                labels=None,
+            ):
                 self.registered = True
                 return None
 
             def recover_stale_jobs(self, **kwargs):
                 return []
 
-            def claim_next(self, worker_id):
+            def claim_next(self, worker_id, worker_labels=None):
                 self.claimed_worker = worker_id
                 return job
 
