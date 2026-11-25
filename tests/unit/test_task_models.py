@@ -20,6 +20,7 @@ from soc_agent.task_models import (
     TaskResult,
     TaskStatus,
     WorkflowDefinition,
+    WorkflowResult,
 )
 
 
@@ -1184,6 +1185,34 @@ class TaskDatasetResultTests(unittest.TestCase):
             '"report_path":"reports/calculator_regression.json"',
             payload,
         )
+
+    def test_workflow_case_result_is_supported(self):
+        started_at = datetime(2026, 11, 25, tzinfo=timezone.utc)
+        workflow_result = WorkflowResult(
+            workflow_name="customer_update",
+            status=TaskStatus.PASSED,
+            started_at=started_at,
+            finished_at=started_at,
+            duration_seconds=2.5,
+            report_path="reports/customer_update.json",
+        )
+        case_result = TaskCaseResult(
+            name="customer_01",
+            parameters={"customer_name": "张三"},
+            status=TaskStatus.PASSED,
+            duration_seconds=2.5,
+            workflow_result=workflow_result,
+        )
+
+        self.assertEqual(case_result.target_type.value, "workflow")
+        self.assertEqual(
+            case_result.report_path,
+            "reports/customer_update.json",
+        )
+        self.assertIsNone(case_result.failure_log)
+        payload = case_result.model_dump_json()
+        self.assertIn('"workflow_name":"customer_update"', payload)
+        self.assertIn('"task_result":null', payload)
 
     def test_dataset_result_requires_at_least_one_case(self):
         started_at = datetime(2026, 11, 20, tzinfo=timezone.utc)

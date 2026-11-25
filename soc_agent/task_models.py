@@ -658,7 +658,8 @@ class TaskCaseResult(StrictModel):
     attempts: int = Field(default=1, ge=1)
     status: TaskStatus
     duration_seconds: float = Field(default=0.0, ge=0)
-    task_result: TaskResult
+    task_result: Optional[TaskResult] = None
+    workflow_result: Optional[WorkflowResult] = None
     error: Optional[str] = None
 
     @field_validator("name")
@@ -667,6 +668,33 @@ class TaskCaseResult(StrictModel):
         if not value.strip():
             raise ValueError("must not be empty")
         return value
+
+    @model_validator(mode="after")
+    def validate_result_target(self):
+        if (self.task_result is None) == (self.workflow_result is None):
+            raise ValueError(
+                "case must define exactly one of task_result "
+                "or workflow_result"
+            )
+        return self
+
+    @property
+    def target_type(self) -> DatasetTargetType:
+        if self.task_result is not None:
+            return DatasetTargetType.TASK
+        return DatasetTargetType.WORKFLOW
+
+    @property
+    def report_path(self) -> Optional[str]:
+        if self.task_result is not None:
+            return self.task_result.report_path
+        return self.workflow_result.report_path
+
+    @property
+    def failure_log(self) -> Optional[str]:
+        if self.task_result is None:
+            return None
+        return self.task_result.failure_log
 
 
 class TaskDatasetResult(StrictModel):
