@@ -72,6 +72,16 @@ QueueJob
   -> PASSED / FAILED / TIMED_OUT / CANCELLED
 ```
 
+队列执行：
+
+```text
+QueueWorker
+  -> claim_next
+  -> 注入式 execute_job
+  -> TaskResult 或 WorkflowResult
+  -> 状态和报告路径写回 SQLite
+```
+
 ## 模块职责
 
 | 模块 | 职责 |
@@ -95,6 +105,7 @@ QueueJob
 | `soc_agent/workflow_runner.py` | 预检参数、顺序执行子任务并汇总工作流结果 |
 | `soc_agent/queue_models.py` | 队列任务、生命周期状态和参数数据模型 |
 | `soc_agent/queue_store.py` | SQLite 持久化、优先级排序和原子领取 |
+| `soc_agent/queue_worker.py` | 领取队列任务、执行并持久化终态 |
 | `soc_agent/cli.py` | 参数解析和依赖装配 |
 | `soc_agent/config.py` | 从环境变量加载并验证运行配置 |
 
