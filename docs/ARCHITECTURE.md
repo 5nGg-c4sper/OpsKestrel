@@ -57,6 +57,9 @@ Dataset JSON
   -> 相对目标路径解析
   -> DatasetTargetType + 绝对 target_path
   -> task_path / workflow_path 兼容视图
+  -> DatasetRunner 按目标类型执行
+  -> TaskResult 或 WorkflowResult
+  -> dataset 汇总报告
 ```
 
 ## 模块职责
@@ -144,9 +147,11 @@ Dataset JSON
 每个 CSV case 都独立执行任务定义中的 `setup_steps`、主流程和
 `cleanup_steps`，从而保证多行执行之间不会共享未清理的文本编辑状态。
 数据集目标必须且只能声明 `task` 或 `workflow` 之一；Workflow 目标模式目前只
-完成严格模型契约和加载期路径解析，逐 case 执行将在后续阶段接入。`LoadedDataset`
-统一携带 `target_type` 和 `target_path`，同时保留 `task_path` 与 `workflow_path`
-属性，避免现有任务数据集调用方立即被破坏。
+完成严格模型契约、加载期路径解析和逐 case 执行。`LoadedDataset` 统一携带
+`target_type` 和 `target_path`，同时保留 `task_path` 与 `workflow_path` 属性，
+避免现有任务数据集调用方立即被破坏。`TaskCaseResult` 根据目标保存
+`task_result` 或 `workflow_result`，dataset 汇总报告因此可以引用单任务报告或
+完整工作流报告。
 
 `WorkflowDefinition` 用有序 `task_files` 描述子任务，并提供共享参数定义和可选
 `cleanup_task`。`load_workflow` 在返回前解析全部相对路径、验证文件存在、拒绝

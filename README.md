@@ -215,6 +215,16 @@ summary report is written under `reports/` with the ordered task statuses,
 parameters, durations, nested task reports, cleanup result, and whether
 execution stopped early.
 
+Run the same workflow once for every CSV row:
+
+```bash
+./venv/bin/soc-agent dataset datasets/textedit_workflow_csv.json
+```
+
+This dataset uses the `workflow` target instead of `task`. Every CSV case runs
+the complete ordered workflow with its own parameters, workflow report, nested
+task reports, and final dataset summary entry.
+
 Stop immediately when a case does not pass:
 
 ```bash
