@@ -53,6 +53,12 @@ class SafetyPolicyTests(unittest.TestCase):
                 TaskStep(type="open_app", app="系统设置")
             )
 
+    def test_blocks_close_document_for_terminal(self):
+        with self.assertRaisesRegex(SafetyViolation, "Terminal"):
+            self.policy.validate(
+                TaskStep(type="close_document", app="Terminal")
+            )
+
     def test_supports_custom_blocked_apps(self):
         policy = SafetyPolicy(blocked_apps={"Mail"})
 

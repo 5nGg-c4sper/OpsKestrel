@@ -505,6 +505,39 @@ class TaskDefinitionTests(unittest.TestCase):
         ):
             TaskDefinition.model_validate(task)
 
+    def test_close_document_is_parsed(self):
+        task = TaskDefinition.model_validate(
+            {
+                "name": "close_document",
+                "steps": [
+                    {
+                        "type": "close_document",
+                        "app": "文本编辑",
+                        "save_changes": False,
+                    }
+                ],
+            }
+        )
+
+        self.assertEqual(
+            task.steps[0].type,
+            ActionType.CLOSE_DOCUMENT,
+        )
+        self.assertEqual(task.steps[0].app, "文本编辑")
+        self.assertFalse(task.steps[0].save_changes)
+
+    def test_close_document_requires_app(self):
+        with self.assertRaisesRegex(
+            ValidationError,
+            "close_document requires app",
+        ):
+            TaskDefinition.model_validate(
+                {
+                    "name": "missing_app",
+                    "steps": [{"type": "close_document"}],
+                }
+            )
+
     def test_step_accepts_vision_condition(self):
         task = TaskDefinition.model_validate(
             {

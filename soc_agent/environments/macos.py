@@ -48,6 +48,18 @@ class MacOSEnvironment:
             raise ValueError("app_name must not be empty")
         self._get_system().activate_app(app_name)
 
+    def close_document(
+        self,
+        app_name: str,
+        save_changes: bool = False,
+    ) -> None:
+        if not app_name or not app_name.strip():
+            raise ValueError("app_name must not be empty")
+        self._get_system().close_document(
+            app_name,
+            save_changes=save_changes,
+        )
+
     def write(self, content: str) -> None:
         if content is None:
             raise ValueError("content must not be None")

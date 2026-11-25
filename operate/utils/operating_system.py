@@ -48,6 +48,41 @@ class OperatingSystem:
     def activate_app(self, app_name):
         self.open_app(app_name)
 
+    def close_document(self, app_name, save_changes=False):
+        if platform.system() != "Darwin":
+            raise RuntimeError(
+                "close_document is currently supported on macOS only"
+            )
+
+        apple_app_names = {
+            "textedit": "TextEdit",
+            "text editor": "TextEdit",
+            "文本编辑": "TextEdit",
+        }
+        normalized_name = app_name.strip().lower()
+        apple_app_name = apple_app_names.get(
+            normalized_name,
+            app_name.strip(),
+        )
+        escaped_name = apple_app_name.replace("\\", "\\\\").replace(
+            '"',
+            '\\"',
+        )
+        saving_value = "true" if save_changes else "false"
+        script = (
+            f'tell application "{escaped_name}"\n'
+            "if (count of documents) > 0 then\n"
+            f"close front document saving {saving_value}\n"
+            "end if\n"
+            "end tell"
+        )
+        subprocess.run(
+            ["osascript", "-e", script],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
     def _activate_macos_app(self, app_name, app_path):
         try:
             from AppKit import (

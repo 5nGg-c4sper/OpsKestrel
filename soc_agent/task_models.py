@@ -18,6 +18,7 @@ class StrictModel(BaseModel):
 class ActionType(str, Enum):
     OPEN_APP = "open_app"
     ACTIVATE_APP = "activate_app"
+    CLOSE_DOCUMENT = "close_document"
     WRITE = "write"
     PRESS = "press"
     CLICK = "click"
@@ -82,6 +83,7 @@ class TaskStep(StrictModel):
     )
 
     requires_confirmation: bool = False
+    save_changes: bool = False
 
     @field_validator("app", "content", "prompt")
     @classmethod
@@ -118,6 +120,9 @@ class TaskStep(StrictModel):
 
         if self.type == ActionType.ACTIVATE_APP and not self.app:
             raise ValueError("activate_app requires app")
+
+        if self.type == ActionType.CLOSE_DOCUMENT and not self.app:
+            raise ValueError("close_document requires app")
 
         if self.type == ActionType.WRITE and self.content is None:
             raise ValueError("write requires content")

@@ -36,6 +36,7 @@ class SafetyPolicy:
         if step.type in {
             ActionType.OPEN_APP,
             ActionType.ACTIVATE_APP,
+            ActionType.CLOSE_DOCUMENT,
         }:
             app_name = (step.app or "").strip().casefold()
             if app_name in self.blocked_apps:

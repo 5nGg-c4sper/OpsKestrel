@@ -45,6 +45,11 @@ class FakeEnvironment:
     def open_app(self, app):
         self.calls.append(("open_app", app))
 
+    def close_document(self, app, save_changes=False):
+        self.calls.append(
+            ("close_document", app, save_changes)
+        )
+
     def write(self, content):
         self.calls.append(("write", content))
 
@@ -829,8 +834,10 @@ class CLITests(unittest.TestCase):
         self.assertIn(("write", "备注：等待回访"), environment.calls)
         self.assertIn(("write", "客户：王五"), environment.calls)
         self.assertIn(("write", "备注：资料已确认"), environment.calls)
-        self.assertIn(("press", ["command", "w"]), environment.calls)
-        self.assertIn(("press", ["command", "d"]), environment.calls)
+        self.assertIn(
+            ("close_document", "文本编辑", False),
+            environment.calls,
+        )
 
         payload = json.loads(
             Path(result.report_path).read_text(encoding="utf-8")

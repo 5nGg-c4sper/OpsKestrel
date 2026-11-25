@@ -46,16 +46,9 @@
   ],
   "cleanup_steps": [
     {
-      "type": "press",
-      "keys": ["command", "w"]
-    },
-    {
-      "type": "wait",
-      "seconds": 0.5
-    },
-    {
-      "type": "press",
-      "keys": ["command", "d"]
+      "type": "close_document",
+      "app": "文本编辑",
+      "save_changes": false
     }
   ]
 }

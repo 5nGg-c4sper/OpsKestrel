@@ -17,6 +17,11 @@ class FakeSystem:
     def activate_app(self, app_name):
         self.calls.append(("activate_app", app_name))
 
+    def close_document(self, app_name, save_changes=False):
+        self.calls.append(
+            ("close_document", app_name, save_changes)
+        )
+
     def write(self, content):
         self.calls.append(("write", content))
 
@@ -59,6 +64,21 @@ class MacOSEnvironmentTests(unittest.TestCase):
     def test_activate_app_rejects_empty_name(self):
         with self.assertRaises(ValueError):
             self.environment.activate_app(" ")
+
+    def test_close_document(self):
+        self.environment.close_document(
+            "文本编辑",
+            save_changes=False,
+        )
+
+        self.assertEqual(
+            self.system.calls,
+            [("close_document", "文本编辑", False)],
+        )
+
+    def test_close_document_rejects_empty_name(self):
+        with self.assertRaises(ValueError):
+            self.environment.close_document(" ")
 
     def test_write(self):
         self.environment.write("17*23")

@@ -36,6 +36,14 @@ class ActionExecutor:
             self._settle()
             return StepOutcome.CONTINUE
 
+        if step.type == ActionType.CLOSE_DOCUMENT:
+            self.environment.close_document(
+                step.app,
+                save_changes=step.save_changes,
+            )
+            self._settle()
+            return StepOutcome.CONTINUE
+
         if step.type == ActionType.WRITE:
             self.environment.write(step.content)
             return StepOutcome.CONTINUE

@@ -182,13 +182,11 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertIn("张三", task.steps[3].prompt)
         self.assertIn("首次联系", task.steps[3].prompt)
         self.assertEqual(
-            task.cleanup_steps[0].keys,
-            ["command", "w"],
+            task.cleanup_steps[0].type,
+            ActionType.CLOSE_DOCUMENT,
         )
-        self.assertEqual(
-            task.cleanup_steps[-1].keys,
-            ["command", "d"],
-        )
+        self.assertEqual(task.cleanup_steps[0].app, "文本编辑")
+        self.assertFalse(task.cleanup_steps[0].save_changes)
 
     def test_multi_app_activate_task_is_valid(self):
         task_path = (
