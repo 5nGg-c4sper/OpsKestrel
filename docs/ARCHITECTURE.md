@@ -62,6 +62,7 @@ Workflow JSON
 | `soc_agent/reporting/report.py` | 持久化 JSON 报告、截图和失败诊断日志 |
 | `soc_agent/reporting/dataset_report.py` | 持久化数据集汇总报告 |
 | `soc_agent/reporting/suite_report.py` | 持久化套件汇总报告 |
+| `soc_agent/reporting/workflow_report.py` | 持久化工作流汇总报告 |
 | `soc_agent/suite.py` | 顺序执行多个任务并汇总结果 |
 | `soc_agent/datasets.py` | 加载数据集并解析任务路径 |
 | `soc_agent/data_sources.py` | 将 CSV 行转换为数据集 case 和任务参数 |
@@ -138,4 +139,5 @@ Workflow JSON
 解析后重复的任务路径，并完成参数默认值与覆盖值校验。`WorkflowRunner` 在桌面
 操作前预检所有子任务的必需参数，只向每个子任务传递其声明过的共享参数。主任务
 失败后停止后续任务，但 cleanup task 仍会执行。`WorkflowResult` 保存每个子任务
-的路径、阶段、参数、状态、耗时和嵌套任务报告；工作流级报告文件将在后续阶段接入。
+的路径、阶段、参数、状态、耗时和嵌套任务报告。`WorkflowReportWriter` 原子写入
+工作流级 JSON 报告，并使用安全文件名和数字后缀避免覆盖既有报告。

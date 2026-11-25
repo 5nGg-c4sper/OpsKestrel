@@ -1,0 +1,29 @@
+{
+  "name": "textedit_calculator_demo",
+  "description": "先输入客户记录，再执行参数化计算并验证",
+  "parameters": {
+    "customer_name": {
+      "description": "客户姓名"
+    },
+    "note": {
+      "description": "客户备注"
+    },
+    "left": {
+      "default": "17"
+    },
+    "right": {
+      "default": "23"
+    },
+    "operator": {
+      "default": "*"
+    },
+    "expected_result": {
+      "default": "391"
+    }
+  },
+  "task_files": [
+    "../tasks/textedit_parameterized.json",
+    "../tasks/calculator_parameterized.json"
+  ],
+  "cleanup_task": "../tasks/workflow_close_calculator.json"
+}

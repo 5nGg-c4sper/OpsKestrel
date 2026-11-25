@@ -8,6 +8,9 @@ from pathlib import Path
 from soc_agent.workflows import WorkflowLoadError, load_workflow
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
 class WorkflowLoaderTests(unittest.TestCase):
     def setUp(self):
         self.temporary_directory = tempfile.TemporaryDirectory()
@@ -174,6 +177,25 @@ class WorkflowLoaderTests(unittest.TestCase):
             "duplicate task file",
         ):
             load_workflow(workflow_path)
+
+    def test_shipped_workflow_example_is_valid(self):
+        loaded = load_workflow(
+            PROJECT_ROOT
+            / "workflows"
+            / "textedit_calculator.json",
+            {
+                "customer_name": "张三",
+                "note": "首次联系",
+            },
+        )
+
+        self.assertEqual(
+            loaded.definition.name,
+            "textedit_calculator_demo",
+        )
+        self.assertEqual(len(loaded.task_paths), 2)
+        self.assertIsNotNone(loaded.cleanup_task_path)
+        self.assertEqual(loaded.parameters["expected_result"], "391")
 
 
 if __name__ == "__main__":

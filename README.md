@@ -199,6 +199,21 @@ the expected customer and note with the vision verifier, then closes the
 document without saving. The source data is in
 [datasets/textedit_rows.csv](datasets/textedit_rows.csv).
 
+Run an ordered multi-task workflow:
+
+```bash
+./venv/bin/soc-agent workflow workflows/textedit_calculator.json \
+  --param customer_name=张三 \
+  --param note=首次联系
+```
+
+The example first writes and verifies a TextEdit record, then performs the
+parameterized calculator task, and finally runs the calculator cleanup task.
+Each child task writes its own JSON report. After the workflow finishes, a
+summary report is written under `reports/` with the ordered task statuses,
+parameters, durations, nested task reports, cleanup result, and whether
+execution stopped early.
+
 Stop immediately when a case does not pass:
 
 ```bash
