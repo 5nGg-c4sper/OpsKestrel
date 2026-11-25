@@ -62,6 +62,16 @@ Dataset JSON
   -> dataset 汇总报告
 ```
 
+持久化任务队列：
+
+```text
+QueueJob
+  -> SQLiteQueueStore
+  -> 按 priority/created_at 原子领取
+  -> RUNNING
+  -> PASSED / FAILED / TIMED_OUT / CANCELLED
+```
+
 ## 模块职责
 
 | 模块 | 职责 |
@@ -83,6 +93,8 @@ Dataset JSON
 | `soc_agent/dataset_runner.py` | 顺序执行数据集 case、重试和状态聚合 |
 | `soc_agent/workflows.py` | 加载工作流、解析共享参数和子任务路径 |
 | `soc_agent/workflow_runner.py` | 预检参数、顺序执行子任务并汇总工作流结果 |
+| `soc_agent/queue_models.py` | 队列任务、生命周期状态和参数数据模型 |
+| `soc_agent/queue_store.py` | SQLite 持久化、优先级排序和原子领取 |
 | `soc_agent/cli.py` | 参数解析和依赖装配 |
 | `soc_agent/config.py` | 从环境变量加载并验证运行配置 |
 
