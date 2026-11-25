@@ -107,7 +107,7 @@ QueueWorker
 | `soc_agent/workflows.py` | 加载工作流、解析共享参数和子任务路径 |
 | `soc_agent/workflow_runner.py` | 预检参数、顺序执行子任务并汇总工作流结果 |
 | `soc_agent/queue_models.py` | 队列任务、生命周期状态和参数数据模型 |
-| `soc_agent/queue_store.py` | SQLite 持久化、优先级排序和原子领取 |
+| `soc_agent/queue_store.py` | SQLite 持久化、优先级、原子领取和 Worker 注册表 |
 | `soc_agent/queue_worker.py` | 领取队列任务、执行并持久化终态 |
 | `soc_agent/cli.py` | 参数解析、依赖装配和 queue CLI |
 | `soc_agent/config.py` | 从环境变量加载并验证运行配置 |
@@ -209,3 +209,7 @@ QueueWorker 领取任务时写入唯一 `worker_id`，执行期间以
 `heartbeat_interval_seconds` 后台刷新租约。heartbeat 和 complete 都校验
 worker 所有权，旧 Worker 无法覆盖已经被恢复或重新领取的任务。CLI 可用
 `--worker-id` 指定稳定的 Runner 标识。
+
+`queue_workers` 表记录 Worker 的主机名、PID、运行状态、当前 Job、启动时间、
+最后心跳和离线时间。`queue workers` 命令可按最近心跳窗口查询活跃 Worker，
+为后续多机器调度和运行监控提供基础。

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from soc_agent.queue_models import QueueJob, QueueState
+from soc_agent.queue_models import QueueJob, QueueState, WorkerState
 from soc_agent.queue_store import QueueStoreError, SQLiteQueueStore
 from soc_agent.task_models import (
     ActionType,
@@ -305,6 +305,47 @@ class SQLiteQueueStoreTests(unittest.TestCase):
             worker_id="worker-a",
         )
         self.assertEqual(completed.state, QueueState.PASSED)
+
+    def test_worker_registry_tracks_heartbeat_and_offline_state(self):
+        registered = self.store.register_worker(
+            "worker-a",
+            "macbook",
+            123,
+        )
+
+        self.assertEqual(registered.state, WorkerState.IDLE)
+        self.assertEqual(registered.hostname, "macbook")
+        self.assertEqual(registered.pid, 123)
+
+        self.advance()
+        self.store.heartbeat_worker(
+            "worker-a",
+            WorkerState.RUNNING,
+            current_job_id="job-1",
+        )
+        workers = self.store.list_workers()
+        self.assertEqual(workers[0].state, WorkerState.RUNNING)
+        self.assertEqual(workers[0].current_job_id, "job-1")
+
+        self.advance()
+        offline = self.store.mark_worker_offline("worker-a")
+        self.assertEqual(offline.state, WorkerState.OFFLINE)
+        self.assertIsNone(offline.current_job_id)
+        self.assertEqual(offline.stopped_at, self.current_time)
+
+    def test_list_workers_can_filter_recent_heartbeats(self):
+        self.store.register_worker("old-worker", "macbook", 100)
+        self.advance(20)
+        self.store.register_worker("new-worker", "macbook", 101)
+
+        workers = self.store.list_workers(
+            online_within_seconds=10
+        )
+
+        self.assertEqual(
+            [worker.worker_id for worker in workers],
+            ["new-worker"],
+        )
 
     def test_recover_stale_job_requeues_then_fails_at_max_attempts(self):
         self.store.enqueue(

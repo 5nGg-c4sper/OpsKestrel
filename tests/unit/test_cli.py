@@ -295,6 +295,14 @@ class CLITests(unittest.TestCase):
                 "--non-interactive",
             ]
         )
+        workers_args = build_parser().parse_args(
+            [
+                "queue",
+                "workers",
+                "--online-within-seconds",
+                "60",
+            ]
+        )
 
         self.assertEqual(enqueue_args.queue_command, "enqueue")
         self.assertEqual(enqueue_args.target_type, "task")
@@ -311,6 +319,8 @@ class CLITests(unittest.TestCase):
         self.assertEqual(run_args.max_attempts, 4)
         self.assertEqual(run_args.worker_id, "worker-test")
         self.assertTrue(run_args.non_interactive)
+        self.assertEqual(workers_args.queue_command, "workers")
+        self.assertEqual(workers_args.online_within_seconds, 60)
 
     def test_parser_supports_repeated_suite_parameters(self):
         args = build_parser().parse_args(
@@ -815,6 +825,32 @@ class CLITests(unittest.TestCase):
         self.assertEqual(list_code, 0)
         self.assertIn("Enqueued: job-1", output.getvalue())
         self.assertIn("job-1 pending task", output.getvalue())
+        load_dotenv.assert_not_called()
+
+    def test_main_lists_registered_workers_without_api_key(self):
+        queue_db = self.root / "queue.db"
+        SQLiteQueueStore(queue_db).register_worker(
+            "worker-visible",
+            "test-mac",
+            999,
+        )
+        output = StringIO()
+
+        with (
+            patch("soc_agent.cli.load_dotenv") as load_dotenv,
+            redirect_stdout(output),
+        ):
+            exit_code = main(
+                [
+                    "queue",
+                    "workers",
+                    "--queue-db",
+                    str(queue_db),
+                ]
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("worker-visible idle test-mac:999", output.getvalue())
         load_dotenv.assert_not_called()
 
     def test_main_runs_queued_task(self):

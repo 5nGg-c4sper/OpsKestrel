@@ -166,6 +166,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the queue SQLite database",
     )
 
+    queue_workers = queue_commands.add_parser(
+        "workers",
+        help="List registered queue workers",
+    )
+    queue_workers.add_argument(
+        "--queue-db",
+        default="reports/queue.db",
+        help="Path to the queue SQLite database",
+    )
+    queue_workers.add_argument(
+        "--online-within-seconds",
+        type=float,
+        default=300.0,
+        help="Only show workers with a recent heartbeat",
+    )
+
     queue_run = queue_commands.add_parser(
         "run",
         help="Run queued jobs",
@@ -403,6 +419,8 @@ def main(
             )
         if args.queue_command == "list":
             return list_queue_jobs(args)
+        if args.queue_command == "workers":
+            return list_queue_workers(args)
 
     load_dotenv()
     config = AgentConfig.from_env().with_overrides(
@@ -633,6 +651,31 @@ def run_queue(
         max_attempts=max_attempts,
         worker_id=worker_id,
     ).run_until_empty(max_jobs=max_jobs)
+
+
+def list_queue_workers(args) -> int:
+    try:
+        store = SQLiteQueueStore(args.queue_db)
+        workers = store.list_workers(
+            online_within_seconds=args.online_within_seconds
+        )
+    except Exception as error:
+        print(f"Queue workers failed: {error}")
+        return 1
+
+    if not workers:
+        print("No online queue workers.")
+        return 0
+
+    for worker in workers:
+        print(
+            f"{worker.worker_id} {worker.state.value} "
+            f"{worker.hostname}:{worker.pid}"
+        )
+        print(f"  Last heartbeat: {worker.last_heartbeat.isoformat()}")
+        if worker.current_job_id:
+            print(f"  Current job: {worker.current_job_id}")
+    return 0
 
 
 def print_queue_jobs(jobs) -> None:

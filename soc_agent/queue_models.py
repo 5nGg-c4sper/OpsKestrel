@@ -23,6 +23,12 @@ class QueueState(str, Enum):
     CANCELLED = "cancelled"
 
 
+class WorkerState(str, Enum):
+    IDLE = "idle"
+    RUNNING = "running"
+    OFFLINE = "offline"
+
+
 TERMINAL_QUEUE_STATES = frozenset(
     {
         QueueState.PASSED,
@@ -82,3 +88,22 @@ class QueueJob(StrictModel):
     @property
     def terminal(self) -> bool:
         return self.state in TERMINAL_QUEUE_STATES
+
+
+class QueueWorkerRecord(StrictModel):
+    worker_id: str
+    hostname: str
+    pid: int = Field(ge=1)
+    state: WorkerState = WorkerState.IDLE
+    current_job_id: Optional[str] = None
+
+    started_at: datetime
+    last_heartbeat: datetime
+    stopped_at: Optional[datetime] = None
+
+    @field_validator("worker_id", "hostname")
+    @classmethod
+    def validate_non_empty_text(cls, value):
+        if not value.strip():
+            raise ValueError("must not be empty")
+        return value

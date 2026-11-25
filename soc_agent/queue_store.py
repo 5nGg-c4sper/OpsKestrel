@@ -12,6 +12,8 @@ from soc_agent.queue_models import (
     TERMINAL_QUEUE_STATES,
     QueueJob,
     QueueState,
+    QueueWorkerRecord,
+    WorkerState,
 )
 from soc_agent.task_models import (
     DatasetTargetType,
@@ -267,6 +269,124 @@ class SQLiteQueueStore:
 
         return [self.get(job_id) for job_id in recovered_ids]
 
+    def register_worker(
+        self,
+        worker_id: str,
+        hostname: str,
+        pid: int,
+    ) -> QueueWorkerRecord:
+        if not worker_id.strip():
+            raise QueueStoreError("worker_id must not be empty")
+        now = self._clock()
+        with self._connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO queue_workers (
+                    worker_id, hostname, pid, state, current_job_id,
+                    started_at, last_heartbeat, stopped_at
+                ) VALUES (?, ?, ?, ?, NULL, ?, ?, NULL)
+                ON CONFLICT(worker_id) DO UPDATE SET
+                    hostname = excluded.hostname,
+                    pid = excluded.pid,
+                    state = excluded.state,
+                    current_job_id = NULL,
+                    started_at = excluded.started_at,
+                    last_heartbeat = excluded.last_heartbeat,
+                    stopped_at = NULL
+                """,
+                (
+                    worker_id,
+                    hostname,
+                    pid,
+                    WorkerState.IDLE.value,
+                    now.isoformat(),
+                    now.isoformat(),
+                ),
+            )
+        return self.get_worker(worker_id)
+
+    def heartbeat_worker(
+        self,
+        worker_id: str,
+        state: WorkerState,
+        current_job_id: Optional[str] = None,
+    ) -> QueueWorkerRecord:
+        now = self._clock()
+        with self._connection() as connection:
+            updated = connection.execute(
+                """
+                UPDATE queue_workers
+                SET state = ?, current_job_id = ?, last_heartbeat = ?
+                WHERE worker_id = ?
+                """,
+                (
+                    state.value,
+                    current_job_id,
+                    now.isoformat(),
+                    worker_id,
+                ),
+            )
+        if updated.rowcount != 1:
+            raise QueueStoreError(f"worker is not registered: {worker_id}")
+        return self.get_worker(worker_id)
+
+    def mark_worker_offline(self, worker_id: str) -> QueueWorkerRecord:
+        now = self._clock()
+        with self._connection() as connection:
+            updated = connection.execute(
+                """
+                UPDATE queue_workers
+                SET state = ?, current_job_id = NULL,
+                    last_heartbeat = ?, stopped_at = ?
+                WHERE worker_id = ?
+                """,
+                (
+                    WorkerState.OFFLINE.value,
+                    now.isoformat(),
+                    now.isoformat(),
+                    worker_id,
+                ),
+            )
+        if updated.rowcount != 1:
+            raise QueueStoreError(f"worker is not registered: {worker_id}")
+        return self.get_worker(worker_id)
+
+    def get_worker(self, worker_id: str) -> QueueWorkerRecord:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM queue_workers WHERE worker_id = ?",
+                (worker_id,),
+            ).fetchone()
+        if row is None:
+            raise QueueStoreError(f"worker not found: {worker_id}")
+        return self._worker_from_row(row)
+
+    def list_workers(
+        self,
+        online_within_seconds: Optional[float] = None,
+    ) -> List[QueueWorkerRecord]:
+        query = "SELECT * FROM queue_workers"
+        values = ()
+        if online_within_seconds is not None:
+            if online_within_seconds <= 0:
+                raise QueueStoreError(
+                    "online_within_seconds must be greater than 0"
+                )
+            cutoff = (
+                self._clock().timestamp() - online_within_seconds
+            )
+            query += " WHERE last_heartbeat >= ?"
+            values = (
+                datetime.fromtimestamp(
+                    cutoff,
+                    tz=timezone.utc,
+                ).isoformat(),
+            )
+        query += " ORDER BY last_heartbeat DESC, worker_id ASC"
+        with self._connection() as connection:
+            rows = connection.execute(query, values).fetchall()
+        return [self._worker_from_row(row) for row in rows]
+
     def complete(
         self,
         job_id: str,
@@ -333,6 +453,20 @@ class SQLiteQueueStore:
                     recovery_count INTEGER NOT NULL DEFAULT 0,
                     report_path TEXT,
                     error TEXT
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS queue_workers (
+                    worker_id TEXT PRIMARY KEY,
+                    hostname TEXT NOT NULL,
+                    pid INTEGER NOT NULL,
+                    state TEXT NOT NULL,
+                    current_job_id TEXT,
+                    started_at TEXT NOT NULL,
+                    last_heartbeat TEXT NOT NULL,
+                    stopped_at TEXT
                 )
                 """
             )
@@ -452,4 +586,23 @@ class SQLiteQueueStore:
             recovery_count=row["recovery_count"],
             report_path=row["report_path"],
             error=row["error"],
+        )
+
+    @staticmethod
+    def _worker_from_row(row: sqlite3.Row) -> QueueWorkerRecord:
+        return QueueWorkerRecord(
+            worker_id=row["worker_id"],
+            hostname=row["hostname"],
+            pid=row["pid"],
+            state=WorkerState(row["state"]),
+            current_job_id=row["current_job_id"],
+            started_at=datetime.fromisoformat(row["started_at"]),
+            last_heartbeat=datetime.fromisoformat(
+                row["last_heartbeat"]
+            ),
+            stopped_at=(
+                datetime.fromisoformat(row["stopped_at"])
+                if row["stopped_at"]
+                else None
+            ),
         )

@@ -48,16 +48,30 @@ class QueueWorker:
             f"{socket.gethostname()}:{os.getpid()}:"
             f"{uuid.uuid4().hex[:8]}"
         )
+        self.hostname = socket.gethostname()
+        self.pid = os.getpid()
         self.heartbeat_interval_seconds = heartbeat_interval_seconds
 
     def run_once(self) -> Optional[QueueJob]:
+        self.store.register_worker(
+            self.worker_id,
+            self.hostname,
+            self.pid,
+        )
         self.store.recover_stale_jobs(
             stale_after_seconds=self.stale_after_seconds,
             max_attempts=self.max_attempts,
         )
         job = self.store.claim_next(self.worker_id)
         if job is None:
+            self.store.mark_worker_offline(self.worker_id)
             return None
+
+        self.store.heartbeat_worker(
+            self.worker_id,
+            QueueState.RUNNING,
+            current_job_id=job.job_id,
+        )
 
         stop_heartbeat = threading.Event()
         heartbeat_errors = []
@@ -70,6 +84,11 @@ class QueueWorker:
                     self.store.heartbeat(
                         job.job_id,
                         worker_id=self.worker_id,
+                    )
+                    self.store.heartbeat_worker(
+                        self.worker_id,
+                        QueueState.RUNNING,
+                        current_job_id=job.job_id,
                     )
                 except Exception as error:
                     heartbeat_errors.append(error)
@@ -93,7 +112,7 @@ class QueueWorker:
 
         try:
             if result is None:
-                return self.store.complete(
+                completed = self.store.complete(
                     job.job_id,
                     QueueState.FAILED,
                     error=(
@@ -102,20 +121,24 @@ class QueueWorker:
                     ),
                     worker_id=self.worker_id,
                 )
-
-            return self.store.complete(
-                job.job_id,
-                self._queue_state(result.status),
-                report_path=result.report_path,
-                error=result.error,
-                worker_id=self.worker_id,
-            )
+            else:
+                completed = self.store.complete(
+                    job.job_id,
+                    self._queue_state(result.status),
+                    report_path=result.report_path,
+                    error=result.error,
+                    worker_id=self.worker_id,
+                )
         except QueueStoreError as error:
             if heartbeat_errors:
                 raise QueueStoreError(
                     f"queue worker lost job lease: {heartbeat_errors[0]}"
                 ) from error
             raise
+        finally:
+            self.store.mark_worker_offline(self.worker_id)
+
+        return completed
 
     def run_until_empty(
         self,

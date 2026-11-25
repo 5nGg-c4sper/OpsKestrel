@@ -270,6 +270,13 @@ class QueueWorkerTests(unittest.TestCase):
                 self.claimed_worker = None
                 self.heartbeat_calls = []
                 self.completed_worker = None
+                self.worker_heartbeats = []
+                self.registered = False
+                self.offline = False
+
+            def register_worker(self, worker_id, hostname, pid):
+                self.registered = True
+                return None
 
             def recover_stale_jobs(self, **kwargs):
                 return []
@@ -282,6 +289,17 @@ class QueueWorkerTests(unittest.TestCase):
                 self.heartbeat_calls.append((job_id, worker_id))
                 return job
 
+            def heartbeat_worker(
+                self,
+                worker_id,
+                state,
+                current_job_id=None,
+            ):
+                self.worker_heartbeats.append(
+                    (worker_id, state, current_job_id)
+                )
+                return None
+
             def complete(self, job_id, state, **kwargs):
                 self.completed_worker = kwargs.get("worker_id")
                 return job.model_copy(
@@ -291,6 +309,10 @@ class QueueWorkerTests(unittest.TestCase):
                         "finished_at": timestamp,
                     }
                 )
+
+            def mark_worker_offline(self, worker_id):
+                self.offline = True
+                return None
 
         store = RecordingStore()
 
@@ -315,6 +337,9 @@ class QueueWorkerTests(unittest.TestCase):
             )
         )
         self.assertEqual(store.completed_worker, "worker-heartbeat")
+        self.assertTrue(store.registered)
+        self.assertGreaterEqual(len(store.worker_heartbeats), 1)
+        self.assertTrue(store.offline)
         self.assertEqual(completed.state, QueueState.PASSED)
 
 

@@ -279,6 +279,7 @@ Manage the persistent execution queue:
   --param note=首次联系
 
 ./venv/bin/soc-agent queue list
+./venv/bin/soc-agent queue workers
 ./venv/bin/soc-agent queue run
 ./venv/bin/soc-agent queue run --drain
 ./venv/bin/soc-agent queue run --stale-after-seconds 3600 --max-attempts 3
@@ -296,6 +297,10 @@ Each Worker also receives a unique ID. While a job is executing, a background
 heartbeat renews `claimed_at`; heartbeats and completion are rejected unless
 the Worker still owns the job. `--worker-id` can provide a stable identity for
 managed runners.
+
+`queue workers` shows recently active Worker IDs, hostnames, PIDs, current
+jobs, and last heartbeat times. Use `--online-within-seconds` to control the
+online window.
 
 `--allow-app` and `--allow-action` create a per-job execution permission
 profile. When omitted, the default SafetyPolicy remains in effect. When
