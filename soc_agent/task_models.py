@@ -19,6 +19,7 @@ class ActionType(str, Enum):
     OPEN_APP = "open_app"
     ACTIVATE_APP = "activate_app"
     CLOSE_DOCUMENT = "close_document"
+    APPROVAL = "approval"
     WRITE = "write"
     PRESS = "press"
     CLICK = "click"
@@ -123,6 +124,9 @@ class TaskStep(StrictModel):
 
         if self.type == ActionType.CLOSE_DOCUMENT and not self.app:
             raise ValueError("close_document requires app")
+
+        if self.type == ActionType.APPROVAL and not self.prompt:
+            raise ValueError("approval requires prompt")
 
         if self.type == ActionType.WRITE and self.content is None:
             raise ValueError("write requires content")
@@ -541,6 +545,8 @@ class StepResult(StrictModel):
 
     error: Optional[str] = None
     screenshot: Optional[str] = None
+    approval_prompt: Optional[str] = None
+    approval_result: Optional[bool] = None
     condition_prompt: Optional[str] = None
     condition_expected: Optional[bool] = None
     condition_actual: Optional[bool] = None

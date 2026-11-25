@@ -85,6 +85,14 @@ class ActionExecutorTests(unittest.TestCase):
             ],
         )
 
+    def test_approval_is_a_noop_after_confirmation(self):
+        result = self.executor.execute(
+            TaskStep(type="approval", prompt="是否允许继续？")
+        )
+
+        self.assertEqual(result, StepOutcome.CONTINUE)
+        self.assertEqual(self.environment.calls, [])
+
     def test_write(self):
         result = self.executor.execute(
             TaskStep(type="write", content="17*23")

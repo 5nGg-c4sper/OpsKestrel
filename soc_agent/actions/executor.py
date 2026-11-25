@@ -44,6 +44,9 @@ class ActionExecutor:
             self._settle()
             return StepOutcome.CONTINUE
 
+        if step.type == ActionType.APPROVAL:
+            return StepOutcome.CONTINUE
+
         if step.type == ActionType.WRITE:
             self.environment.write(step.content)
             return StepOutcome.CONTINUE

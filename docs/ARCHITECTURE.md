@@ -98,6 +98,7 @@ Dataset JSON
 - `open_app`：按名称打开应用
 - `activate_app`：将已有或已打开的应用切换到前台
 - `close_document`：关闭应用前台文稿，可显式选择是否保存
+- `approval`：显式人工审批节点，批准继续、拒绝取消
 - `write`：输入文本
 - `press`：发送按键或组合键
 - `click`：使用 `0-1` 归一化坐标点击
@@ -115,6 +116,8 @@ Dataset JSON
 实际完成次数和间隔；`verify_vision`、`done` 不允许配置循环。
 任务可按 `setup_steps → steps → cleanup_steps` 三阶段执行。每个
 `StepResult.phase` 标识所属阶段；cleanup 在主流程结束或失败后都会执行。
+审批节点的 `approval_prompt` 和 `approval_result` 会写入步骤报告；审批文本与
+普通动作节点一样支持 `${参数}` 渲染。
 
 ## 数据与隐私
 

@@ -538,6 +538,33 @@ class TaskDefinitionTests(unittest.TestCase):
                 }
             )
 
+    def test_approval_requires_prompt(self):
+        task = TaskDefinition.model_validate(
+            {
+                "name": "approval",
+                "steps": [
+                    {
+                        "type": "approval",
+                        "prompt": "是否允许继续？",
+                    }
+                ],
+            }
+        )
+
+        self.assertEqual(task.steps[0].type, ActionType.APPROVAL)
+        self.assertEqual(task.steps[0].prompt, "是否允许继续？")
+
+        with self.assertRaisesRegex(
+            ValidationError,
+            "approval requires prompt",
+        ):
+            TaskDefinition.model_validate(
+                {
+                    "name": "missing_prompt",
+                    "steps": [{"type": "approval"}],
+                }
+            )
+
     def test_step_accepts_vision_condition(self):
         task = TaskDefinition.model_validate(
             {

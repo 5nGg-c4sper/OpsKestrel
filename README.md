@@ -54,6 +54,20 @@ undeclared or missing parameter fails before the first desktop action.
 `verification_attempts` and `verification_retry_delay_seconds` for retrying
 transient screenshot or model results.
 
+Add an explicit approval checkpoint before a high-risk action:
+
+```json
+{
+  "type": "approval",
+  "prompt": "是否允许提交这份客户资料？"
+}
+```
+
+The approval step always asks the configured confirmation handler. Approval
+continues to the next step; rejection cancels the task. `--non-interactive`
+treats approval checkpoints as rejected. Reports store `approval_prompt` and
+`approval_result` on the step.
+
 Run all JSON tasks in a directory:
 
 ```bash

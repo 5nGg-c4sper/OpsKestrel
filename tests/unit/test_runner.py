@@ -188,6 +188,75 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertEqual(task.cleanup_steps[0].app, "文本编辑")
         self.assertFalse(task.cleanup_steps[0].save_changes)
 
+    def test_approval_step_records_approved_decision(self):
+        task = TaskDefinition.model_validate(
+            {
+                "name": "approved_task",
+                "steps": [
+                    {
+                        "type": "approval",
+                        "prompt": "是否允许写入测试文本？",
+                    },
+                    {
+                        "type": "write",
+                        "content": "approved",
+                    },
+                    {"type": "done", "summary": "finished"},
+                ],
+            }
+        )
+        environment = FakeEnvironment()
+        decisions = []
+
+        result = TaskRunner(
+            ActionExecutor(environment, settle_delay=0),
+            confirmation_handler=lambda step: (
+                decisions.append(step.prompt) or True
+            ),
+        ).run(task)
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertEqual(decisions, ["是否允许写入测试文本？"])
+        self.assertEqual(
+            result.steps[0].approval_prompt,
+            "是否允许写入测试文本？",
+        )
+        self.assertTrue(result.steps[0].approval_result)
+        self.assertIn(("write", "approved"), environment.calls)
+
+    def test_approval_step_rejection_cancels_task(self):
+        task = TaskDefinition.model_validate(
+            {
+                "name": "rejected_task",
+                "steps": [
+                    {
+                        "type": "approval",
+                        "prompt": "是否允许提交？",
+                    },
+                    {
+                        "type": "write",
+                        "content": "must not run",
+                    },
+                    {"type": "done", "summary": "finished"},
+                ],
+            }
+        )
+        environment = FakeEnvironment()
+
+        result = TaskRunner(
+            ActionExecutor(environment, settle_delay=0),
+            confirmation_handler=lambda step: False,
+        ).run(task)
+
+        self.assertEqual(result.status, TaskStatus.CANCELLED)
+        self.assertEqual(result.steps[0].status, StepStatus.SKIPPED)
+        self.assertEqual(
+            result.steps[0].approval_prompt,
+            "是否允许提交？",
+        )
+        self.assertFalse(result.steps[0].approval_result)
+        self.assertEqual(environment.calls, [])
+
     def test_multi_app_activate_task_is_valid(self):
         task_path = (
             PROJECT_ROOT / "tasks" / "examples" / "multi_app_activate.json"

@@ -142,6 +142,8 @@ class TaskRunner:
             condition_actual = None
             condition_duration = None
             condition_screenshot = None
+            approval_prompt = None
+            approval_result = None
             configured_loop_count = (
                 step.loop.count if step.loop is not None else None
             )
@@ -276,7 +278,16 @@ class TaskRunner:
                     )
                     break
 
-            if step.requires_confirmation:
+            requires_approval = (
+                step.requires_confirmation
+                or step.type == ActionType.APPROVAL
+            )
+            if requires_approval:
+                approval_prompt = (
+                    step.prompt
+                    or step.summary
+                    or f"{step.type.value} requires confirmation"
+                )
                 if self.confirmation_handler is None:
                     status = TaskStatus.FAILED
                     task_error = (
@@ -289,6 +300,7 @@ class TaskRunner:
                         position,
                         phase,
                         task_error,
+                        approval_prompt=approval_prompt,
                     )
                     break
 
@@ -303,6 +315,8 @@ class TaskRunner:
                         position,
                         phase,
                         task_error,
+                        approval_prompt=approval_prompt,
+                        approval_result=False,
                     )
                     break
 
@@ -315,8 +329,11 @@ class TaskRunner:
                         position,
                         phase,
                         task_error,
+                        approval_prompt=approval_prompt,
+                        approval_result=False,
                     )
                     break
+                approval_result = True
 
             step_started_at = datetime.now(timezone.utc)
             step_start_time = self._clock()
@@ -369,6 +386,8 @@ class TaskRunner:
                             step,
                             StepStatus.FAILED,
                         ),
+                        approval_prompt=approval_prompt,
+                        approval_result=approval_result,
                         condition_prompt=condition_prompt,
                         condition_expected=condition_expected,
                         condition_actual=condition_actual,
@@ -398,6 +417,8 @@ class TaskRunner:
                         step,
                         StepStatus.PASSED,
                     ),
+                    approval_prompt=approval_prompt,
+                    approval_result=approval_result,
                     condition_prompt=condition_prompt,
                     condition_expected=condition_expected,
                     condition_actual=condition_actual,
@@ -481,6 +502,8 @@ class TaskRunner:
         start_position: int,
         phase: StepPhase,
         reason: str,
+        approval_prompt=None,
+        approval_result=None,
     ) -> None:
         for position in range(start_position, len(steps)):
             step = steps[position]
@@ -495,5 +518,15 @@ class TaskRunner:
                     finished_at=skipped_at,
                     duration_seconds=0.0,
                     error=reason,
+                    approval_prompt=(
+                        approval_prompt
+                        if position == start_position
+                        else None
+                    ),
+                    approval_result=(
+                        approval_result
+                        if position == start_position
+                        else None
+                    ),
                 )
             )
