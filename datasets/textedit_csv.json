@@ -1,0 +1,13 @@
+{
+  "name": "textedit_csv_workflow",
+  "task": "../tasks/textedit_parameterized.json",
+  "data_source": {
+    "type": "csv",
+    "path": "textedit_rows.csv",
+    "case_name_column": "case_id",
+    "parameters": {
+      "customer_name": "customer_name",
+      "note": "note"
+    }
+  }
+}
