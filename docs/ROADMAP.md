@@ -42,6 +42,7 @@ SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优
 - TextEdit 多记录 CSV 工作流及不保存 cleanup
 - 业务工作流定义模型、共享参数解析和 cleanup task 契约
 - Workflow Loader、相对路径解析和加载期文件校验
+- WorkflowRunner 参数预检、顺序执行、失败停止和 cleanup
 - `soc-agent dataset` 数据集命令、失败停止/重试策略和诊断输出
 - 基础安全策略
 - GitHub Actions 单元测试配置
@@ -49,7 +50,7 @@ SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优
 
 当前验证结果：
 
-- 235 个单元测试通过
+- 240 个单元测试通过
 - 计算器任务连续批量执行成功
 - 两组参数化计算器任务在真实 macOS 上验证成功
 - 双 case 数据集在真实 macOS 上连续执行成功

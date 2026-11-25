@@ -43,6 +43,10 @@ Workflow JSON
   -> 解析共享参数
   -> 解析并校验有序 task_files 和 cleanup_task
   -> LoadedWorkflow
+  -> WorkflowRunner
+  -> 按顺序执行 TaskRunner
+  -> 失败后停止主任务并执行 cleanup
+  -> WorkflowResult
 ```
 
 ## 模块职责
@@ -63,6 +67,7 @@ Workflow JSON
 | `soc_agent/data_sources.py` | 将 CSV 行转换为数据集 case 和任务参数 |
 | `soc_agent/dataset_runner.py` | 顺序执行数据集 case、重试和状态聚合 |
 | `soc_agent/workflows.py` | 加载工作流、解析共享参数和子任务路径 |
+| `soc_agent/workflow_runner.py` | 预检参数、顺序执行子任务并汇总工作流结果 |
 | `soc_agent/cli.py` | 参数解析和依赖装配 |
 | `soc_agent/config.py` | 从环境变量加载并验证运行配置 |
 
@@ -130,5 +135,7 @@ Workflow JSON
 
 `WorkflowDefinition` 用有序 `task_files` 描述子任务，并提供共享参数定义和可选
 `cleanup_task`。`load_workflow` 在返回前解析全部相对路径、验证文件存在、拒绝
-解析后重复的任务路径，并完成参数默认值与覆盖值校验。工作流执行器和汇总报告
-将在后续阶段接入。
+解析后重复的任务路径，并完成参数默认值与覆盖值校验。`WorkflowRunner` 在桌面
+操作前预检所有子任务的必需参数，只向每个子任务传递其声明过的共享参数。主任务
+失败后停止后续任务，但 cleanup task 仍会执行。`WorkflowResult` 保存每个子任务
+的路径、阶段、参数、状态、耗时和嵌套任务报告；工作流级报告文件将在后续阶段接入。

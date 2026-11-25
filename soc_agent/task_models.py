@@ -551,6 +551,94 @@ class TaskResult(StrictModel):
     failure_log: Optional[str] = None
 
 
+class WorkflowTaskResult(StrictModel):
+    task_name: str
+    task_path: str
+    phase: StepPhase
+    status: TaskStatus
+    parameters: Dict[str, str] = Field(default_factory=dict)
+
+    started_at: datetime
+    finished_at: datetime
+    duration_seconds: float = Field(default=0.0, ge=0)
+
+    error: Optional[str] = None
+    task_result: TaskResult
+
+    @field_validator("task_name", "task_path")
+    @classmethod
+    def validate_non_empty_text(cls, value):
+        if not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+
+class WorkflowResult(StrictModel):
+    workflow_name: str
+    status: TaskStatus
+
+    started_at: datetime
+    finished_at: datetime
+    duration_seconds: float = Field(default=0.0, ge=0)
+
+    task_results: List[WorkflowTaskResult] = Field(default_factory=list)
+    cleanup_result: Optional[WorkflowTaskResult] = None
+    stopped_early: bool = False
+    error: Optional[str] = None
+    report_path: Optional[str] = None
+
+    @field_validator("workflow_name")
+    @classmethod
+    def validate_workflow_name(cls, value):
+        if not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+    @property
+    def total(self) -> int:
+        return len(self.task_results)
+
+    @property
+    def passed(self) -> int:
+        return sum(
+            result.status == TaskStatus.PASSED
+            for result in self.task_results
+        )
+
+    @property
+    def failed(self) -> int:
+        return sum(
+            result.status == TaskStatus.FAILED
+            for result in self.task_results
+        )
+
+    @property
+    def timed_out(self) -> int:
+        return sum(
+            result.status == TaskStatus.TIMED_OUT
+            for result in self.task_results
+        )
+
+    @property
+    def cancelled(self) -> int:
+        return sum(
+            result.status == TaskStatus.CANCELLED
+            for result in self.task_results
+        )
+
+    @property
+    def successful(self) -> bool:
+        cleanup_passed = (
+            self.cleanup_result is None
+            or self.cleanup_result.status == TaskStatus.PASSED
+        )
+        return (
+            self.total > 0
+            and self.passed == self.total
+            and cleanup_passed
+        )
+
+
 class TaskCaseResult(StrictModel):
     name: str
     parameters: Dict[str, str] = Field(default_factory=dict)

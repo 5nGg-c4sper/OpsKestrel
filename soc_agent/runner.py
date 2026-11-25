@@ -60,11 +60,15 @@ class TaskRunner:
         task_path,
         parameter_overrides: Optional[Dict[str, str]] = None,
     ) -> TaskDefinition:
-        path = Path(task_path)
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        task = TaskDefinition.model_validate(payload)
+        task = TaskRunner.load_definition(task_path)
         resolved = task.resolve_parameters(parameter_overrides)
         return task.render_parameters(resolved)
+
+    @staticmethod
+    def load_definition(task_path) -> TaskDefinition:
+        path = Path(task_path)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return TaskDefinition.model_validate(payload)
 
     def run(self, task: TaskDefinition) -> TaskResult:
         started_at = datetime.now(timezone.utc)
