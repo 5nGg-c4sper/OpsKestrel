@@ -71,6 +71,7 @@ Dataset JSON
 | `soc_agent/actions/executor.py` | 将确定性步骤分发给环境适配器 |
 | `soc_agent/environments/macos.py` | 封装应用、键鼠、截图和等待操作 |
 | `soc_agent/providers/qwen.py` | 调用 Qwen 完成截图验证 |
+| `soc_agent/privacy.py` | 在上传和归档前对截图敏感区域进行遮罩 |
 | `soc_agent/safety/policy.py` | 阻止危险快捷键和敏感应用 |
 | `soc_agent/reporting/report.py` | 持久化 JSON 报告、截图和失败诊断日志 |
 | `soc_agent/reporting/dataset_report.py` | 持久化数据集汇总报告 |
@@ -118,6 +119,9 @@ Dataset JSON
 `StepResult.phase` 标识所属阶段；cleanup 在主流程结束或失败后都会执行。
 审批节点的 `approval_prompt` 和 `approval_result` 会写入步骤报告；审批文本与
 普通动作节点一样支持 `${参数}` 渲染。
+任务可通过归一化 `redaction_regions` 指定敏感区域。截图先写入同目录临时文件，
+完成黑色遮罩后才替换最终文件；遮罩失败会删除临时原图，避免未脱敏截图上传给
+视觉模型或进入报告 artifact。
 
 ## 数据与隐私
 

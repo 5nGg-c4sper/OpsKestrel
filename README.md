@@ -68,6 +68,26 @@ continues to the next step; rejection cancels the task. `--non-interactive`
 treats approval checkpoints as rejected. Reports store `approval_prompt` and
 `approval_result` on the step.
 
+Sensitive screen regions can be blacked out before any screenshot is uploaded
+to the vision model or copied into report artifacts:
+
+```json
+{
+  "redaction_regions": [
+    {
+      "x": 0.0,
+      "y": 0.1,
+      "width": 0.35,
+      "height": 0.2
+    }
+  ]
+}
+```
+
+Coordinates are normalized to `0-1` relative to the screenshot. Every
+verification screenshot and failure screenshot in the task is redacted before
+it is exposed to another component.
+
 Run all JSON tasks in a directory:
 
 ```bash

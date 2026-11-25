@@ -14,6 +14,7 @@ from soc_agent.dataset_runner import DatasetRunner
 from soc_agent.datasets import load_dataset
 from soc_agent.environments.macos import MacOSEnvironment
 from soc_agent.providers.qwen import QwenVisionProvider
+from soc_agent.privacy import capture_screenshot
 from soc_agent.reporting.dataset_report import DatasetReportWriter
 from soc_agent.reporting.report import ReportWriter
 from soc_agent.reporting.suite_report import SuiteReportWriter
@@ -178,7 +179,11 @@ def run_task(
             )
         verification_count += 1
 
-        environment.screenshot(current_path)
+        capture_screenshot(
+            environment,
+            current_path,
+            task.redaction_regions,
+        )
         pending_verification_screenshots.append(str(current_path))
         return vision_provider.verify(str(current_path), statement)
 
@@ -194,7 +199,11 @@ def run_task(
                 f"{screenshot_path.stem}-step-{index:03d}"
                 f"{screenshot_path.suffix}"
             )
-            environment.screenshot(failure_path)
+            capture_screenshot(
+                environment,
+                failure_path,
+                task.redaction_regions,
+            )
             return str(failure_path)
 
         return None

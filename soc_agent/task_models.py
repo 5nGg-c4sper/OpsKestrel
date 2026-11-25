@@ -181,6 +181,21 @@ class TaskLoop(StrictModel):
     delay_seconds: float = Field(default=0.0, ge=0, le=10)
 
 
+class RedactionRegion(StrictModel):
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    width: float = Field(gt=0, le=1)
+    height: float = Field(gt=0, le=1)
+
+    @model_validator(mode="after")
+    def validate_bounds(self):
+        if self.x + self.width > 1:
+            raise ValueError("redaction region exceeds image width")
+        if self.y + self.height > 1:
+            raise ValueError("redaction region exceeds image height")
+        return self
+
+
 class TaskDefinition(StrictModel):
     schema_version: int = Field(default=1, ge=1)
     name: str
@@ -195,6 +210,9 @@ class TaskDefinition(StrictModel):
     setup_steps: List[TaskStep] = Field(default_factory=list)
     steps: List[TaskStep] = Field(min_length=1)
     cleanup_steps: List[TaskStep] = Field(default_factory=list)
+    redaction_regions: List[RedactionRegion] = Field(
+        default_factory=list
+    )
 
     @field_validator("name")
     @classmethod
