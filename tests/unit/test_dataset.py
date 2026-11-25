@@ -96,6 +96,36 @@ class DatasetFileTests(unittest.TestCase):
             },
         )
 
+    def test_textedit_csv_dataset_is_valid(self):
+        dataset_path = (
+            PROJECT_ROOT / "datasets" / "textedit_csv.json"
+        )
+
+        loaded = load_dataset(dataset_path)
+
+        self.assertEqual(
+            loaded.definition.name,
+            "textedit_csv_workflow",
+        )
+        self.assertEqual(
+            [case.name for case in loaded.definition.cases],
+            ["record_01", "record_02", "record_03"],
+        )
+        self.assertEqual(
+            loaded.definition.cases[0].parameters,
+            {
+                "customer_name": "张三",
+                "note": "首次联系",
+            },
+        )
+        self.assertEqual(
+            loaded.definition.cases[2].parameters,
+            {
+                "customer_name": "王五",
+                "note": "资料已确认",
+            },
+        )
+
 
 class DatasetLoaderTests(unittest.TestCase):
     def test_load_dataset_resolves_relative_task_path(self):

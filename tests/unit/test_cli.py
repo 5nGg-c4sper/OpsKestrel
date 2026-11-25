@@ -636,6 +636,39 @@ class CLITests(unittest.TestCase):
         self.assertEqual(payload["dataset_name"], "calculator_csv_regression")
         self.assertEqual(len(payload["cases"]), 3)
 
+    def test_run_dataset_loads_text_entries_from_csv(self):
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+        reporter = ReportWriter(self.root / "reports")
+
+        result = run_dataset(
+            PROJECT_ROOT / "datasets" / "textedit_csv.json",
+            environment,
+            executor,
+            FakeVisionProvider(),
+            reporter,
+        )
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertEqual(
+            [case.name for case in result.cases],
+            ["record_01", "record_02", "record_03"],
+        )
+        self.assertIn(("write", "客户：张三"), environment.calls)
+        self.assertIn(("write", "备注：首次联系"), environment.calls)
+        self.assertIn(("write", "客户：李四"), environment.calls)
+        self.assertIn(("write", "备注：等待回访"), environment.calls)
+        self.assertIn(("write", "客户：王五"), environment.calls)
+        self.assertIn(("write", "备注：资料已确认"), environment.calls)
+        self.assertIn(("press", ["command", "w"]), environment.calls)
+        self.assertIn(("press", ["command", "d"]), environment.calls)
+
+        payload = json.loads(
+            Path(result.report_path).read_text(encoding="utf-8")
+        )
+        self.assertEqual(payload["dataset_name"], "textedit_csv_workflow")
+        self.assertEqual(len(payload["cases"]), 3)
+
     def test_main_runs_dataset_command(self):
         environment = FakeEnvironment()
         executor = ActionExecutor(environment, settle_delay=0)
