@@ -259,6 +259,29 @@ This dataset uses the `workflow` target instead of `task`. Every CSV case runs
 the complete ordered workflow with its own parameters, workflow report, nested
 task reports, and final dataset summary entry.
 
+Manage the persistent execution queue:
+
+```bash
+./venv/bin/soc-agent queue enqueue task \
+  tasks/calculator_parameterized.json \
+  --param right=23 \
+  --priority 5
+
+./venv/bin/soc-agent queue enqueue workflow \
+  workflows/textedit_calculator.json \
+  --param customer_name=张三 \
+  --param note=首次联系
+
+./venv/bin/soc-agent queue list
+./venv/bin/soc-agent queue run
+./venv/bin/soc-agent queue run --drain
+```
+
+The queue is stored in `reports/queue.db` by default. `queue run` processes one
+job by default, `--max-jobs` limits a batch, and `--drain` processes until no
+pending jobs remain. Enqueuing and listing do not require the API key; running
+the worker initializes the desktop environment and vision provider.
+
 Stop immediately when a case does not pass:
 
 ```bash

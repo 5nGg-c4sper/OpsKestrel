@@ -15,6 +15,9 @@ from soc_agent.datasets import load_dataset
 from soc_agent.environments.macos import MacOSEnvironment
 from soc_agent.providers.qwen import QwenVisionProvider
 from soc_agent.privacy import capture_screenshot
+from soc_agent.queue_models import QueueJob, QueueState
+from soc_agent.queue_store import SQLiteQueueStore
+from soc_agent.queue_worker import QueueWorker
 from soc_agent.reporting.dataset_report import DatasetReportWriter
 from soc_agent.reporting.report import ReportWriter
 from soc_agent.reporting.suite_report import SuiteReportWriter
@@ -87,6 +90,92 @@ def build_parser() -> argparse.ArgumentParser:
         "--stop-on-failure",
         action="store_true",
         help="Stop after the first unsuccessful case",
+    )
+
+    queue_parser = subparsers.add_parser(
+        "queue",
+        help="Manage and run the persistent task queue",
+    )
+    queue_commands = queue_parser.add_subparsers(
+        dest="queue_command",
+        required=True,
+    )
+
+    queue_enqueue = queue_commands.add_parser(
+        "enqueue",
+        help="Add a task or workflow to the queue",
+    )
+    queue_enqueue.add_argument(
+        "target_type",
+        choices=("task", "workflow"),
+    )
+    queue_enqueue.add_argument(
+        "target_path",
+        help="Path to a task or workflow JSON file",
+    )
+    queue_enqueue.add_argument(
+        "--param",
+        action="append",
+        default=None,
+        metavar="KEY=VALUE",
+        help="Queue job parameter; may be repeated",
+    )
+    queue_enqueue.add_argument(
+        "--priority",
+        type=int,
+        default=0,
+        help="Higher priority jobs run first",
+    )
+    queue_enqueue.add_argument(
+        "--job-id",
+        default=None,
+        help="Optional caller-supplied job ID",
+    )
+    queue_enqueue.add_argument(
+        "--queue-db",
+        default="reports/queue.db",
+        help="Path to the queue SQLite database",
+    )
+
+    queue_list = queue_commands.add_parser(
+        "list",
+        help="List queued jobs",
+    )
+    queue_list.add_argument(
+        "--state",
+        choices=tuple(state.value for state in QueueState),
+        default=None,
+    )
+    queue_list.add_argument(
+        "--queue-db",
+        default="reports/queue.db",
+        help="Path to the queue SQLite database",
+    )
+
+    queue_run = queue_commands.add_parser(
+        "run",
+        help="Run queued jobs",
+    )
+    queue_run.add_argument(
+        "--queue-db",
+        default="reports/queue.db",
+        help="Path to the queue SQLite database",
+    )
+    queue_limit = queue_run.add_mutually_exclusive_group()
+    queue_limit.add_argument(
+        "--drain",
+        action="store_true",
+        help="Run until no pending jobs remain",
+    )
+    queue_limit.add_argument(
+        "--max-jobs",
+        type=int,
+        default=1,
+        help="Maximum jobs to run",
+    )
+    add_execution_options(
+        queue_run,
+        include_parameters=False,
     )
     return parser
 
@@ -275,6 +364,15 @@ def main(
         print(f"Task execution failed: {error}")
         return 1
 
+    if args.command == "queue":
+        if args.queue_command == "enqueue":
+            return enqueue_queue_job(
+                args,
+                parameter_overrides,
+            )
+        if args.queue_command == "list":
+            return list_queue_jobs(args)
+
     load_dotenv()
     config = AgentConfig.from_env().with_overrides(
         screenshot_scale=args.scale,
@@ -341,6 +439,25 @@ def main(
             )
             print_dataset_result(dataset_result)
             return exit_code_for_status(dataset_result.status)
+        elif args.command == "queue":
+            completed_jobs = run_queue(
+                args.queue_db,
+                environment,
+                executor,
+                vision_provider,
+                reporter,
+                confirmation_handler=confirmation_handler,
+                max_jobs=None if args.drain else args.max_jobs,
+            )
+            print_queue_jobs(completed_jobs)
+            return (
+                0
+                if all(
+                    job.state == QueueState.PASSED
+                    for job in completed_jobs
+                )
+                else 1
+            )
         else:
             suite_result = run_suite(
                 args.suite_path,
@@ -360,6 +477,106 @@ def main(
 
     print_result(result)
     return exit_code_for_status(result.status)
+
+
+def enqueue_queue_job(args, parameters: Dict[str, str]) -> int:
+    target_path = Path(args.target_path).expanduser().resolve()
+    if not target_path.is_file():
+        print(f"Queue enqueue failed: file not found: {target_path}")
+        return 1
+
+    try:
+        store = SQLiteQueueStore(args.queue_db)
+        job = store.enqueue(
+            DatasetTargetType(args.target_type),
+            target_path,
+            parameters=parameters,
+            priority=args.priority,
+            job_id=args.job_id,
+        )
+    except Exception as error:
+        print(f"Queue enqueue failed: {error}")
+        return 1
+
+    print(f"Enqueued: {job.job_id}")
+    print(f"Target: {job.target_type.value} {job.target_path}")
+    print(f"Priority: {job.priority}")
+    return 0
+
+
+def list_queue_jobs(args) -> int:
+    try:
+        store = SQLiteQueueStore(args.queue_db)
+        state = QueueState(args.state) if args.state else None
+        jobs = store.list_jobs(state)
+    except Exception as error:
+        print(f"Queue list failed: {error}")
+        return 1
+
+    if not jobs:
+        print("No queue jobs.")
+        return 0
+
+    for job in jobs:
+        print(
+            f"{job.job_id} {job.state.value} "
+            f"{job.target_type.value} {job.target_path}"
+        )
+        if job.report_path:
+            print(f"  Report: {job.report_path}")
+        if job.error:
+            print(f"  Error: {job.error}")
+    return 0
+
+
+def run_queue(
+    queue_db,
+    environment,
+    executor,
+    vision_provider,
+    reporter,
+    confirmation_handler=None,
+    max_jobs: Optional[int] = 1,
+) -> list:
+    store = SQLiteQueueStore(queue_db)
+
+    def execute_job(job: QueueJob):
+        if job.target_type == DatasetTargetType.WORKFLOW:
+            return run_workflow(
+                job.target_path,
+                environment,
+                executor,
+                vision_provider,
+                reporter,
+                confirmation_handler=confirmation_handler,
+                parameter_overrides=job.parameters,
+            )
+        return run_task(
+            job.target_path,
+            environment,
+            executor,
+            vision_provider,
+            reporter,
+            confirmation_handler=confirmation_handler,
+            parameter_overrides=job.parameters,
+        )
+
+    return QueueWorker(store, execute_job).run_until_empty(
+        max_jobs=max_jobs
+    )
+
+
+def print_queue_jobs(jobs) -> None:
+    if not jobs:
+        print("No queued jobs were run.")
+        return
+    for job in jobs:
+        print(f"Queue job: {job.job_id}")
+        print(f"Status: {job.state.value.upper()}")
+        if job.report_path:
+            print(f"Report: {job.report_path}")
+        if job.error:
+            print(f"Error: {job.error}")
 
 
 def run_workflow(

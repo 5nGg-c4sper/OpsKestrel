@@ -106,7 +106,7 @@ QueueWorker
 | `soc_agent/queue_models.py` | 队列任务、生命周期状态和参数数据模型 |
 | `soc_agent/queue_store.py` | SQLite 持久化、优先级排序和原子领取 |
 | `soc_agent/queue_worker.py` | 领取队列任务、执行并持久化终态 |
-| `soc_agent/cli.py` | 参数解析和依赖装配 |
+| `soc_agent/cli.py` | 参数解析、依赖装配和 queue CLI |
 | `soc_agent/config.py` | 从环境变量加载并验证运行配置 |
 
 ## CI 边界

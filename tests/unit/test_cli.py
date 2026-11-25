@@ -25,8 +25,11 @@ from soc_agent.cli import (
     terminal_confirmation_handler,
 )
 from soc_agent.reporting.report import ReportWriter
+from soc_agent.queue_models import QueueState
+from soc_agent.queue_store import SQLiteQueueStore
 from soc_agent.task_models import (
     ActionType,
+    DatasetTargetType,
     StepResult,
     StepStatus,
     TaskResult,
@@ -257,6 +260,36 @@ class CLITests(unittest.TestCase):
         )
         self.assertEqual(args.param, ["customer_name=张三"])
         self.assertTrue(args.non_interactive)
+
+    def test_parser_supports_queue_commands(self):
+        enqueue_args = build_parser().parse_args(
+            [
+                "queue",
+                "enqueue",
+                "task",
+                "tasks/example.json",
+                "--param",
+                "message=hello",
+                "--priority",
+                "5",
+            ]
+        )
+        run_args = build_parser().parse_args(
+            [
+                "queue",
+                "run",
+                "--drain",
+                "--non-interactive",
+            ]
+        )
+
+        self.assertEqual(enqueue_args.queue_command, "enqueue")
+        self.assertEqual(enqueue_args.target_type, "task")
+        self.assertEqual(enqueue_args.param, ["message=hello"])
+        self.assertEqual(enqueue_args.priority, 5)
+        self.assertEqual(run_args.queue_command, "run")
+        self.assertTrue(run_args.drain)
+        self.assertTrue(run_args.non_interactive)
 
     def test_parser_supports_repeated_suite_parameters(self):
         args = build_parser().parse_args(
@@ -708,6 +741,169 @@ class CLITests(unittest.TestCase):
         self.assertIn("Report:", output.getvalue())
         self.assertIn(("write", "A:hello"), environment.calls)
         self.assertIn(("write", "B:hello"), environment.calls)
+
+    def test_main_enqueues_and_lists_job_without_api_key(self):
+        task_path = self.root / "queued_task.json"
+        task_path.write_text(
+            json.dumps(
+                {
+                    "name": "queued_task",
+                    "parameters": {"message": {}},
+                    "steps": [
+                        {
+                            "type": "write",
+                            "content": "${message}",
+                        },
+                        {"type": "done", "summary": "finished"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        queue_db = self.root / "queue.db"
+        output = StringIO()
+
+        with (
+            patch("soc_agent.cli.load_dotenv") as load_dotenv,
+            redirect_stdout(output),
+        ):
+            enqueue_code = main(
+                [
+                    "queue",
+                    "enqueue",
+                    "task",
+                    str(task_path),
+                    "--param",
+                    "message=hello",
+                    "--job-id",
+                    "job-1",
+                    "--queue-db",
+                    str(queue_db),
+                ]
+            )
+            list_code = main(
+                [
+                    "queue",
+                    "list",
+                    "--queue-db",
+                    str(queue_db),
+                ]
+            )
+
+        self.assertEqual(enqueue_code, 0)
+        self.assertEqual(list_code, 0)
+        self.assertIn("Enqueued: job-1", output.getvalue())
+        self.assertIn("job-1 pending task", output.getvalue())
+        load_dotenv.assert_not_called()
+
+    def test_main_runs_queued_task(self):
+        task_path = self.root / "queued_task.json"
+        task_path.write_text(
+            json.dumps(
+                {
+                    "name": "queued_task",
+                    "parameters": {"message": {}},
+                    "steps": [
+                        {
+                            "type": "write",
+                            "content": "queued:${message}",
+                        },
+                        {"type": "done", "summary": "finished"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        queue_db = self.root / "queue.db"
+        SQLiteQueueStore(queue_db).enqueue(
+            DatasetTargetType.TASK,
+            task_path,
+            parameters={"message": "hello"},
+            job_id="queued-task",
+        )
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+        vision_provider = FakeVisionProvider()
+        reporter = ReportWriter(self.root / "reports")
+
+        def dependency_factory(args, config):
+            return environment, executor, vision_provider, reporter
+
+        output = StringIO()
+        with (
+            patch("soc_agent.cli.load_dotenv"),
+            patch.dict(
+                os.environ,
+                {"OPENAI_API_KEY": "test-key"},
+                clear=False,
+            ),
+            redirect_stdout(output),
+        ):
+            exit_code = main(
+                [
+                    "queue",
+                    "run",
+                    "--queue-db",
+                    str(queue_db),
+                ],
+                dependency_factory=dependency_factory,
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn(("write", "queued:hello"), environment.calls)
+        self.assertIn("Queue job: queued-task", output.getvalue())
+        self.assertEqual(
+            SQLiteQueueStore(queue_db).get("queued-task").state,
+            QueueState.PASSED,
+        )
+
+    def test_main_runs_queued_workflow_until_drained(self):
+        workflow_path = self.write_workflow_fixture()
+        queue_db = self.root / "queue.db"
+        store = SQLiteQueueStore(queue_db)
+        store.enqueue(
+            DatasetTargetType.WORKFLOW,
+            workflow_path,
+            parameters={"message": "drained"},
+            job_id="workflow-job",
+        )
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+        vision_provider = FakeVisionProvider()
+        reporter = ReportWriter(self.root / "reports")
+
+        def dependency_factory(args, config):
+            self.assertTrue(args.drain)
+            return environment, executor, vision_provider, reporter
+
+        output = StringIO()
+        with (
+            patch("soc_agent.cli.load_dotenv"),
+            patch.dict(
+                os.environ,
+                {"OPENAI_API_KEY": "test-key"},
+                clear=False,
+            ),
+            redirect_stdout(output),
+        ):
+            exit_code = main(
+                [
+                    "queue",
+                    "run",
+                    "--drain",
+                    "--queue-db",
+                    str(queue_db),
+                ],
+                dependency_factory=dependency_factory,
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn(("write", "A:drained"), environment.calls)
+        self.assertIn(("write", "B:drained"), environment.calls)
+        self.assertEqual(
+            store.get("workflow-job").state,
+            QueueState.PASSED,
+        )
 
     def test_main_passes_cli_parameters_to_suite(self):
         suite_path = self.write_parameterized_suite()
