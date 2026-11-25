@@ -46,5 +46,11 @@
       "type": "done",
       "summary": "${left} ${operator} ${right} = ${expected_result}"
     }
+  ],
+  "cleanup_steps": [
+    {
+      "type": "press",
+      "keys": ["command", "w"]
+    }
   ]
 }

@@ -208,7 +208,8 @@ Run an ordered multi-task workflow:
 ```
 
 The example first writes and verifies a TextEdit record, then performs the
-parameterized calculator task, and finally runs the calculator cleanup task.
+parameterized calculator task. Each task owns its own cleanup, so the TextEdit
+document and calculator window are closed independently.
 Each child task writes its own JSON report. After the workflow finishes, a
 summary report is written under `reports/` with the ordered task statuses,
 parameters, durations, nested task reports, cleanup result, and whether

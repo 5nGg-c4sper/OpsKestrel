@@ -14,6 +14,9 @@ class FakeSystem:
     def open_app(self, app_name):
         self.calls.append(("open_app", app_name))
 
+    def activate_app(self, app_name):
+        self.calls.append(("activate_app", app_name))
+
     def write(self, content):
         self.calls.append(("write", content))
 
@@ -48,7 +51,10 @@ class MacOSEnvironmentTests(unittest.TestCase):
 
     def test_activate_app(self):
         self.environment.activate_app("Safari")
-        self.assertEqual(self.system.calls, [("open_app", "Safari")])
+        self.assertEqual(
+            self.system.calls,
+            [("activate_app", "Safari")],
+        )
 
     def test_activate_app_rejects_empty_name(self):
         with self.assertRaises(ValueError):

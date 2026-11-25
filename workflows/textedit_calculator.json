@@ -24,6 +24,5 @@
   "task_files": [
     "../tasks/textedit_parameterized.json",
     "../tasks/calculator_parameterized.json"
-  ],
-  "cleanup_task": "../tasks/workflow_close_calculator.json"
+  ]
 }

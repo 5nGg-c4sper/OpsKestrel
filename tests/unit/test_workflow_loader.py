@@ -194,7 +194,7 @@ class WorkflowLoaderTests(unittest.TestCase):
             "textedit_calculator_demo",
         )
         self.assertEqual(len(loaded.task_paths), 2)
-        self.assertIsNotNone(loaded.cleanup_task_path)
+        self.assertIsNone(loaded.cleanup_task_path)
         self.assertEqual(loaded.parameters["expected_result"], "391")
 
 

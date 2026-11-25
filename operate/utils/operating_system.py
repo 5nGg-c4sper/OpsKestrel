@@ -39,10 +39,60 @@ class OperatingSystem:
                     capture_output=True,
                     text=True,
                 )
+                self._activate_macos_app(app_name, app_path)
             else:
                 raise RuntimeError("open_app is currently supported on macOS only")
         except Exception as e:
             print("[OperatingSystem][open_app] error:", e)
+
+    def activate_app(self, app_name):
+        self.open_app(app_name)
+
+    def _activate_macos_app(self, app_name, app_path):
+        try:
+            from AppKit import (
+                NSApplicationActivateIgnoringOtherApps,
+                NSRunningApplication,
+                NSWorkspace,
+            )
+            from Foundation import NSBundle
+
+            workspace = NSWorkspace.sharedWorkspace()
+            bundle = (
+                NSBundle.bundleWithPath_(app_path)
+                if app_path
+                else None
+            )
+            bundle_id = bundle.bundleIdentifier() if bundle else None
+
+            running_apps = []
+            if bundle_id:
+                running_apps = list(
+                    NSRunningApplication
+                    .runningApplicationsWithBundleIdentifier_(bundle_id)
+                )
+            else:
+                running_apps = [
+                    app
+                    for app in workspace.runningApplications()
+                    if app.localizedName() == app_name
+                ]
+
+            if not running_apps and app_path:
+                launched = workspace.launchApplication_(app_path)
+                if launched is not None:
+                    running_apps = [launched]
+
+            for app in running_apps:
+                app.activateWithOptions_(
+                    NSApplicationActivateIgnoringOtherApps
+                )
+            time.sleep(0.2)
+        except Exception as activation_error:
+            print(
+                "[OperatingSystem][activate_app] error:",
+                activation_error,
+            )
 
     def write(self, content):
         try:
