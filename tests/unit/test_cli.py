@@ -290,6 +290,8 @@ class CLITests(unittest.TestCase):
                 "120",
                 "--max-attempts",
                 "4",
+                "--worker-id",
+                "worker-test",
                 "--non-interactive",
             ]
         )
@@ -307,6 +309,7 @@ class CLITests(unittest.TestCase):
         self.assertTrue(run_args.drain)
         self.assertEqual(run_args.stale_after_seconds, 120)
         self.assertEqual(run_args.max_attempts, 4)
+        self.assertEqual(run_args.worker_id, "worker-test")
         self.assertTrue(run_args.non_interactive)
 
     def test_parser_supports_repeated_suite_parameters(self):

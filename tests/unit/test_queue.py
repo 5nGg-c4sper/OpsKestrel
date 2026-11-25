@@ -125,6 +125,7 @@ class SQLiteQueueStoreTests(unittest.TestCase):
         self.assertEqual(claimed.state, QueueState.RUNNING)
         self.assertEqual(claimed.started_at, self.current_time)
         self.assertEqual(claimed.claimed_at, self.current_time)
+        self.assertEqual(claimed.worker_id, "local")
         self.assertEqual(claimed.attempts, 1)
         self.assertEqual(remaining.job_id, "low")
         self.assertIsNone(self.store.claim_next())
@@ -240,6 +241,7 @@ class SQLiteQueueStoreTests(unittest.TestCase):
         migrated = SQLiteQueueStore(legacy_path).get("legacy-job")
 
         self.assertIsNone(migrated.claimed_at)
+        self.assertIsNone(migrated.worker_id)
         self.assertEqual(migrated.attempts, 0)
         self.assertEqual(migrated.recovery_count, 0)
 
@@ -262,6 +264,47 @@ class SQLiteQueueStoreTests(unittest.TestCase):
             ),
             [],
         )
+
+    def test_worker_ownership_guards_heartbeat_and_completion(self):
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "task.json",
+            job_id="owned-job",
+        )
+        self.store.claim_next("worker-a")
+        self.advance()
+
+        with self.assertRaisesRegex(
+            QueueStoreError,
+            "not running",
+        ):
+            self.store.heartbeat(
+                "owned-job",
+                worker_id="worker-b",
+            )
+
+        renewed = self.store.heartbeat(
+            "owned-job",
+            worker_id="worker-a",
+        )
+        self.assertEqual(renewed.worker_id, "worker-a")
+
+        with self.assertRaisesRegex(
+            QueueStoreError,
+            "not running",
+        ):
+            self.store.complete(
+                "owned-job",
+                QueueState.PASSED,
+                worker_id="worker-b",
+            )
+
+        completed = self.store.complete(
+            "owned-job",
+            QueueState.PASSED,
+            worker_id="worker-a",
+        )
+        self.assertEqual(completed.state, QueueState.PASSED)
 
     def test_recover_stale_job_requeues_then_fails_at_max_attempts(self):
         self.store.enqueue(

@@ -78,10 +78,11 @@ QueueJob
 ```text
 QueueWorker
   -> 恢复超过租约的 RUNNING 任务
-  -> claim_next
+  -> claim_next(worker_id)
+  -> 后台 heartbeat 续租
   -> 注入式 execute_job
   -> TaskResult 或 WorkflowResult
-  -> 状态和报告路径写回 SQLite
+  -> 校验 worker_id 后写回终态
 ```
 
 ## 模块职责
@@ -203,3 +204,8 @@ QueueWorker
 `allowed_actions`。Worker 执行 Task 或 Workflow 时将其转换为 SafetyPolicy，
 每一步在执行前检查动作类型和应用名称；越权命令会产生 `cancelled` 结果，不会
 接触未授权的桌面应用。
+
+QueueWorker 领取任务时写入唯一 `worker_id`，执行期间以
+`heartbeat_interval_seconds` 后台刷新租约。heartbeat 和 complete 都校验
+worker 所有权，旧 Worker 无法覆盖已经被恢复或重新领取的任务。CLI 可用
+`--worker-id` 指定稳定的 Runner 标识。

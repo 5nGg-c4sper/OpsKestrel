@@ -1,11 +1,12 @@
 """Tests for persistent queue job execution."""
 
 import tempfile
+import time
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from soc_agent.queue_models import QueueState
+from soc_agent.queue_models import QueueJob, QueueState
 from soc_agent.queue_store import SQLiteQueueStore
 from soc_agent.queue_worker import QueueWorker
 from soc_agent.task_models import (
@@ -252,6 +253,69 @@ class QueueWorkerTests(unittest.TestCase):
         self.assertEqual(completed.state, QueueState.PASSED)
         self.assertEqual(completed.recovery_count, 1)
         self.assertEqual(completed.attempts, 2)
+
+    def test_worker_auto_heartbeats_and_records_ownership(self):
+        timestamp = self.timestamp
+        job = QueueJob(
+            job_id="heartbeat-job",
+            target_type=DatasetTargetType.TASK,
+            target_path="task.json",
+            state=QueueState.PENDING,
+            created_at=timestamp,
+            updated_at=timestamp,
+        )
+
+        class RecordingStore:
+            def __init__(self):
+                self.claimed_worker = None
+                self.heartbeat_calls = []
+                self.completed_worker = None
+
+            def recover_stale_jobs(self, **kwargs):
+                return []
+
+            def claim_next(self, worker_id):
+                self.claimed_worker = worker_id
+                return job
+
+            def heartbeat(self, job_id, worker_id=None):
+                self.heartbeat_calls.append((job_id, worker_id))
+                return job
+
+            def complete(self, job_id, state, **kwargs):
+                self.completed_worker = kwargs.get("worker_id")
+                return job.model_copy(
+                    update={
+                        "state": state,
+                        "worker_id": self.completed_worker,
+                        "finished_at": timestamp,
+                    }
+                )
+
+        store = RecordingStore()
+
+        def execute_job(queued_job):
+            time.sleep(0.06)
+            return self.make_task_result()
+
+        completed = QueueWorker(
+            store,
+            execute_job,
+            stale_after_seconds=0.03,
+            heartbeat_interval_seconds=0.01,
+            worker_id="worker-heartbeat",
+        ).run_once()
+
+        self.assertEqual(store.claimed_worker, "worker-heartbeat")
+        self.assertGreaterEqual(len(store.heartbeat_calls), 1)
+        self.assertTrue(
+            all(
+                worker_id == "worker-heartbeat"
+                for _, worker_id in store.heartbeat_calls
+            )
+        )
+        self.assertEqual(store.completed_worker, "worker-heartbeat")
+        self.assertEqual(completed.state, QueueState.PASSED)
 
 
 if __name__ == "__main__":

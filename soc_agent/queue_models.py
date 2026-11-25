@@ -48,6 +48,7 @@ class QueueJob(StrictModel):
     updated_at: datetime
     started_at: Optional[datetime] = None
     claimed_at: Optional[datetime] = None
+    worker_id: Optional[str] = None
     finished_at: Optional[datetime] = None
     attempts: int = 0
     recovery_count: int = 0

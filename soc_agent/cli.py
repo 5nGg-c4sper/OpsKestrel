@@ -199,6 +199,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=3,
         help="Fail stale jobs after this many attempts",
     )
+    queue_run.add_argument(
+        "--worker-id",
+        default=None,
+        help="Optional stable worker ID",
+    )
     add_execution_options(
         queue_run,
         include_parameters=False,
@@ -476,6 +481,7 @@ def main(
                 max_jobs=None if args.drain else args.max_jobs,
                 stale_after_seconds=args.stale_after_seconds,
                 max_attempts=args.max_attempts,
+                worker_id=args.worker_id,
             )
             print_queue_jobs(completed_jobs)
             return (
@@ -561,6 +567,8 @@ def list_queue_jobs(args) -> int:
             print(f"  Report: {job.report_path}")
         if job.error:
             print(f"  Error: {job.error}")
+        if job.worker_id:
+            print(f"  Worker: {job.worker_id}")
         if job.permissions.allowed_apps is not None:
             print(
                 "  Allowed apps: "
@@ -585,8 +593,9 @@ def run_queue(
     reporter,
     confirmation_handler=None,
     max_jobs: Optional[int] = 1,
-    stale_after_seconds: int = 3600,
+    stale_after_seconds: float = 3600,
     max_attempts: int = 3,
+    worker_id: Optional[str] = None,
 ) -> list:
     store = SQLiteQueueStore(queue_db)
 
@@ -622,6 +631,7 @@ def run_queue(
         execute_job,
         stale_after_seconds=stale_after_seconds,
         max_attempts=max_attempts,
+        worker_id=worker_id,
     ).run_until_empty(max_jobs=max_jobs)
 
 

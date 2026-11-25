@@ -71,13 +71,14 @@ class SQLiteQueueStore:
                     updated_at,
                     started_at,
                     claimed_at,
+                    worker_id,
                     finished_at,
                     attempts,
                     recovery_count,
                     report_path,
                     error
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
                 """,
                 self._to_row(job),
@@ -110,7 +111,12 @@ class SQLiteQueueStore:
             rows = connection.execute(query, values).fetchall()
         return [self._from_row(row) for row in rows]
 
-    def claim_next(self) -> Optional[QueueJob]:
+    def claim_next(
+        self,
+        worker_id: str = "local",
+    ) -> Optional[QueueJob]:
+        if not worker_id.strip():
+            raise QueueStoreError("worker_id must not be empty")
         now = self._clock()
         with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -133,6 +139,7 @@ class SQLiteQueueStore:
                 """
                 UPDATE queue_jobs
                 SET state = ?, started_at = ?, claimed_at = ?,
+                    worker_id = ?,
                     updated_at = ?, attempts = attempts + 1
                 WHERE job_id = ? AND state = ?
                 """,
@@ -140,6 +147,7 @@ class SQLiteQueueStore:
                     QueueState.RUNNING.value,
                     now.isoformat(),
                     now.isoformat(),
+                    worker_id,
                     now.isoformat(),
                     job_id,
                     QueueState.PENDING.value,
@@ -154,21 +162,30 @@ class SQLiteQueueStore:
 
         return self.get(job_id)
 
-    def heartbeat(self, job_id: str) -> QueueJob:
+    def heartbeat(
+        self,
+        job_id: str,
+        worker_id: Optional[str] = None,
+    ) -> QueueJob:
         now = self._clock()
+        owner_clause = ""
+        values = [
+            now.isoformat(),
+            now.isoformat(),
+            job_id,
+            QueueState.RUNNING.value,
+        ]
+        if worker_id is not None:
+            owner_clause = " AND worker_id = ?"
+            values.append(worker_id)
         with self._connection() as connection:
             updated = connection.execute(
-                """
+                f"""
                 UPDATE queue_jobs
                 SET claimed_at = ?, updated_at = ?
-                WHERE job_id = ? AND state = ?
+                WHERE job_id = ? AND state = ?{owner_clause}
                 """,
-                (
-                    now.isoformat(),
-                    now.isoformat(),
-                    job_id,
-                    QueueState.RUNNING.value,
-                ),
+                tuple(values),
             )
         if updated.rowcount != 1:
             raise QueueStoreError(
@@ -178,12 +195,12 @@ class SQLiteQueueStore:
 
     def recover_stale_jobs(
         self,
-        stale_after_seconds: int,
+        stale_after_seconds: float,
         max_attempts: int = 3,
     ) -> List[QueueJob]:
-        if stale_after_seconds < 1:
+        if stale_after_seconds <= 0:
             raise QueueStoreError(
-                "stale_after_seconds must be at least 1"
+                "stale_after_seconds must be greater than 0"
             )
         if max_attempts < 1:
             raise QueueStoreError("max_attempts must be at least 1")
@@ -232,6 +249,7 @@ class SQLiteQueueStore:
                         """
                         UPDATE queue_jobs
                         SET state = ?, started_at = NULL, claimed_at = NULL,
+                            worker_id = NULL,
                             updated_at = ?, recovery_count = recovery_count + 1,
                             error = ?
                         WHERE job_id = ? AND state = ?
@@ -255,6 +273,7 @@ class SQLiteQueueStore:
         state: QueueState,
         report_path: Optional[str] = None,
         error: Optional[str] = None,
+        worker_id: Optional[str] = None,
     ) -> QueueJob:
         if state not in TERMINAL_QUEUE_STATES:
             raise QueueStoreError(
@@ -262,23 +281,29 @@ class SQLiteQueueStore:
             )
 
         now = self._clock()
+        owner_clause = ""
+        values = [
+            state.value,
+            now.isoformat(),
+            now.isoformat(),
+            report_path,
+            error,
+            job_id,
+            QueueState.RUNNING.value,
+        ]
+        if worker_id is not None:
+            owner_clause = " AND worker_id = ?"
+            values.append(worker_id)
+
         with self._connection() as connection:
             updated = connection.execute(
-                """
+                f"""
                 UPDATE queue_jobs
                 SET state = ?, finished_at = ?, updated_at = ?,
                     report_path = ?, error = ?
-                WHERE job_id = ? AND state = ?
+                WHERE job_id = ? AND state = ?{owner_clause}
                 """,
-                (
-                    state.value,
-                    now.isoformat(),
-                    now.isoformat(),
-                    report_path,
-                    error,
-                    job_id,
-                    QueueState.RUNNING.value,
-                ),
+                tuple(values),
             )
         if updated.rowcount != 1:
             raise QueueStoreError(
@@ -302,6 +327,7 @@ class SQLiteQueueStore:
                     updated_at TEXT NOT NULL,
                     started_at TEXT,
                     claimed_at TEXT,
+                    worker_id TEXT,
                     finished_at TEXT,
                     attempts INTEGER NOT NULL DEFAULT 0,
                     recovery_count INTEGER NOT NULL DEFAULT 0,
@@ -327,6 +353,9 @@ class SQLiteQueueStore:
                 "permissions_json": (
                     "ALTER TABLE queue_jobs ADD COLUMN "
                     "permissions_json TEXT NOT NULL DEFAULT '{}'"
+                ),
+                "worker_id": (
+                    "ALTER TABLE queue_jobs ADD COLUMN worker_id TEXT"
                 ),
                 "attempts": (
                     "ALTER TABLE queue_jobs ADD COLUMN "
@@ -381,6 +410,7 @@ class SQLiteQueueStore:
             job.updated_at.isoformat(),
             job.started_at.isoformat() if job.started_at else None,
             job.claimed_at.isoformat() if job.claimed_at else None,
+            job.worker_id,
             job.finished_at.isoformat() if job.finished_at else None,
             job.attempts,
             job.recovery_count,
@@ -412,6 +442,7 @@ class SQLiteQueueStore:
                 if row["claimed_at"]
                 else None
             ),
+            worker_id=row["worker_id"],
             finished_at=(
                 datetime.fromisoformat(row["finished_at"])
                 if row["finished_at"]

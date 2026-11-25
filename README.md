@@ -282,6 +282,7 @@ Manage the persistent execution queue:
 ./venv/bin/soc-agent queue run
 ./venv/bin/soc-agent queue run --drain
 ./venv/bin/soc-agent queue run --stale-after-seconds 3600 --max-attempts 3
+./venv/bin/soc-agent queue run --worker-id macbook-runner-1
 ```
 
 The queue is stored in `reports/queue.db` by default. `queue run` processes one
@@ -290,6 +291,11 @@ pending jobs remain. Enqueuing and listing do not require the API key; running
 the worker initializes the desktop environment and vision provider. Running
 jobs whose claim lease expires are automatically returned to `pending` or
 failed after `--max-attempts`.
+
+Each Worker also receives a unique ID. While a job is executing, a background
+heartbeat renews `claimed_at`; heartbeats and completion are rejected unless
+the Worker still owns the job. `--worker-id` can provide a stable identity for
+managed runners.
 
 `--allow-app` and `--allow-action` create a per-job execution permission
 profile. When omitted, the default SafetyPolicy remains in effect. When
