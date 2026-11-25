@@ -17,11 +17,23 @@ class QueueWorker:
         self,
         store: SQLiteQueueStore,
         execute_job: Callable[[QueueJob], ExecutionResult],
+        stale_after_seconds: int = 3600,
+        max_attempts: int = 3,
     ):
+        if stale_after_seconds < 1:
+            raise ValueError("stale_after_seconds must be at least 1")
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be at least 1")
         self.store = store
         self.execute_job = execute_job
+        self.stale_after_seconds = stale_after_seconds
+        self.max_attempts = max_attempts
 
     def run_once(self) -> Optional[QueueJob]:
+        self.store.recover_stale_jobs(
+            stale_after_seconds=self.stale_after_seconds,
+            max_attempts=self.max_attempts,
+        )
         job = self.store.claim_next()
         if job is None:
             return None

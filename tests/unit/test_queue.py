@@ -2,6 +2,7 @@
 
 import tempfile
 import unittest
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -104,6 +105,8 @@ class SQLiteQueueStoreTests(unittest.TestCase):
         self.assertEqual(claimed.job_id, "high")
         self.assertEqual(claimed.state, QueueState.RUNNING)
         self.assertEqual(claimed.started_at, self.current_time)
+        self.assertEqual(claimed.claimed_at, self.current_time)
+        self.assertEqual(claimed.attempts, 1)
         self.assertEqual(remaining.job_id, "low")
         self.assertIsNone(self.store.claim_next())
 
@@ -169,6 +172,108 @@ class SQLiteQueueStoreTests(unittest.TestCase):
             [job.job_id for job in jobs],
             ["high", "low"],
         )
+
+    def test_existing_database_is_migrated_with_lease_columns(self):
+        legacy_path = self.root / "legacy-queue.db"
+        connection = sqlite3.connect(legacy_path)
+        connection.execute(
+            """
+            CREATE TABLE queue_jobs (
+                job_id TEXT PRIMARY KEY,
+                target_type TEXT NOT NULL,
+                target_path TEXT NOT NULL,
+                parameters_json TEXT NOT NULL,
+                state TEXT NOT NULL,
+                priority INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                started_at TEXT,
+                finished_at TEXT,
+                report_path TEXT,
+                error TEXT
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO queue_jobs VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
+            """,
+            (
+                "legacy-job",
+                "task",
+                "task.json",
+                "{}",
+                "pending",
+                0,
+                self.current_time.isoformat(),
+                self.current_time.isoformat(),
+                None,
+                None,
+                None,
+                None,
+            ),
+        )
+        connection.commit()
+        connection.close()
+
+        migrated = SQLiteQueueStore(legacy_path).get("legacy-job")
+
+        self.assertIsNone(migrated.claimed_at)
+        self.assertEqual(migrated.attempts, 0)
+        self.assertEqual(migrated.recovery_count, 0)
+
+    def test_heartbeat_renews_running_job_lease(self):
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "task.json",
+            job_id="heartbeat-job",
+        )
+        self.store.claim_next()
+        self.advance(5)
+
+        renewed = self.store.heartbeat("heartbeat-job")
+
+        self.assertEqual(renewed.claimed_at, self.current_time)
+        self.advance(6)
+        self.assertEqual(
+            self.store.recover_stale_jobs(
+                stale_after_seconds=10,
+            ),
+            [],
+        )
+
+    def test_recover_stale_job_requeues_then_fails_at_max_attempts(self):
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "task.json",
+            job_id="stale-job",
+        )
+        self.store.claim_next()
+        self.advance(11)
+
+        recovered = self.store.recover_stale_jobs(
+            stale_after_seconds=10,
+            max_attempts=2,
+        )[0]
+
+        self.assertEqual(recovered.state, QueueState.PENDING)
+        self.assertIsNone(recovered.claimed_at)
+        self.assertEqual(recovered.attempts, 1)
+        self.assertEqual(recovered.recovery_count, 1)
+
+        self.store.claim_next()
+        self.advance(11)
+        failed = self.store.recover_stale_jobs(
+            stale_after_seconds=10,
+            max_attempts=2,
+        )[0]
+
+        self.assertEqual(failed.state, QueueState.FAILED)
+        self.assertEqual(failed.attempts, 2)
+        self.assertEqual(failed.recovery_count, 2)
+        self.assertIn("maximum attempts", failed.error)
 
 
 if __name__ == "__main__":

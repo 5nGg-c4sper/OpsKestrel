@@ -173,6 +173,18 @@ def build_parser() -> argparse.ArgumentParser:
         default=1,
         help="Maximum jobs to run",
     )
+    queue_run.add_argument(
+        "--stale-after-seconds",
+        type=int,
+        default=3600,
+        help="Recover running jobs after this lease duration",
+    )
+    queue_run.add_argument(
+        "--max-attempts",
+        type=int,
+        default=3,
+        help="Fail stale jobs after this many attempts",
+    )
     add_execution_options(
         queue_run,
         include_parameters=False,
@@ -448,6 +460,8 @@ def main(
                 reporter,
                 confirmation_handler=confirmation_handler,
                 max_jobs=None if args.drain else args.max_jobs,
+                stale_after_seconds=args.stale_after_seconds,
+                max_attempts=args.max_attempts,
             )
             print_queue_jobs(completed_jobs)
             return (
@@ -537,6 +551,8 @@ def run_queue(
     reporter,
     confirmation_handler=None,
     max_jobs: Optional[int] = 1,
+    stale_after_seconds: int = 3600,
+    max_attempts: int = 3,
 ) -> list:
     store = SQLiteQueueStore(queue_db)
 
@@ -561,9 +577,12 @@ def run_queue(
             parameter_overrides=job.parameters,
         )
 
-    return QueueWorker(store, execute_job).run_until_empty(
-        max_jobs=max_jobs
-    )
+    return QueueWorker(
+        store,
+        execute_job,
+        stale_after_seconds=stale_after_seconds,
+        max_attempts=max_attempts,
+    ).run_until_empty(max_jobs=max_jobs)
 
 
 def print_queue_jobs(jobs) -> None:

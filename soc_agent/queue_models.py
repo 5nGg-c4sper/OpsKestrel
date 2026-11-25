@@ -40,7 +40,10 @@ class QueueJob(StrictModel):
     created_at: datetime
     updated_at: datetime
     started_at: Optional[datetime] = None
+    claimed_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
+    attempts: int = 0
+    recovery_count: int = 0
 
     report_path: Optional[str] = None
     error: Optional[str] = None

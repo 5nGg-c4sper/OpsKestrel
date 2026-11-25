@@ -64,10 +64,15 @@ class SQLiteQueueStore:
                     created_at,
                     updated_at,
                     started_at,
+                    claimed_at,
                     finished_at,
+                    attempts,
+                    recovery_count,
                     report_path,
                     error
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                )
                 """,
                 self._to_row(job),
             )
@@ -121,11 +126,13 @@ class SQLiteQueueStore:
             updated = connection.execute(
                 """
                 UPDATE queue_jobs
-                SET state = ?, started_at = ?, updated_at = ?
+                SET state = ?, started_at = ?, claimed_at = ?,
+                    updated_at = ?, attempts = attempts + 1
                 WHERE job_id = ? AND state = ?
                 """,
                 (
                     QueueState.RUNNING.value,
+                    now.isoformat(),
                     now.isoformat(),
                     now.isoformat(),
                     job_id,
@@ -140,6 +147,101 @@ class SQLiteQueueStore:
             connection.commit()
 
         return self.get(job_id)
+
+    def heartbeat(self, job_id: str) -> QueueJob:
+        now = self._clock()
+        with self._connection() as connection:
+            updated = connection.execute(
+                """
+                UPDATE queue_jobs
+                SET claimed_at = ?, updated_at = ?
+                WHERE job_id = ? AND state = ?
+                """,
+                (
+                    now.isoformat(),
+                    now.isoformat(),
+                    job_id,
+                    QueueState.RUNNING.value,
+                ),
+            )
+        if updated.rowcount != 1:
+            raise QueueStoreError(
+                f"queue job is not running: {job_id}"
+            )
+        return self.get(job_id)
+
+    def recover_stale_jobs(
+        self,
+        stale_after_seconds: int,
+        max_attempts: int = 3,
+    ) -> List[QueueJob]:
+        if stale_after_seconds < 1:
+            raise QueueStoreError(
+                "stale_after_seconds must be at least 1"
+            )
+        if max_attempts < 1:
+            raise QueueStoreError("max_attempts must be at least 1")
+
+        now = self._clock()
+        cutoff = now.timestamp() - stale_after_seconds
+        recovered_ids = []
+
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            rows = connection.execute(
+                """
+                SELECT job_id, attempts, claimed_at
+                FROM queue_jobs
+                WHERE state = ? AND claimed_at IS NOT NULL
+                ORDER BY claimed_at ASC, job_id ASC
+                """,
+                (QueueState.RUNNING.value,),
+            ).fetchall()
+
+            for row in rows:
+                claimed_at = datetime.fromisoformat(row["claimed_at"])
+                if claimed_at.timestamp() > cutoff:
+                    continue
+
+                if row["attempts"] >= max_attempts:
+                    connection.execute(
+                        """
+                        UPDATE queue_jobs
+                        SET state = ?, finished_at = ?, updated_at = ?,
+                            recovery_count = recovery_count + 1,
+                            error = ?
+                        WHERE job_id = ? AND state = ?
+                        """,
+                        (
+                            QueueState.FAILED.value,
+                            now.isoformat(),
+                            now.isoformat(),
+                            "stale queue lease exceeded maximum attempts",
+                            row["job_id"],
+                            QueueState.RUNNING.value,
+                        ),
+                    )
+                else:
+                    connection.execute(
+                        """
+                        UPDATE queue_jobs
+                        SET state = ?, started_at = NULL, claimed_at = NULL,
+                            updated_at = ?, recovery_count = recovery_count + 1,
+                            error = ?
+                        WHERE job_id = ? AND state = ?
+                        """,
+                        (
+                            QueueState.PENDING.value,
+                            now.isoformat(),
+                            "stale queue lease recovered",
+                            row["job_id"],
+                            QueueState.RUNNING.value,
+                        ),
+                    )
+                recovered_ids.append(row["job_id"])
+            connection.commit()
+
+        return [self.get(job_id) for job_id in recovered_ids]
 
     def complete(
         self,
@@ -192,7 +294,10 @@ class SQLiteQueueStore:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     started_at TEXT,
+                    claimed_at TEXT,
                     finished_at TEXT,
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    recovery_count INTEGER NOT NULL DEFAULT 0,
                     report_path TEXT,
                     error TEXT
                 )
@@ -204,6 +309,26 @@ class SQLiteQueueStore:
                 ON queue_jobs (state, priority DESC, created_at, job_id)
                 """
             )
+            columns = {
+                row["name"]
+                for row in connection.execute(
+                    "PRAGMA table_info(queue_jobs)"
+                ).fetchall()
+            }
+            migrations = {
+                "claimed_at": "ALTER TABLE queue_jobs ADD COLUMN claimed_at TEXT",
+                "attempts": (
+                    "ALTER TABLE queue_jobs ADD COLUMN "
+                    "attempts INTEGER NOT NULL DEFAULT 0"
+                ),
+                "recovery_count": (
+                    "ALTER TABLE queue_jobs ADD COLUMN "
+                    "recovery_count INTEGER NOT NULL DEFAULT 0"
+                ),
+            }
+            for column, statement in migrations.items():
+                if column not in columns:
+                    connection.execute(statement)
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(
@@ -243,7 +368,10 @@ class SQLiteQueueStore:
             job.created_at.isoformat(),
             job.updated_at.isoformat(),
             job.started_at.isoformat() if job.started_at else None,
+            job.claimed_at.isoformat() if job.claimed_at else None,
             job.finished_at.isoformat() if job.finished_at else None,
+            job.attempts,
+            job.recovery_count,
             job.report_path,
             job.error,
         )
@@ -264,11 +392,18 @@ class SQLiteQueueStore:
                 if row["started_at"]
                 else None
             ),
+            claimed_at=(
+                datetime.fromisoformat(row["claimed_at"])
+                if row["claimed_at"]
+                else None
+            ),
             finished_at=(
                 datetime.fromisoformat(row["finished_at"])
                 if row["finished_at"]
                 else None
             ),
+            attempts=row["attempts"],
+            recovery_count=row["recovery_count"],
             report_path=row["report_path"],
             error=row["error"],
         )

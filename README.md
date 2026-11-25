@@ -275,12 +275,15 @@ Manage the persistent execution queue:
 ./venv/bin/soc-agent queue list
 ./venv/bin/soc-agent queue run
 ./venv/bin/soc-agent queue run --drain
+./venv/bin/soc-agent queue run --stale-after-seconds 3600 --max-attempts 3
 ```
 
 The queue is stored in `reports/queue.db` by default. `queue run` processes one
 job by default, `--max-jobs` limits a batch, and `--drain` processes until no
 pending jobs remain. Enqueuing and listing do not require the API key; running
-the worker initializes the desktop environment and vision provider.
+the worker initializes the desktop environment and vision provider. Running
+jobs whose claim lease expires are automatically returned to `pending` or
+failed after `--max-attempts`.
 
 Stop immediately when a case does not pass:
 

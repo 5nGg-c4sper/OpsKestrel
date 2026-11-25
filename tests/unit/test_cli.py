@@ -279,6 +279,10 @@ class CLITests(unittest.TestCase):
                 "queue",
                 "run",
                 "--drain",
+                "--stale-after-seconds",
+                "120",
+                "--max-attempts",
+                "4",
                 "--non-interactive",
             ]
         )
@@ -289,6 +293,8 @@ class CLITests(unittest.TestCase):
         self.assertEqual(enqueue_args.priority, 5)
         self.assertEqual(run_args.queue_command, "run")
         self.assertTrue(run_args.drain)
+        self.assertEqual(run_args.stale_after_seconds, 120)
+        self.assertEqual(run_args.max_attempts, 4)
         self.assertTrue(run_args.non_interactive)
 
     def test_parser_supports_repeated_suite_parameters(self):

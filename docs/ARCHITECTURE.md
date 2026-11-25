@@ -76,6 +76,7 @@ QueueJob
 
 ```text
 QueueWorker
+  -> 恢复超过租约的 RUNNING 任务
   -> claim_next
   -> 注入式 execute_job
   -> TaskResult 或 WorkflowResult
@@ -191,3 +192,8 @@ QueueWorker
 失败后停止后续任务，但 cleanup task 仍会执行。`WorkflowResult` 保存每个子任务
 的路径、阶段、参数、状态、耗时和嵌套任务报告。`WorkflowReportWriter` 原子写入
 工作流级 JSON 报告，并使用安全文件名和数字后缀避免覆盖既有报告。
+
+队列任务在领取时记录 `claimed_at` 并增加 `attempts`。Worker 启动时会回收超过
+租约时间的 `running` 任务：未达到最大尝试次数的任务回到 `pending`，达到上限的
+任务标记为 `failed`；`recovery_count` 保留恢复次数。旧版 SQLite 表会在初始化
+时自动增加这些列，无需删除已有队列数据库。

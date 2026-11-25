@@ -53,6 +53,7 @@ SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优
 - M3 SQLite 持久化任务队列、优先级和原子领取
 - M3 QueueWorker 顺序执行、异常兜底和终态写回
 - M3 队列入队、查询、单次执行和 drain CLI
+- M3 stale running job 租约恢复、最大尝试次数和数据库迁移
 - `soc-agent dataset` 数据集命令、失败停止/重试策略和诊断输出
 - 基础安全策略
 - GitHub Actions 单元测试配置
@@ -60,7 +61,7 @@ SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优
 
 当前验证结果：
 
-- 292 个单元测试通过
+- 296 个单元测试通过
 - 计算器任务连续批量执行成功
 - 两组参数化计算器任务在真实 macOS 上验证成功
 - 双 case 数据集在真实 macOS 上连续执行成功

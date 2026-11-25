@@ -219,6 +219,40 @@ class QueueWorkerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "max_jobs"):
             worker.run_until_empty(max_jobs=0)
 
+    def test_run_once_recovers_stale_job_before_claiming(self):
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "stale.json",
+            job_id="stale-job",
+        )
+        claimed = self.store.claim_next()
+        self.assertIsNotNone(claimed)
+        # Stale recovery uses the store's real clock, so age the claim
+        # through a separate store configured with a later clock.
+        later_timestamp = claimed.claimed_at.replace(
+            year=claimed.claimed_at.year + 1
+        )
+        later_store = SQLiteQueueStore(
+            self.database_path,
+            clock=lambda: later_timestamp,
+        )
+        calls = []
+        worker = QueueWorker(
+            later_store,
+            lambda job: (
+                calls.append(job) or self.make_task_result()
+            ),
+            stale_after_seconds=10,
+            max_attempts=3,
+        )
+
+        completed = worker.run_once()
+
+        self.assertEqual(calls[0].job_id, "stale-job")
+        self.assertEqual(completed.state, QueueState.PASSED)
+        self.assertEqual(completed.recovery_count, 1)
+        self.assertEqual(completed.attempts, 2)
+
 
 if __name__ == "__main__":
     unittest.main()
