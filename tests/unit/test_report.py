@@ -9,15 +9,19 @@ from pathlib import Path
 from soc_agent.reporting.dataset_report import DatasetReportWriter
 from soc_agent.reporting.report import ReportWriter
 from soc_agent.reporting.suite_report import SuiteReportWriter
+from soc_agent.reporting.workflow_report import WorkflowReportWriter
 from soc_agent.suite import SuiteResult
 from soc_agent.task_models import (
     ActionType,
+    StepPhase,
     StepResult,
     StepStatus,
     TaskCaseResult,
     TaskDatasetResult,
     TaskResult,
     TaskStatus,
+    WorkflowResult,
+    WorkflowTaskResult,
 )
 
 
@@ -492,6 +496,150 @@ class SuiteReportWriterTests(unittest.TestCase):
         self.assertEqual(
             second_path.name,
             "20261124-083000-calculator_suite-1.json",
+        )
+
+
+class WorkflowReportWriterTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary_directory.cleanup)
+        self.root = Path(self.temporary_directory.name)
+        self.output_dir = self.root / "reports"
+        self.timestamp = datetime(
+            2026,
+            11,
+            25,
+            12,
+            0,
+            0,
+            tzinfo=timezone.utc,
+        )
+
+    def make_task_result(self, name, status, error=None):
+        return TaskResult(
+            task_name=name,
+            status=status,
+            started_at=self.timestamp,
+            finished_at=self.timestamp,
+            duration_seconds=1.5,
+            error=error,
+            report_path=f"reports/{name}.json",
+            failure_log=(
+                f"artifacts/{name}/failure.log"
+                if status != TaskStatus.PASSED
+                else None
+            ),
+        )
+
+    def make_workflow_task_result(
+        self,
+        name,
+        status,
+        phase=StepPhase.MAIN,
+        error=None,
+    ):
+        task_result = self.make_task_result(name, status, error)
+        return WorkflowTaskResult(
+            task_name=name,
+            task_path=f"/tmp/tasks/{name}.json",
+            phase=phase,
+            status=status,
+            parameters={"customer_name": "张三"},
+            started_at=self.timestamp,
+            finished_at=self.timestamp,
+            duration_seconds=1.5,
+            error=error,
+            task_result=task_result,
+        )
+
+    def make_workflow_result(self, workflow_name="customer_update"):
+        return WorkflowResult(
+            workflow_name=workflow_name,
+            status=TaskStatus.FAILED,
+            started_at=self.timestamp,
+            finished_at=self.timestamp,
+            duration_seconds=4.0,
+            task_results=[
+                self.make_workflow_task_result(
+                    "login",
+                    TaskStatus.PASSED,
+                ),
+                self.make_workflow_task_result(
+                    "update_customer",
+                    TaskStatus.FAILED,
+                    error="update failed",
+                ),
+            ],
+            cleanup_result=self.make_workflow_task_result(
+                "logout",
+                TaskStatus.PASSED,
+                StepPhase.CLEANUP,
+            ),
+            stopped_early=True,
+            error="update failed",
+        )
+
+    def test_writes_workflow_summary_report(self):
+        result = self.make_workflow_result()
+        writer = WorkflowReportWriter(self.output_dir)
+
+        path = writer.write(result)
+
+        self.assertTrue(path.is_file())
+        self.assertEqual(result.report_path, str(path))
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["workflow_name"], "customer_update")
+        self.assertEqual(payload["status"], "failed")
+        self.assertEqual(payload["duration_seconds"], 4.0)
+        self.assertEqual(payload["report_path"], str(path))
+        self.assertTrue(payload["stopped_early"])
+
+    def test_preserves_nested_reports_and_cleanup(self):
+        result = self.make_workflow_result()
+        writer = WorkflowReportWriter(self.output_dir)
+
+        path = writer.write(result)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            payload["task_results"][0]["task_result"]["report_path"],
+            "reports/login.json",
+        )
+        self.assertEqual(
+            payload["task_results"][1]["task_result"]["failure_log"],
+            "artifacts/update_customer/failure.log",
+        )
+        self.assertEqual(
+            payload["cleanup_result"]["phase"],
+            "cleanup",
+        )
+        self.assertEqual(
+            payload["cleanup_result"]["task_result"]["report_path"],
+            "reports/logout.json",
+        )
+
+    def test_sanitizes_workflow_name(self):
+        result = self.make_workflow_result("customer / update")
+        writer = WorkflowReportWriter(self.output_dir)
+
+        path = writer.write(result)
+
+        self.assertEqual(
+            path.name,
+            "20261125-120000-customer-update.json",
+        )
+
+    def test_avoids_overwriting_existing_workflow_report(self):
+        result = self.make_workflow_result()
+        writer = WorkflowReportWriter(self.output_dir)
+
+        first_path = writer.write(result)
+        second_path = writer.write(result)
+
+        self.assertNotEqual(first_path, second_path)
+        self.assertEqual(
+            second_path.name,
+            "20261125-120000-customer_update-1.json",
         )
 
 
