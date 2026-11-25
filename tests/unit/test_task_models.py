@@ -766,11 +766,73 @@ class TaskDatasetDefinitionTests(unittest.TestCase):
                 with self.assertRaises(ValidationError):
                     TaskDatasetDefinition.model_validate(dataset_data)
 
-    def test_dataset_requires_at_least_one_case(self):
+    def test_dataset_requires_exactly_one_case_source(self):
         dataset_data = {**self.valid_dataset, "cases": []}
 
-        with self.assertRaises(ValidationError):
+        with self.assertRaisesRegex(
+            ValidationError,
+            "exactly one of cases or data_source",
+        ):
             TaskDatasetDefinition.model_validate(dataset_data)
+
+    def test_dataset_accepts_csv_data_source(self):
+        dataset = TaskDatasetDefinition.model_validate(
+            {
+                "name": "calculator_csv",
+                "task": "tasks/calculator_parameterized.json",
+                "data_source": {
+                    "type": "csv",
+                    "path": "calculator_rows.csv",
+                    "case_name_column": "case_id",
+                    "parameters": {
+                        "left": "left",
+                        "right": "right",
+                    },
+                },
+            }
+        )
+
+        self.assertEqual(dataset.cases, [])
+        self.assertEqual(dataset.data_source.path, "calculator_rows.csv")
+        self.assertEqual(dataset.data_source.attempts, 1)
+        self.assertEqual(
+            dataset.data_source.parameters,
+            {"left": "left", "right": "right"},
+        )
+
+    def test_dataset_rejects_cases_with_data_source(self):
+        dataset_data = {
+            **self.valid_dataset,
+            "data_source": {
+                "type": "csv",
+                "path": "calculator_rows.csv",
+            },
+        }
+
+        with self.assertRaisesRegex(
+            ValidationError,
+            "exactly one of cases or data_source",
+        ):
+            TaskDatasetDefinition.model_validate(dataset_data)
+
+    def test_csv_source_rejects_invalid_parameter_mapping(self):
+        for parameters in (
+            {"17x": "left"},
+            {"left": " "},
+        ):
+            with self.subTest(parameters=parameters):
+                with self.assertRaises(ValidationError):
+                    TaskDatasetDefinition.model_validate(
+                        {
+                            "name": "invalid_csv",
+                            "task": "task.json",
+                            "data_source": {
+                                "type": "csv",
+                                "path": "rows.csv",
+                                "parameters": parameters,
+                            },
+                        }
+                    )
 
     def test_duplicate_case_names_are_rejected(self):
         dataset_data = {

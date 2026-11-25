@@ -4,7 +4,7 @@ import math
 import re
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -359,10 +359,43 @@ class TaskCaseDefinition(StrictModel):
         return value
 
 
+class TaskDatasetCSVSource(StrictModel):
+    type: Literal["csv"] = "csv"
+    path: str
+    case_name_column: str = "case_id"
+    parameters: Dict[str, str] = Field(default_factory=dict)
+    attempts: int = Field(default=1, ge=1, le=3)
+    retry_delay_seconds: float = Field(default=0.5, ge=0, le=10)
+
+    @field_validator("path", "case_name_column")
+    @classmethod
+    def validate_non_empty_text(cls, value):
+        if not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+    @field_validator("parameters")
+    @classmethod
+    def validate_parameter_mapping(cls, value):
+        invalid_names = [
+            name
+            for name in value
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name)
+        ]
+        if invalid_names:
+            raise ValueError(
+                f"invalid parameter names: {', '.join(invalid_names)}"
+            )
+        if any(not column.strip() for column in value.values()):
+            raise ValueError("CSV column names must not be empty")
+        return value
+
+
 class TaskDatasetDefinition(StrictModel):
     name: str
     task: str
-    cases: List[TaskCaseDefinition] = Field(min_length=1)
+    data_source: Optional[TaskDatasetCSVSource] = None
+    cases: List[TaskCaseDefinition] = Field(default_factory=list)
 
     @field_validator("name", "task")
     @classmethod
@@ -373,6 +406,13 @@ class TaskDatasetDefinition(StrictModel):
 
     @model_validator(mode="after")
     def validate_unique_case_names(self):
+        has_cases = bool(self.cases)
+        has_data_source = self.data_source is not None
+        if has_cases == has_data_source:
+            raise ValueError(
+                "dataset must define exactly one of cases or data_source"
+            )
+
         seen_names = set()
         duplicate_names = []
         for case in self.cases:

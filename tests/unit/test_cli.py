@@ -604,6 +604,38 @@ class CLITests(unittest.TestCase):
         self.assertEqual(payload["dataset_name"], "calculator_regression")
         self.assertEqual(len(payload["cases"]), 2)
 
+    def test_run_dataset_loads_cases_from_csv(self):
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+        reporter = ReportWriter(self.root / "reports")
+
+        result = run_dataset(
+            PROJECT_ROOT / "datasets" / "calculator_csv.json",
+            environment,
+            executor,
+            FakeVisionProvider(),
+            reporter,
+        )
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertEqual(result.total, 3)
+        self.assertEqual(
+            [case.name for case in result.cases],
+            ["case_17x23", "case_125_div_5", "case_3x4"],
+        )
+        self.assertIn(("write", "17*23"), environment.calls)
+        self.assertIn(("write", "125*5"), environment.calls)
+        self.assertIn(("write", "3*4"), environment.calls)
+
+        for case in result.cases:
+            self.assertTrue(Path(case.task_result.report_path).is_file())
+
+        payload = json.loads(
+            Path(result.report_path).read_text(encoding="utf-8")
+        )
+        self.assertEqual(payload["dataset_name"], "calculator_csv_regression")
+        self.assertEqual(len(payload["cases"]), 3)
+
     def test_main_runs_dataset_command(self):
         environment = FakeEnvironment()
         executor = ActionExecutor(environment, settle_delay=0)

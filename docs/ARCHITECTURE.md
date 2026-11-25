@@ -28,6 +28,7 @@ SuiteRunner
 ```text
 Dataset JSON
   -> load_dataset
+  -> CSV data source -> TaskCaseDefinition
   -> DatasetRunner
   -> 每个 case 调用 run_task
   -> 每个 case 独立任务报告和截图
@@ -49,6 +50,7 @@ Dataset JSON
 | `soc_agent/reporting/suite_report.py` | 持久化套件汇总报告 |
 | `soc_agent/suite.py` | 顺序执行多个任务并汇总结果 |
 | `soc_agent/datasets.py` | 加载数据集并解析任务路径 |
+| `soc_agent/data_sources.py` | 将 CSV 行转换为数据集 case 和任务参数 |
 | `soc_agent/dataset_runner.py` | 顺序执行数据集 case、重试和状态聚合 |
 | `soc_agent/cli.py` | 参数解析和依赖装配 |
 | `soc_agent/config.py` | 从环境变量加载并验证运行配置 |
@@ -108,3 +110,7 @@ Dataset JSON
 数据集汇总报告还保留实际尝试次数和是否提前停止。套件报告使用
 `<timestamp>-<suite-name>.json` 命名，清理文件名中的非法字符，并通过数字后缀
 避免覆盖已有报告。
+
+数据集既可使用内联 `cases`，也可使用 CSV `data_source`。CSV 在加载阶段完成表头
+校验、参数列映射、空值检查和 case 名称去重，然后转换为现有
+`TaskCaseDefinition`。执行层不需要区分内联 case 和 CSV case。

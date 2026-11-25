@@ -145,6 +145,48 @@ results. Retry configuration is optional:
 
 `attempts` includes the initial execution and accepts values from 1 to 3.
 
+Datasets can also load one case per CSV row:
+
+```bash
+./venv/bin/soc-agent dataset datasets/calculator_csv.json
+```
+
+The dataset maps CSV columns to task parameters:
+
+```json
+{
+  "name": "calculator_csv_regression",
+  "task": "../tasks/calculator_parameterized.json",
+  "data_source": {
+    "type": "csv",
+    "path": "calculator_rows.csv",
+    "case_name_column": "case_id",
+    "parameters": {
+      "left": "left",
+      "right": "right",
+      "expected_result": "expected_result"
+    }
+  }
+}
+```
+
+The referenced CSV uses its headers as data fields:
+
+```csv
+case_id,left,right,expected_result
+case_17x23,17,23,391
+case_125_div_5,125,5,25
+```
+
+Each row becomes an independent case and task report. When `parameters` is
+omitted, every column except `case_name_column` is mapped to a task parameter
+with the same name. Missing columns, empty values, repeated case names, and
+malformed CSV rows stop dataset loading before any desktop action begins.
+CSV source settings can also define default `attempts` and
+`retry_delay_seconds` for every generated case.
+
+Use either inline `cases` or `data_source`, not both.
+
 Stop immediately when a case does not pass:
 
 ```bash

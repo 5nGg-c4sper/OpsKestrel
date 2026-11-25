@@ -71,6 +71,30 @@ class DatasetFileTests(unittest.TestCase):
         self.assertEqual(case.retry_delay_seconds, 0)
         self.assertTrue(loaded.task_path.is_file())
 
+    def test_calculator_csv_dataset_is_valid(self):
+        dataset_path = (
+            PROJECT_ROOT / "datasets" / "calculator_csv.json"
+        )
+
+        loaded = load_dataset(dataset_path)
+
+        self.assertEqual(
+            loaded.definition.name,
+            "calculator_csv_regression",
+        )
+        self.assertEqual(
+            [case.name for case in loaded.definition.cases],
+            ["case_17x23", "case_125_div_5", "case_3x4"],
+        )
+        self.assertEqual(
+            loaded.definition.cases[0].parameters,
+            {
+                "left": "17",
+                "right": "23",
+                "expected_result": "391",
+            },
+        )
+
 
 class DatasetLoaderTests(unittest.TestCase):
     def test_load_dataset_resolves_relative_task_path(self):
@@ -122,6 +146,164 @@ class DatasetLoaderTests(unittest.TestCase):
             "failed to read dataset",
         ):
             load_dataset(missing_path)
+
+    def test_load_dataset_resolves_csv_source_relative_to_dataset(self):
+        loaded = load_dataset(
+            PROJECT_ROOT / "datasets" / "calculator_csv.json"
+        )
+
+        self.assertEqual(len(loaded.definition.cases), 3)
+        self.assertEqual(
+            loaded.definition.cases[1].parameters,
+            {
+                "left": "125",
+                "right": "5",
+                "expected_result": "25",
+            },
+        )
+
+    def test_load_dataset_rejects_missing_csv_source(self):
+        dataset_payload = {
+            "name": "missing_csv",
+            "task": "task.json",
+            "data_source": {
+                "type": "csv",
+                "path": "missing.csv",
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "task.json").write_text(
+                """
+                {
+                  "name": "missing_csv_task",
+                  "steps": [{"type": "done", "summary": "finished"}]
+                }
+                """,
+                encoding="utf-8",
+            )
+            dataset_path = root / "dataset.json"
+            dataset_path.write_text(
+                json.dumps(dataset_payload),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                DatasetLoadError,
+                "CSV data source is missing",
+            ):
+                load_dataset(dataset_path)
+
+
+class CSVDataSourceTests(unittest.TestCase):
+    def load_csv_dataset(
+        self,
+        csv_content,
+        *,
+        case_name_column="case_id",
+        parameters=None,
+        attempts=1,
+        retry_delay_seconds=0.5,
+    ):
+        temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_directory.cleanup)
+        root = Path(temporary_directory.name)
+        (root / "rows.csv").write_text(
+            csv_content,
+            encoding="utf-8",
+        )
+        (root / "task.json").write_text(
+            """
+            {
+              "name": "csv_task",
+              "steps": [{"type": "done", "summary": "finished"}]
+            }
+            """,
+            encoding="utf-8",
+        )
+        data_source = {
+            "type": "csv",
+            "path": "rows.csv",
+            "case_name_column": case_name_column,
+            "attempts": attempts,
+            "retry_delay_seconds": retry_delay_seconds,
+        }
+        if parameters is not None:
+            data_source["parameters"] = parameters
+        dataset_path = root / "dataset.json"
+        dataset_path.write_text(
+            json.dumps(
+                {
+                    "name": "csv_dataset",
+                    "task": "task.json",
+                    "data_source": data_source,
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        return load_dataset(dataset_path)
+
+    def test_infers_parameter_columns_and_preserves_quoted_values(self):
+        loaded = self.load_csv_dataset(
+            "\ufeffcase_id,name,note\n"
+            "case_01,\"张三,北京\",正常\n",
+        )
+
+        self.assertEqual(
+            loaded.definition.cases[0].parameters,
+            {"name": "张三,北京", "note": "正常"},
+        )
+
+    def test_applies_source_retry_settings_to_every_case(self):
+        loaded = self.load_csv_dataset(
+            "case_id,value\ncase_01,a\ncase_02,b\n",
+            parameters={"input_value": "value"},
+            attempts=2,
+            retry_delay_seconds=0.25,
+        )
+
+        self.assertEqual(
+            [case.attempts for case in loaded.definition.cases],
+            [2, 2],
+        )
+        self.assertEqual(
+            [
+                case.retry_delay_seconds
+                for case in loaded.definition.cases
+            ],
+            [0.25, 0.25],
+        )
+
+    def test_rejects_missing_parameter_column(self):
+        with self.assertRaisesRegex(
+            DatasetLoadError,
+            "CSV parameter columns are missing: right",
+        ):
+            self.load_csv_dataset(
+                "case_id,left\ncase_01,17\n",
+                parameters={"left": "left", "right": "right"},
+            )
+
+    def test_rejects_empty_parameter_value(self):
+        with self.assertRaisesRegex(
+            DatasetLoadError,
+            "CSV value for 'right' is empty",
+        ):
+            self.load_csv_dataset(
+                "case_id,left,right\ncase_01,17, \n",
+                parameters={"left": "left", "right": "right"},
+            )
+
+    def test_rejects_duplicate_case_names(self):
+        with self.assertRaisesRegex(
+            DatasetLoadError,
+            "duplicate CSV case name 'case_01'",
+        ):
+            self.load_csv_dataset(
+                "case_id,value\ncase_01,a\ncase_01,b\n",
+            )
 
 
 class DatasetRunnerTests(unittest.TestCase):

@@ -1,0 +1,14 @@
+{
+  "name": "calculator_csv_regression",
+  "task": "../tasks/calculator_parameterized.json",
+  "data_source": {
+    "type": "csv",
+    "path": "calculator_rows.csv",
+    "case_name_column": "case_id",
+    "parameters": {
+      "left": "left",
+      "right": "right",
+      "expected_result": "expected_result"
+    }
+  }
+}

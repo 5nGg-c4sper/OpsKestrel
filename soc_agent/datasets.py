@@ -7,6 +7,7 @@ from typing import Union
 
 from pydantic import ValidationError
 
+from soc_agent.data_sources import DataSourceLoadError, load_csv_cases
 from soc_agent.task_models import TaskDatasetDefinition
 
 
@@ -50,6 +51,16 @@ def load_dataset(
         raise DatasetLoadError(
             f"task file is missing or not a file: {task_path}"
         )
+
+    if definition.data_source is not None:
+        try:
+            cases = load_csv_cases(
+                definition.data_source,
+                source_path.parent,
+            )
+        except DataSourceLoadError as error:
+            raise DatasetLoadError(str(error)) from error
+        definition = definition.model_copy(update={"cases": cases})
 
     return LoadedTaskDataset(
         definition=definition,
