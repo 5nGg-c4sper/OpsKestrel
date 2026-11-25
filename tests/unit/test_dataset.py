@@ -3,6 +3,7 @@
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from soc_agent.task_models import (
     TaskDatasetDefinition,
     TaskResult,
     TaskStatus,
+    WorkflowResult,
 )
 
 
@@ -516,6 +518,70 @@ class DatasetRunnerTests(unittest.TestCase):
                     },
                 ),
             ],
+        )
+
+    def test_run_executes_workflow_cases(self):
+        loaded = replace(
+            self.make_single_case_dataset(),
+            target_type=DatasetTargetType.WORKFLOW,
+            target_path=Path("/tmp/customer_workflow.json"),
+        )
+        calls = []
+        timestamp = datetime(2026, 11, 25, tzinfo=timezone.utc)
+
+        def execute_case(target_path, case):
+            calls.append((target_path, case.parameters))
+            return WorkflowResult(
+                workflow_name="customer_workflow",
+                status=TaskStatus.PASSED,
+                started_at=timestamp,
+                finished_at=timestamp,
+                duration_seconds=2.0,
+                error=None,
+            )
+
+        result = DatasetRunner(execute_case).run(loaded)
+
+        self.assertEqual(
+            calls,
+            [
+                (
+                    Path("/tmp/customer_workflow.json"),
+                    {"right": "23"},
+                )
+            ],
+        )
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertEqual(
+            result.cases[0].target_type,
+            DatasetTargetType.WORKFLOW,
+        )
+        self.assertIsNone(result.cases[0].task_result)
+        self.assertEqual(
+            result.cases[0].workflow_result.workflow_name,
+            "customer_workflow",
+        )
+
+    def test_workflow_executor_exception_becomes_failed_case(self):
+        loaded = replace(
+            self.make_single_case_dataset(),
+            target_type=DatasetTargetType.WORKFLOW,
+            target_path=Path("/tmp/broken_workflow.json"),
+        )
+
+        def execute_case(target_path, case):
+            raise RuntimeError("workflow crashed")
+
+        result = DatasetRunner(execute_case).run(loaded)
+
+        self.assertEqual(result.status, TaskStatus.FAILED)
+        self.assertEqual(
+            result.cases[0].workflow_result.workflow_name,
+            "broken_workflow",
+        )
+        self.assertEqual(
+            result.cases[0].workflow_result.error,
+            "workflow crashed",
         )
 
     def test_run_continues_after_failed_case(self):
