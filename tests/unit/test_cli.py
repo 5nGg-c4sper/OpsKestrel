@@ -21,6 +21,7 @@ from soc_agent.cli import (
     run_dataset,
     run_task,
     run_suite,
+    run_workflow,
     terminal_confirmation_handler,
 )
 from soc_agent.reporting.report import ReportWriter
@@ -106,6 +107,70 @@ class CLITests(unittest.TestCase):
 
         return suite_path
 
+    def write_workflow_fixture(self):
+        tasks_dir = self.root / "tasks"
+        workflows_dir = self.root / "workflows"
+        tasks_dir.mkdir()
+        workflows_dir.mkdir()
+
+        for name, prefix in (("first", "A"), ("second", "B")):
+            (tasks_dir / f"{name}.json").write_text(
+                json.dumps(
+                    {
+                        "name": name,
+                        "parameters": {"message": {}},
+                        "steps": [
+                            {
+                                "type": "write",
+                                "content": f"{prefix}:${{message}}",
+                            },
+                            {
+                                "type": "done",
+                                "summary": f"{name} finished",
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+        (tasks_dir / "cleanup.json").write_text(
+            json.dumps(
+                {
+                    "name": "cleanup",
+                    "steps": [
+                        {
+                            "type": "press",
+                            "keys": ["command", "w"],
+                        },
+                        {
+                            "type": "done",
+                            "summary": "cleanup finished",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        workflow_path = workflows_dir / "workflow.json"
+        workflow_path.write_text(
+            json.dumps(
+                {
+                    "name": "message_workflow",
+                    "parameters": {"message": {}},
+                    "task_files": [
+                        "../tasks/first.json",
+                        "../tasks/second.json",
+                    ],
+                    "cleanup_task": "../tasks/cleanup.json",
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        return workflow_path
+
     def test_parser_supports_run_options(self):
         args = build_parser().parse_args(
             [
@@ -167,6 +232,25 @@ class CLITests(unittest.TestCase):
         self.assertEqual(args.suite_path, "tasks")
         self.assertIsNone(args.param)
         self.assertTrue(args.stop_on_failure)
+        self.assertTrue(args.non_interactive)
+
+    def test_parser_supports_workflow_mode(self):
+        args = build_parser().parse_args(
+            [
+                "workflow",
+                "workflows/customer.json",
+                "--param",
+                "customer_name=张三",
+                "--non-interactive",
+            ]
+        )
+
+        self.assertEqual(args.command, "workflow")
+        self.assertEqual(
+            args.workflow_path,
+            "workflows/customer.json",
+        )
+        self.assertEqual(args.param, ["customer_name=张三"])
         self.assertTrue(args.non_interactive)
 
     def test_parser_supports_repeated_suite_parameters(self):
@@ -534,6 +618,91 @@ class CLITests(unittest.TestCase):
         self.assertEqual(len(payload["results"]), 2)
         for task_payload in payload["results"]:
             self.assertTrue(Path(task_payload["report_path"]).is_file())
+
+    def test_run_workflow_writes_task_and_summary_reports(self):
+        workflow_path = self.write_workflow_fixture()
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+        reporter = ReportWriter(self.root / "reports")
+
+        with redirect_stdout(StringIO()):
+            result = run_workflow(
+                workflow_path,
+                environment,
+                executor,
+                FakeVisionProvider(),
+                reporter,
+                parameter_overrides={"message": "hello"},
+            )
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertTrue(result.successful)
+        self.assertEqual(result.total, 2)
+        self.assertEqual(result.passed, 2)
+        self.assertIn(("write", "A:hello"), environment.calls)
+        self.assertIn(("write", "B:hello"), environment.calls)
+        self.assertIn(("press", ["command", "w"]), environment.calls)
+        self.assertTrue(Path(result.report_path).is_file())
+        self.assertEqual(
+            result.cleanup_result.status,
+            TaskStatus.PASSED,
+        )
+
+        for task in result.task_results:
+            self.assertTrue(Path(task.task_result.report_path).is_file())
+        self.assertTrue(
+            Path(
+                result.cleanup_result.task_result.report_path
+            ).is_file()
+        )
+
+        payload = json.loads(
+            Path(result.report_path).read_text(encoding="utf-8")
+        )
+        self.assertEqual(payload["workflow_name"], "message_workflow")
+        self.assertEqual(len(payload["task_results"]), 2)
+        self.assertEqual(payload["cleanup_result"]["status"], "passed")
+
+    def test_main_runs_workflow_with_shared_parameters(self):
+        workflow_path = self.write_workflow_fixture()
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+        vision_provider = FakeVisionProvider()
+        reporter = ReportWriter(self.root / "reports")
+
+        def dependency_factory(args, config):
+            self.assertEqual(args.command, "workflow")
+            self.assertEqual(args.param, ["message=hello"])
+            return environment, executor, vision_provider, reporter
+
+        output = StringIO()
+        with (
+            patch("soc_agent.cli.load_dotenv"),
+            patch.dict(
+                os.environ,
+                {"OPENAI_API_KEY": "test-key"},
+                clear=False,
+            ),
+            redirect_stdout(output),
+        ):
+            exit_code = main(
+                [
+                    "workflow",
+                    str(workflow_path),
+                    "--param",
+                    "message=hello",
+                ],
+                dependency_factory=dependency_factory,
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Workflow: message_workflow", output.getvalue())
+        self.assertIn("Status: PASSED", output.getvalue())
+        self.assertIn("Tasks: 2", output.getvalue())
+        self.assertIn("Cleanup: PASSED", output.getvalue())
+        self.assertIn("Report:", output.getvalue())
+        self.assertIn(("write", "A:hello"), environment.calls)
+        self.assertIn(("write", "B:hello"), environment.calls)
 
     def test_main_passes_cli_parameters_to_suite(self):
         suite_path = self.write_parameterized_suite()
