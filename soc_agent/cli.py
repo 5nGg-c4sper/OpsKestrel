@@ -17,6 +17,7 @@ from soc_agent.providers.qwen import QwenVisionProvider
 from soc_agent.reporting.dataset_report import DatasetReportWriter
 from soc_agent.reporting.report import ReportWriter
 from soc_agent.reporting.suite_report import SuiteReportWriter
+from soc_agent.reporting.workflow_report import WorkflowReportWriter
 from soc_agent.runner import TaskRunner
 from soc_agent.safety.policy import SafetyPolicy
 from soc_agent.suite import SuiteResult, SuiteRunner
@@ -26,7 +27,10 @@ from soc_agent.task_models import (
     TaskDatasetResult,
     TaskResult,
     TaskStatus,
+    WorkflowResult,
 )
+from soc_agent.workflow_runner import WorkflowRunner
+from soc_agent.workflows import load_workflow
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,6 +43,16 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run", help="Run a task JSON file")
     run_parser.add_argument("task", help="Path to the task JSON file")
     add_execution_options(run_parser)
+
+    workflow_parser = subparsers.add_parser(
+        "workflow",
+        help="Run an ordered workflow JSON file",
+    )
+    workflow_parser.add_argument(
+        "workflow_path",
+        help="Path to the workflow JSON file",
+    )
+    add_execution_options(workflow_parser)
 
     suite_parser = subparsers.add_parser(
         "suite",
@@ -293,6 +307,18 @@ def main(
                 confirmation_handler=confirmation_handler,
                 parameter_overrides=parameter_overrides,
             )
+        elif args.command == "workflow":
+            workflow_result = run_workflow(
+                args.workflow_path,
+                environment,
+                executor,
+                vision_provider,
+                reporter,
+                confirmation_handler=confirmation_handler,
+                parameter_overrides=parameter_overrides,
+            )
+            print_workflow_result(workflow_result)
+            return exit_code_for_status(workflow_result.status)
         elif args.command == "dataset":
             dataset_result = run_dataset(
                 args.dataset_path,
@@ -324,6 +350,39 @@ def main(
 
     print_result(result)
     return exit_code_for_status(result.status)
+
+
+def run_workflow(
+    workflow_path,
+    environment,
+    executor,
+    vision_provider,
+    reporter,
+    confirmation_handler=None,
+    parameter_overrides: Optional[Dict[str, str]] = None,
+) -> WorkflowResult:
+    loaded_workflow = load_workflow(
+        workflow_path,
+        parameter_overrides,
+    )
+
+    def execute_task(task_path, parameters):
+        print(f"Running: {task_path.name}")
+        result = run_task(
+            task_path,
+            environment,
+            executor,
+            vision_provider,
+            reporter,
+            confirmation_handler=confirmation_handler,
+            parameter_overrides=parameters,
+        )
+        print(f"Status: {result.status.value.upper()}")
+        return result
+
+    result = WorkflowRunner(execute_task).run(loaded_workflow)
+    WorkflowReportWriter(reporter.output_dir).write(result)
+    return result
 
 
 def run_suite(
@@ -430,6 +489,45 @@ def print_suite_result(result: SuiteResult) -> None:
         print(f"Report: {result.report_path}")
     if result.stopped_early:
         print("Stopped early: yes")
+
+
+def print_workflow_result(result: WorkflowResult) -> None:
+    print(f"Workflow: {result.workflow_name}")
+    print(f"Status: {result.status.value.upper()}")
+    print(f"Tasks: {result.total}")
+    print(f"Passed: {result.passed}")
+    print(f"Failed: {result.failed}")
+    print(f"Timed out: {result.timed_out}")
+    print(f"Cancelled: {result.cancelled}")
+    print(f"Duration: {result.duration_seconds:.2f} seconds")
+    if result.report_path:
+        print(f"Report: {result.report_path}")
+    if result.stopped_early:
+        print("Stopped early: yes")
+    if result.error:
+        print(f"Error: {result.error}")
+
+    for task in result.task_results:
+        if task.status == TaskStatus.PASSED:
+            continue
+        print(f"Task: {task.task_name}")
+        print(f"  Status: {task.status.value.upper()}")
+        if task.error:
+            print(f"  Error: {task.error}")
+        if task.task_result.report_path:
+            print(f"  Task report: {task.task_result.report_path}")
+        if task.task_result.failure_log:
+            print(f"  Failure log: {task.task_result.failure_log}")
+
+    if result.cleanup_result is not None:
+        cleanup = result.cleanup_result
+        print(f"Cleanup: {cleanup.status.value.upper()}")
+        if cleanup.error:
+            print(f"  Error: {cleanup.error}")
+        if cleanup.task_result.report_path:
+            print(f"  Task report: {cleanup.task_result.report_path}")
+        if cleanup.task_result.failure_log:
+            print(f"  Failure log: {cleanup.task_result.failure_log}")
 
 
 def print_dataset_result(result: TaskDatasetResult) -> None:
