@@ -1,0 +1,61 @@
+{
+  "name": "textedit_parameterized",
+  "description": "在 TextEdit 中输入客户记录并验证，关闭时不保存",
+  "app": "文本编辑",
+  "parameters": {
+    "customer_name": {
+      "description": "客户姓名"
+    },
+    "note": {
+      "description": "客户备注"
+    }
+  },
+  "max_steps": 10,
+  "max_duration_seconds": 60,
+  "setup_steps": [
+    {
+      "type": "open_app",
+      "app": "文本编辑"
+    },
+    {
+      "type": "press",
+      "keys": ["command", "n"]
+    }
+  ],
+  "steps": [
+    {
+      "type": "write",
+      "content": "客户：${customer_name}"
+    },
+    {
+      "type": "press",
+      "keys": ["enter"]
+    },
+    {
+      "type": "write",
+      "content": "备注：${note}"
+    },
+    {
+      "type": "verify_vision",
+      "prompt": "文稿中是否同时显示“客户：${customer_name}”和“备注：${note}”？只返回 true 或 false。"
+    },
+    {
+      "type": "done",
+      "summary": "客户 ${customer_name} 的记录已输入"
+    }
+  ],
+  "cleanup_steps": [
+    {
+      "type": "press",
+      "keys": ["command", "w"]
+    },
+    {
+      "type": "wait",
+      "seconds": 0.5
+    },
+    {
+      "type": "press",
+      "keys": ["command", "d"]
+    }
+  ]
+}
