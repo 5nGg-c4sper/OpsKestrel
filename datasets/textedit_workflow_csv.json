@@ -1,0 +1,13 @@
+{
+  "name": "textedit_workflow_batch",
+  "workflow": "../workflows/textedit_calculator.json",
+  "data_source": {
+    "type": "csv",
+    "path": "textedit_workflow_rows.csv",
+    "case_name_column": "case_id",
+    "parameters": {
+      "customer_name": "customer_name",
+      "note": "note"
+    }
+  }
+}

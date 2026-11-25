@@ -838,6 +838,63 @@ class CLITests(unittest.TestCase):
         self.assertEqual(payload["dataset_name"], "textedit_csv_workflow")
         self.assertEqual(len(payload["cases"]), 3)
 
+    def test_run_dataset_executes_workflow_cases_from_csv(self):
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+        reporter = ReportWriter(self.root / "reports")
+
+        result = run_dataset(
+            PROJECT_ROOT
+            / "datasets"
+            / "textedit_workflow_csv.json",
+            environment,
+            executor,
+            FakeVisionProvider(),
+            reporter,
+        )
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertEqual(result.total, 2)
+        self.assertEqual(
+            [case.name for case in result.cases],
+            ["customer_zhang", "customer_li"],
+        )
+        for case in result.cases:
+            self.assertIsNone(case.task_result)
+            self.assertIsNotNone(case.workflow_result)
+            self.assertEqual(
+                case.workflow_result.status,
+                TaskStatus.PASSED,
+            )
+            self.assertTrue(Path(case.report_path).is_file())
+            for task in case.workflow_result.task_results:
+                self.assertTrue(
+                    Path(task.task_result.report_path).is_file()
+                )
+
+        self.assertIn(("write", "客户：张三"), environment.calls)
+        self.assertIn(("write", "备注：首次联系"), environment.calls)
+        self.assertIn(("write", "客户：李四"), environment.calls)
+        self.assertIn(("write", "备注：等待回访"), environment.calls)
+        self.assertEqual(
+            environment.calls.count(("write", "17*23")),
+            2,
+        )
+
+        payload = json.loads(
+            Path(result.report_path).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            payload["dataset_name"],
+            "textedit_workflow_batch",
+        )
+        self.assertEqual(len(payload["cases"]), 2)
+        self.assertIsNone(payload["cases"][0]["task_result"])
+        self.assertEqual(
+            payload["cases"][0]["workflow_result"]["status"],
+            "passed",
+        )
+
     def test_main_runs_dataset_command(self):
         environment = FakeEnvironment()
         executor = ActionExecutor(environment, settle_delay=0)
