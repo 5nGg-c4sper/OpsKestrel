@@ -158,6 +158,38 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertIn("25", task.steps[4].prompt)
         self.assertEqual(task.steps[5].summary, "125 / 5 = 25")
 
+    def test_parameterized_textedit_task_renders_record_and_cleanup(self):
+        task_path = (
+            PROJECT_ROOT / "tasks" / "textedit_parameterized.json"
+        )
+
+        task = TaskRunner.load_task(
+            task_path,
+            {
+                "customer_name": "张三",
+                "note": "首次联系",
+            },
+        )
+
+        self.assertEqual(task.name, "textedit_parameterized")
+        self.assertEqual(task.setup_steps[0].app, "文本编辑")
+        self.assertEqual(
+            task.setup_steps[1].keys,
+            ["command", "n"],
+        )
+        self.assertEqual(task.steps[0].content, "客户：张三")
+        self.assertEqual(task.steps[2].content, "备注：首次联系")
+        self.assertIn("张三", task.steps[3].prompt)
+        self.assertIn("首次联系", task.steps[3].prompt)
+        self.assertEqual(
+            task.cleanup_steps[0].keys,
+            ["command", "w"],
+        )
+        self.assertEqual(
+            task.cleanup_steps[-1].keys,
+            ["command", "d"],
+        )
+
     def test_multi_app_activate_task_is_valid(self):
         task_path = (
             PROJECT_ROOT / "tasks" / "examples" / "multi_app_activate.json"
