@@ -35,6 +35,16 @@ Dataset JSON
   -> DatasetReportWriter 汇总报告
 ```
 
+工作流定义：
+
+```text
+Workflow JSON
+  -> load_workflow
+  -> 解析共享参数
+  -> 解析并校验有序 task_files 和 cleanup_task
+  -> LoadedWorkflow
+```
+
 ## 模块职责
 
 | 模块 | 职责 |
@@ -52,6 +62,7 @@ Dataset JSON
 | `soc_agent/datasets.py` | 加载数据集并解析任务路径 |
 | `soc_agent/data_sources.py` | 将 CSV 行转换为数据集 case 和任务参数 |
 | `soc_agent/dataset_runner.py` | 顺序执行数据集 case、重试和状态聚合 |
+| `soc_agent/workflows.py` | 加载工作流、解析共享参数和子任务路径 |
 | `soc_agent/cli.py` | 参数解析和依赖装配 |
 | `soc_agent/config.py` | 从环境变量加载并验证运行配置 |
 
@@ -118,5 +129,6 @@ Dataset JSON
 `cleanup_steps`，从而保证多行执行之间不会共享未清理的文本编辑状态。
 
 `WorkflowDefinition` 用有序 `task_files` 描述子任务，并提供共享参数定义和可选
-`cleanup_task`。当前阶段只完成严格数据模型与参数解析，工作流执行器和汇总报告
+`cleanup_task`。`load_workflow` 在返回前解析全部相对路径、验证文件存在、拒绝
+解析后重复的任务路径，并完成参数默认值与覆盖值校验。工作流执行器和汇总报告
 将在后续阶段接入。
