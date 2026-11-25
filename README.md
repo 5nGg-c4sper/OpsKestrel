@@ -188,6 +188,17 @@ CSV source settings can also define default `attempts` and
 
 Use either inline `cases` or `data_source`, not both.
 
+Run the safe multi-record TextEdit workflow:
+
+```bash
+./venv/bin/soc-agent dataset datasets/textedit_csv.json
+```
+
+Each CSV row opens a new TextEdit document, writes a customer record, checks
+the expected customer and note with the vision verifier, then closes the
+document without saving. The source data is in
+[datasets/textedit_rows.csv](datasets/textedit_rows.csv).
+
 Stop immediately when a case does not pass:
 
 ```bash

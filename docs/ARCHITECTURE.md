@@ -114,3 +114,5 @@ Dataset JSON
 数据集既可使用内联 `cases`，也可使用 CSV `data_source`。CSV 在加载阶段完成表头
 校验、参数列映射、空值检查和 case 名称去重，然后转换为现有
 `TaskCaseDefinition`。执行层不需要区分内联 case 和 CSV case。
+每个 CSV case 都独立执行任务定义中的 `setup_steps`、主流程和
+`cleanup_steps`，从而保证多行执行之间不会共享未清理的文本编辑状态。
