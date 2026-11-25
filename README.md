@@ -34,7 +34,7 @@ Run the parameterized calculator task:
   --param right=23
 ```
 
-`calculator_parameterized.json` defaults `left` to `17` and
+`calculator_parameterized.json` defaults `left` to `17`, `operator` to `*`, and
 `expected_result` to `391`. `right` has no default and must be supplied with
 `--param`.
 
@@ -163,6 +163,7 @@ The dataset maps CSV columns to task parameters:
     "case_name_column": "case_id",
     "parameters": {
       "left": "left",
+      "operator": "operator",
       "right": "right",
       "expected_result": "expected_result"
     }
@@ -173,9 +174,9 @@ The dataset maps CSV columns to task parameters:
 The referenced CSV uses its headers as data fields:
 
 ```csv
-case_id,left,right,expected_result
-case_17x23,17,23,391
-case_125_div_5,125,5,25
+case_id,left,operator,right,expected_result
+case_17x23,17,*,23,391
+case_125_div_5,125,/,5,25
 ```
 
 Each row becomes an independent case and task report. When `parameters` is

@@ -10,6 +10,10 @@
     "right": {
       "description": "第二个操作数"
     },
+    "operator": {
+      "description": "运算符号",
+      "default": "*"
+    },
     "expected_result": {
       "description": "计算器应显示的结果",
       "default": "391"
@@ -28,7 +32,7 @@
     },
     {
       "type": "write",
-      "content": "${left}*${right}"
+      "content": "${left}${operator}${right}"
     },
     {
       "type": "press",
@@ -40,7 +44,7 @@
     },
     {
       "type": "done",
-      "summary": "${left} * ${right} = ${expected_result}"
+      "summary": "${left} ${operator} ${right} = ${expected_result}"
     }
   ]
 }

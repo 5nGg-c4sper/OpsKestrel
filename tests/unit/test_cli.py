@@ -624,7 +624,7 @@ class CLITests(unittest.TestCase):
             ["case_17x23", "case_125_div_5", "case_3x4"],
         )
         self.assertIn(("write", "17*23"), environment.calls)
-        self.assertIn(("write", "125*5"), environment.calls)
+        self.assertIn(("write", "125/5"), environment.calls)
         self.assertIn(("write", "3*4"), environment.calls)
 
         for case in result.cases:

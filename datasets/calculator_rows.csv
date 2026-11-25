@@ -1,4 +1,4 @@
-case_id,left,right,expected_result
-case_17x23,17,23,391
-case_125_div_5,125,5,25
-case_3x4,3,4,12
+case_id,left,operator,right,expected_result
+case_17x23,17,*,23,391
+case_125_div_5,125,/,5,25
+case_3x4,3,*,4,12

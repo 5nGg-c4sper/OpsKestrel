@@ -139,6 +139,25 @@ class TaskRunnerTests(unittest.TestCase):
         ):
             TaskRunner.load_task(task_path)
 
+    def test_parameterized_calculator_accepts_operator(self):
+        task_path = (
+            PROJECT_ROOT / "tasks" / "calculator_parameterized.json"
+        )
+
+        task = TaskRunner.load_task(
+            task_path,
+            {
+                "left": "125",
+                "operator": "/",
+                "right": "5",
+                "expected_result": "25",
+            },
+        )
+
+        self.assertEqual(task.steps[2].content, "125/5")
+        self.assertIn("25", task.steps[4].prompt)
+        self.assertEqual(task.steps[5].summary, "125 / 5 = 25")
+
     def test_multi_app_activate_task_is_valid(self):
         task_path = (
             PROJECT_ROOT / "tasks" / "examples" / "multi_app_activate.json"

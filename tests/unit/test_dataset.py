@@ -90,6 +90,7 @@ class DatasetFileTests(unittest.TestCase):
             loaded.definition.cases[0].parameters,
             {
                 "left": "17",
+                "operator": "*",
                 "right": "23",
                 "expected_result": "391",
             },
@@ -157,6 +158,7 @@ class DatasetLoaderTests(unittest.TestCase):
             loaded.definition.cases[1].parameters,
             {
                 "left": "125",
+                "operator": "/",
                 "right": "5",
                 "expected_result": "25",
             },
