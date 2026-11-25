@@ -30,6 +30,7 @@ from soc_agent.task_models import (
     DatasetTargetType,
     StepStatus,
     TaskDatasetResult,
+    ExecutionPermissions,
     TaskResult,
     TaskStatus,
     WorkflowResult,
@@ -125,6 +126,19 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=0,
         help="Higher priority jobs run first",
+    )
+    queue_enqueue.add_argument(
+        "--allow-app",
+        action="append",
+        default=None,
+        help="Allowed application name; may be repeated",
+    )
+    queue_enqueue.add_argument(
+        "--allow-action",
+        action="append",
+        default=None,
+        choices=tuple(action.value for action in ActionType),
+        help="Allowed action type; may be repeated",
     )
     queue_enqueue.add_argument(
         "--job-id",
@@ -505,6 +519,13 @@ def enqueue_queue_job(args, parameters: Dict[str, str]) -> int:
             DatasetTargetType(args.target_type),
             target_path,
             parameters=parameters,
+            permissions=ExecutionPermissions(
+                allowed_apps=args.allow_app,
+                allowed_actions=[
+                    ActionType(value)
+                    for value in args.allow_action or []
+                ] or None,
+            ),
             priority=args.priority,
             job_id=args.job_id,
         )
@@ -540,6 +561,19 @@ def list_queue_jobs(args) -> int:
             print(f"  Report: {job.report_path}")
         if job.error:
             print(f"  Error: {job.error}")
+        if job.permissions.allowed_apps is not None:
+            print(
+                "  Allowed apps: "
+                + ", ".join(job.permissions.allowed_apps)
+            )
+        if job.permissions.allowed_actions is not None:
+            print(
+                "  Allowed actions: "
+                + ", ".join(
+                    action.value
+                    for action in job.permissions.allowed_actions
+                )
+            )
     return 0
 
 
@@ -557,6 +591,10 @@ def run_queue(
     store = SQLiteQueueStore(queue_db)
 
     def execute_job(job: QueueJob):
+        policy = SafetyPolicy(
+            allowed_apps=job.permissions.allowed_apps,
+            allowed_actions=job.permissions.allowed_actions,
+        )
         if job.target_type == DatasetTargetType.WORKFLOW:
             return run_workflow(
                 job.target_path,
@@ -566,6 +604,7 @@ def run_queue(
                 reporter,
                 confirmation_handler=confirmation_handler,
                 parameter_overrides=job.parameters,
+                policy=policy,
             )
         return run_task(
             job.target_path,
@@ -575,6 +614,7 @@ def run_queue(
             reporter,
             confirmation_handler=confirmation_handler,
             parameter_overrides=job.parameters,
+            policy=policy,
         )
 
     return QueueWorker(
@@ -606,6 +646,7 @@ def run_workflow(
     reporter,
     confirmation_handler=None,
     parameter_overrides: Optional[Dict[str, str]] = None,
+    policy=None,
 ) -> WorkflowResult:
     loaded_workflow = load_workflow(
         workflow_path,
@@ -622,6 +663,7 @@ def run_workflow(
             reporter,
             confirmation_handler=confirmation_handler,
             parameter_overrides=parameters,
+            policy=policy,
         )
         print(f"Status: {result.status.value.upper()}")
         return result

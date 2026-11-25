@@ -10,7 +10,11 @@ from pydantic import ValidationError
 
 from soc_agent.queue_models import QueueJob, QueueState
 from soc_agent.queue_store import QueueStoreError, SQLiteQueueStore
-from soc_agent.task_models import DatasetTargetType
+from soc_agent.task_models import (
+    ActionType,
+    DatasetTargetType,
+    ExecutionPermissions,
+)
 
 
 class QueueJobTests(unittest.TestCase):
@@ -68,6 +72,13 @@ class SQLiteQueueStoreTests(unittest.TestCase):
             DatasetTargetType.TASK,
             "tasks/example.json",
             {"customer_name": "张三"},
+            permissions=ExecutionPermissions(
+                allowed_apps=["计算器"],
+                allowed_actions=[
+                    ActionType.OPEN_APP,
+                    ActionType.WRITE,
+                ],
+            ),
             job_id="job-1",
         )
 
@@ -82,6 +93,14 @@ class SQLiteQueueStoreTests(unittest.TestCase):
         self.assertEqual(
             reloaded.target_type,
             DatasetTargetType.TASK,
+        )
+        self.assertEqual(
+            reloaded.permissions.allowed_apps,
+            ["计算器"],
+        )
+        self.assertEqual(
+            reloaded.permissions.allowed_actions,
+            [ActionType.OPEN_APP, ActionType.WRITE],
         )
 
     def test_claim_next_uses_priority_and_marks_running(self):

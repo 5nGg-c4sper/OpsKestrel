@@ -3,7 +3,7 @@
 import unittest
 
 from soc_agent.safety.policy import SafetyPolicy, SafetyViolation
-from soc_agent.task_models import TaskStep
+from soc_agent.task_models import ActionType, TaskStep
 
 
 class SafetyPolicyTests(unittest.TestCase):
@@ -64,6 +64,32 @@ class SafetyPolicyTests(unittest.TestCase):
 
         with self.assertRaises(SafetyViolation):
             policy.validate(TaskStep(type="open_app", app="mail"))
+
+    def test_enforces_allowed_apps_and_actions(self):
+        policy = SafetyPolicy(
+            allowed_apps={"计算器"},
+            allowed_actions={
+                ActionType.OPEN_APP,
+                ActionType.WRITE,
+            },
+        )
+
+        policy.validate(TaskStep(type="open_app", app="计算器"))
+        policy.validate(TaskStep(type="write", content="17*23"))
+
+        with self.assertRaisesRegex(
+            SafetyViolation,
+            "outside the allowed set",
+        ):
+            policy.validate(TaskStep(type="open_app", app="Safari"))
+
+        with self.assertRaisesRegex(
+            SafetyViolation,
+            "action is not allowed",
+        ):
+            policy.validate(
+                TaskStep(type="press", keys=["enter"])
+            )
 
 
 if __name__ == "__main__":

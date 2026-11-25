@@ -30,6 +30,7 @@ from soc_agent.queue_store import SQLiteQueueStore
 from soc_agent.task_models import (
     ActionType,
     DatasetTargetType,
+    ExecutionPermissions,
     StepResult,
     StepStatus,
     TaskResult,
@@ -272,6 +273,12 @@ class CLITests(unittest.TestCase):
                 "message=hello",
                 "--priority",
                 "5",
+                "--allow-app",
+                "计算器",
+                "--allow-action",
+                "open_app",
+                "--allow-action",
+                "write",
             ]
         )
         run_args = build_parser().parse_args(
@@ -291,6 +298,11 @@ class CLITests(unittest.TestCase):
         self.assertEqual(enqueue_args.target_type, "task")
         self.assertEqual(enqueue_args.param, ["message=hello"])
         self.assertEqual(enqueue_args.priority, 5)
+        self.assertEqual(enqueue_args.allow_app, ["计算器"])
+        self.assertEqual(
+            enqueue_args.allow_action,
+            ["open_app", "write"],
+        )
         self.assertEqual(run_args.queue_command, "run")
         self.assertTrue(run_args.drain)
         self.assertEqual(run_args.stale_after_seconds, 120)
@@ -909,6 +921,71 @@ class CLITests(unittest.TestCase):
         self.assertEqual(
             store.get("workflow-job").state,
             QueueState.PASSED,
+        )
+
+    def test_queued_job_permissions_block_unapproved_app(self):
+        task_path = self.root / "restricted_task.json"
+        task_path.write_text(
+            json.dumps(
+                {
+                    "name": "restricted_task",
+                    "steps": [
+                        {"type": "open_app", "app": "Safari"},
+                        {"type": "done", "summary": "finished"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        queue_db = self.root / "queue.db"
+        SQLiteQueueStore(queue_db).enqueue(
+            DatasetTargetType.TASK,
+            task_path,
+            permissions=ExecutionPermissions(
+                allowed_apps=["计算器"],
+                allowed_actions=[
+                    ActionType.OPEN_APP,
+                    ActionType.DONE,
+                ],
+            ),
+            job_id="restricted-job",
+        )
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+        reporter = ReportWriter(self.root / "reports")
+
+        def dependency_factory(args, config):
+            return (
+                environment,
+                executor,
+                FakeVisionProvider(),
+                reporter,
+            )
+
+        with (
+            patch("soc_agent.cli.load_dotenv"),
+            patch.dict(
+                os.environ,
+                {"OPENAI_API_KEY": "test-key"},
+                clear=False,
+            ),
+            redirect_stdout(StringIO()),
+        ):
+            exit_code = main(
+                [
+                    "queue",
+                    "run",
+                    "--queue-db",
+                    str(queue_db),
+                ],
+                dependency_factory=dependency_factory,
+            )
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(environment.calls, [])
+        self.assertEqual(
+            SQLiteQueueStore(queue_db).get("restricted-job").state,
+            QueueState.CANCELLED,
         )
 
     def test_main_passes_cli_parameters_to_suite(self):

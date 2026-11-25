@@ -13,7 +13,10 @@ from soc_agent.queue_models import (
     QueueJob,
     QueueState,
 )
-from soc_agent.task_models import DatasetTargetType
+from soc_agent.task_models import (
+    DatasetTargetType,
+    ExecutionPermissions,
+)
 
 
 class QueueStoreError(RuntimeError):
@@ -38,6 +41,7 @@ class SQLiteQueueStore:
         target_type: DatasetTargetType,
         target_path: Union[str, Path],
         parameters: Optional[Dict[str, str]] = None,
+        permissions: Optional[ExecutionPermissions] = None,
         priority: int = 0,
         job_id: Optional[str] = None,
     ) -> QueueJob:
@@ -47,6 +51,7 @@ class SQLiteQueueStore:
             target_type=target_type,
             target_path=str(target_path),
             parameters=dict(parameters or {}),
+            permissions=permissions or ExecutionPermissions(),
             priority=priority,
             created_at=now,
             updated_at=now,
@@ -59,6 +64,7 @@ class SQLiteQueueStore:
                     target_type,
                     target_path,
                     parameters_json,
+                    permissions_json,
                     state,
                     priority,
                     created_at,
@@ -71,7 +77,7 @@ class SQLiteQueueStore:
                     report_path,
                     error
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
                 """,
                 self._to_row(job),
@@ -289,6 +295,7 @@ class SQLiteQueueStore:
                     target_type TEXT NOT NULL,
                     target_path TEXT NOT NULL,
                     parameters_json TEXT NOT NULL,
+                    permissions_json TEXT NOT NULL,
                     state TEXT NOT NULL,
                     priority INTEGER NOT NULL,
                     created_at TEXT NOT NULL,
@@ -317,6 +324,10 @@ class SQLiteQueueStore:
             }
             migrations = {
                 "claimed_at": "ALTER TABLE queue_jobs ADD COLUMN claimed_at TEXT",
+                "permissions_json": (
+                    "ALTER TABLE queue_jobs ADD COLUMN "
+                    "permissions_json TEXT NOT NULL DEFAULT '{}'"
+                ),
                 "attempts": (
                     "ALTER TABLE queue_jobs ADD COLUMN "
                     "attempts INTEGER NOT NULL DEFAULT 0"
@@ -363,6 +374,7 @@ class SQLiteQueueStore:
                 ensure_ascii=False,
                 sort_keys=True,
             ),
+            job.permissions.model_dump_json(),
             job.state.value,
             job.priority,
             job.created_at.isoformat(),
@@ -383,6 +395,9 @@ class SQLiteQueueStore:
             target_type=DatasetTargetType(row["target_type"]),
             target_path=row["target_path"],
             parameters=json.loads(row["parameters_json"]),
+            permissions=ExecutionPermissions.model_validate_json(
+                row["permissions_json"]
+            ),
             state=QueueState(row["state"]),
             priority=row["priority"],
             created_at=datetime.fromisoformat(row["created_at"]),

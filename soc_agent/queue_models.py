@@ -7,7 +7,11 @@ from typing import Dict, Optional
 
 from pydantic import Field, field_validator
 
-from soc_agent.task_models import DatasetTargetType, StrictModel
+from soc_agent.task_models import (
+    DatasetTargetType,
+    ExecutionPermissions,
+    StrictModel,
+)
 
 
 class QueueState(str, Enum):
@@ -36,6 +40,9 @@ class QueueJob(StrictModel):
     parameters: Dict[str, str] = Field(default_factory=dict)
     state: QueueState = QueueState.PENDING
     priority: int = 0
+    permissions: ExecutionPermissions = Field(
+        default_factory=ExecutionPermissions
+    )
 
     created_at: datetime
     updated_at: datetime

@@ -67,6 +67,7 @@ Dataset JSON
 ```text
 QueueJob
   -> SQLiteQueueStore
+  -> 应用/动作权限白名单
   -> 按 priority/created_at 原子领取
   -> RUNNING
   -> PASSED / FAILED / TIMED_OUT / CANCELLED
@@ -197,3 +198,8 @@ QueueWorker
 租约时间的 `running` 任务：未达到最大尝试次数的任务回到 `pending`，达到上限的
 任务标记为 `failed`；`recovery_count` 保留恢复次数。旧版 SQLite 表会在初始化
 时自动增加这些列，无需删除已有队列数据库。
+
+每个 QueueJob 可持久化 `ExecutionPermissions`：`allowed_apps` 和
+`allowed_actions`。Worker 执行 Task 或 Workflow 时将其转换为 SafetyPolicy，
+每一步在执行前检查动作类型和应用名称；越权命令会产生 `cancelled` 结果，不会
+接触未授权的桌面应用。

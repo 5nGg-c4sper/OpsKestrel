@@ -23,11 +23,34 @@ class SafetyPolicy:
         }
     )
 
-    def __init__(self, blocked_apps: Optional[Iterable[str]] = None):
+    def __init__(
+        self,
+        blocked_apps: Optional[Iterable[str]] = None,
+        allowed_apps: Optional[Iterable[str]] = None,
+        allowed_actions: Optional[Iterable[ActionType]] = None,
+    ):
         apps = blocked_apps or self.DEFAULT_BLOCKED_APPS
         self.blocked_apps = frozenset(app.casefold() for app in apps)
+        self.allowed_apps = (
+            frozenset(app.casefold() for app in allowed_apps)
+            if allowed_apps is not None
+            else None
+        )
+        self.allowed_actions = (
+            frozenset(allowed_actions)
+            if allowed_actions is not None
+            else None
+        )
 
     def validate(self, step: TaskStep) -> None:
+        if (
+            self.allowed_actions is not None
+            and step.type not in self.allowed_actions
+        ):
+            raise SafetyViolation(
+                f"action is not allowed: {step.type.value}"
+            )
+
         if step.type == ActionType.PRESS:
             keys = {key.casefold() for key in step.keys or []}
             if "q" in keys and ("command" in keys or "cmd" in keys):
@@ -42,4 +65,11 @@ class SafetyPolicy:
             if app_name in self.blocked_apps:
                 raise SafetyViolation(
                     f"application access is not allowed: {step.app}"
+                )
+            if (
+                self.allowed_apps is not None
+                and app_name not in self.allowed_apps
+            ):
+                raise SafetyViolation(
+                    f"application is outside the allowed set: {step.app}"
                 )

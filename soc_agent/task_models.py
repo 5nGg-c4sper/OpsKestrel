@@ -160,6 +160,25 @@ class TaskParameterDefinition(StrictModel):
     default: Optional[str] = None
 
 
+class ExecutionPermissions(StrictModel):
+    allowed_apps: Optional[List[str]] = None
+    allowed_actions: Optional[List[ActionType]] = None
+
+    @field_validator("allowed_apps")
+    @classmethod
+    def validate_allowed_apps(cls, value):
+        if value is not None and any(not app.strip() for app in value):
+            raise ValueError("allowed apps must not be empty")
+        return value
+
+    @field_validator("allowed_actions")
+    @classmethod
+    def validate_allowed_actions(cls, value):
+        if value is not None and len(set(value)) != len(value):
+            raise ValueError("allowed actions must be unique")
+        return value
+
+
 class TaskCondition(StrictModel):
     type: ConditionType
     prompt: str

@@ -265,7 +265,13 @@ Manage the persistent execution queue:
 ./venv/bin/soc-agent queue enqueue task \
   tasks/calculator_parameterized.json \
   --param right=23 \
-  --priority 5
+  --priority 5 \
+  --allow-app 计算器 \
+  --allow-action open_app \
+  --allow-action write \
+  --allow-action press \
+  --allow-action verify_vision \
+  --allow-action done
 
 ./venv/bin/soc-agent queue enqueue workflow \
   workflows/textedit_calculator.json \
@@ -284,6 +290,11 @@ pending jobs remain. Enqueuing and listing do not require the API key; running
 the worker initializes the desktop environment and vision provider. Running
 jobs whose claim lease expires are automatically returned to `pending` or
 failed after `--max-attempts`.
+
+`--allow-app` and `--allow-action` create a per-job execution permission
+profile. When omitted, the default SafetyPolicy remains in effect. When
+present, access outside the allowlist cancels the task before the unauthorized
+desktop action runs.
 
 Stop immediately when a case does not pass:
 
