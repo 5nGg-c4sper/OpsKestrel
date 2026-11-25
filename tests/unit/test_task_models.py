@@ -712,6 +712,11 @@ class TaskDatasetDefinitionTests(unittest.TestCase):
         dataset = TaskDatasetDefinition.model_validate(self.valid_dataset)
 
         self.assertEqual(dataset.name, "calculator_cases")
+        self.assertEqual(
+            dataset.task,
+            "tasks/calculator_parameterized.json",
+        )
+        self.assertIsNone(dataset.workflow)
         self.assertEqual(len(dataset.cases), 2)
         self.assertEqual(dataset.cases[0].parameters, {"right": "23"})
         self.assertEqual(dataset.cases[0].attempts, 1)
@@ -800,6 +805,58 @@ class TaskDatasetDefinitionTests(unittest.TestCase):
             dataset.data_source.parameters,
             {"left": "left", "right": "right"},
         )
+
+    def test_dataset_accepts_workflow_target(self):
+        dataset = TaskDatasetDefinition.model_validate(
+            {
+                "name": "workflow_cases",
+                "workflow": "workflows/customer_update.json",
+                "cases": [
+                    {
+                        "name": "customer_01",
+                        "parameters": {"customer_name": "张三"},
+                    }
+                ],
+            }
+        )
+
+        self.assertIsNone(dataset.task)
+        self.assertEqual(
+            dataset.workflow,
+            "workflows/customer_update.json",
+        )
+
+    def test_dataset_requires_exactly_one_target(self):
+        invalid_payloads = [
+            {
+                "name": "missing_target",
+                "cases": [{"name": "case", "parameters": {}}],
+            },
+            {
+                "name": "two_targets",
+                "task": "tasks/task.json",
+                "workflow": "workflows/workflow.json",
+                "cases": [{"name": "case", "parameters": {}}],
+            },
+        ]
+
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload):
+                with self.assertRaisesRegex(
+                    ValidationError,
+                    "exactly one of task or workflow",
+                ):
+                    TaskDatasetDefinition.model_validate(payload)
+
+    def test_dataset_rejects_empty_workflow_target(self):
+        with self.assertRaises(ValidationError):
+            TaskDatasetDefinition.model_validate(
+                {
+                    "name": "empty_workflow",
+                    "workflow": " ",
+                    "cases": [{"name": "case", "parameters": {}}],
+                }
+            )
 
     def test_dataset_rejects_cases_with_data_source(self):
         dataset_data = {

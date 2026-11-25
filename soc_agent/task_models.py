@@ -393,19 +393,27 @@ class TaskDatasetCSVSource(StrictModel):
 
 class TaskDatasetDefinition(StrictModel):
     name: str
-    task: str
+    task: Optional[str] = None
+    workflow: Optional[str] = None
     data_source: Optional[TaskDatasetCSVSource] = None
     cases: List[TaskCaseDefinition] = Field(default_factory=list)
 
-    @field_validator("name", "task")
+    @field_validator("name", "task", "workflow")
     @classmethod
     def validate_non_empty_text(cls, value):
-        if not value.strip():
+        if value is not None and not value.strip():
             raise ValueError("must not be empty")
         return value
 
     @model_validator(mode="after")
     def validate_unique_case_names(self):
+        has_task = self.task is not None
+        has_workflow = self.workflow is not None
+        if has_task == has_workflow:
+            raise ValueError(
+                "dataset must define exactly one of task or workflow"
+            )
+
         has_cases = bool(self.cases)
         has_data_source = self.data_source is not None
         if has_cases == has_data_source:
