@@ -19,6 +19,7 @@ from soc_agent.task_models import (
     TaskLoop,
     TaskResult,
     TaskStatus,
+    WorkflowDefinition,
 )
 
 
@@ -894,6 +895,102 @@ class TaskDatasetDefinitionTests(unittest.TestCase):
             with self.subTest(payload=payload):
                 with self.assertRaises(ValidationError):
                     TaskDatasetDefinition.model_validate(payload)
+
+
+class WorkflowDefinitionTests(unittest.TestCase):
+    def valid_workflow(self):
+        return {
+            "name": "customer_update",
+            "description": "登录、查询并更新客户",
+            "parameters": {
+                "customer_name": {},
+                "operator": {"default": "*"},
+            },
+            "task_files": [
+                "tasks/login.json",
+                "tasks/find_customer.json",
+                "tasks/update_customer.json",
+            ],
+            "cleanup_task": "tasks/logout.json",
+        }
+
+    def test_valid_workflow_is_parsed(self):
+        workflow = WorkflowDefinition.model_validate(
+            self.valid_workflow()
+        )
+
+        self.assertEqual(workflow.name, "customer_update")
+        self.assertEqual(len(workflow.task_files), 3)
+        self.assertEqual(workflow.cleanup_task, "tasks/logout.json")
+
+    def test_workflow_resolves_defaults_and_overrides(self):
+        workflow = WorkflowDefinition.model_validate(
+            self.valid_workflow()
+        )
+
+        resolved = workflow.resolve_parameters(
+            {"customer_name": "张三"}
+        )
+
+        self.assertEqual(
+            resolved,
+            {"customer_name": "张三", "operator": "*"},
+        )
+
+    def test_workflow_rejects_missing_and_unknown_parameters(self):
+        workflow = WorkflowDefinition.model_validate(
+            self.valid_workflow()
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "missing workflow parameters: customer_name",
+        ):
+            workflow.resolve_parameters()
+        with self.assertRaisesRegex(
+            ValueError,
+            "unknown workflow parameters: unsupported",
+        ):
+            workflow.resolve_parameters(
+                {
+                    "customer_name": "张三",
+                    "unsupported": "value",
+                }
+            )
+
+    def test_workflow_rejects_non_string_parameter_values(self):
+        workflow = WorkflowDefinition.model_validate(
+            self.valid_workflow()
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "workflow parameter overrides must be strings: customer_name",
+        ):
+            workflow.resolve_parameters({"customer_name": 123})
+
+    def test_workflow_rejects_invalid_task_files(self):
+        for task_files in (
+            [],
+            ["tasks/login.json", " "],
+            ["tasks/login.json", "tasks/login.json"],
+        ):
+            with self.subTest(task_files=task_files):
+                payload = {
+                    **self.valid_workflow(),
+                    "task_files": task_files,
+                }
+                with self.assertRaises(ValidationError):
+                    WorkflowDefinition.model_validate(payload)
+
+    def test_workflow_rejects_empty_cleanup_task(self):
+        payload = {
+            **self.valid_workflow(),
+            "cleanup_task": " ",
+        }
+
+        with self.assertRaises(ValidationError):
+            WorkflowDefinition.model_validate(payload)
 
 
 class TaskResultTests(unittest.TestCase):

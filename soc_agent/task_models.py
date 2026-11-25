@@ -427,6 +427,90 @@ class TaskDatasetDefinition(StrictModel):
         return self
 
 
+class WorkflowDefinition(StrictModel):
+    schema_version: int = Field(default=1, ge=1)
+    name: str
+    description: str = ""
+    parameters: Dict[str, TaskParameterDefinition] = Field(
+        default_factory=dict
+    )
+    task_files: List[str] = Field(min_length=1)
+    cleanup_task: Optional[str] = None
+
+    @field_validator("name", "cleanup_task")
+    @classmethod
+    def validate_non_empty_text(cls, value):
+        if value is not None and not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+    @field_validator("task_files")
+    @classmethod
+    def validate_task_files(cls, value):
+        if any(not task_file.strip() for task_file in value):
+            raise ValueError("task files must not be empty")
+        if len(set(value)) != len(value):
+            raise ValueError("task files must be unique")
+        return value
+
+    @field_validator("parameters")
+    @classmethod
+    def validate_parameter_names(cls, value):
+        invalid_names = [
+            name
+            for name in value
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name)
+        ]
+        if invalid_names:
+            raise ValueError(
+                f"invalid parameter names: {', '.join(invalid_names)}"
+            )
+        return value
+
+    def resolve_parameters(
+        self,
+        overrides: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, str]:
+        """Apply workflow defaults and validate parameter overrides."""
+        overrides = dict(overrides or {})
+
+        unknown_names = sorted(set(overrides) - set(self.parameters))
+        if unknown_names:
+            raise ValueError(
+                f"unknown workflow parameters: {', '.join(unknown_names)}"
+            )
+
+        invalid_values = sorted(
+            name
+            for name, value in overrides.items()
+            if not isinstance(value, str)
+        )
+        if invalid_values:
+            raise ValueError(
+                "workflow parameter overrides must be strings: "
+                f"{', '.join(invalid_values)}"
+            )
+
+        resolved = {
+            name: definition.default
+            for name, definition in self.parameters.items()
+            if definition.default is not None
+        }
+        resolved.update(overrides)
+
+        missing_names = [
+            name
+            for name, definition in self.parameters.items()
+            if definition.default is None and name not in resolved
+        ]
+        if missing_names:
+            raise ValueError(
+                f"missing workflow parameters: {', '.join(missing_names)}"
+            )
+
+        return resolved
+
+
 class StepResult(StrictModel):
     index: int = Field(ge=0)
     type: ActionType

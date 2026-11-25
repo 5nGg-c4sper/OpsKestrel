@@ -39,7 +39,7 @@ Dataset JSON
 
 | 模块 | 职责 |
 |---|---|
-| `soc_agent/task_models.py` | 任务、步骤和执行结果的 Pydantic 模型 |
+| `soc_agent/task_models.py` | 任务、数据源、工作流定义和执行结果的 Pydantic 模型 |
 | `soc_agent/runner.py` | 步骤编排、超时、确认、截图和结果记录 |
 | `soc_agent/actions/executor.py` | 将确定性步骤分发给环境适配器 |
 | `soc_agent/environments/macos.py` | 封装应用、键鼠、截图和等待操作 |
@@ -116,3 +116,7 @@ Dataset JSON
 `TaskCaseDefinition`。执行层不需要区分内联 case 和 CSV case。
 每个 CSV case 都独立执行任务定义中的 `setup_steps`、主流程和
 `cleanup_steps`，从而保证多行执行之间不会共享未清理的文本编辑状态。
+
+`WorkflowDefinition` 用有序 `task_files` 描述子任务，并提供共享参数定义和可选
+`cleanup_task`。当前阶段只完成严格数据模型与参数解析，工作流执行器和汇总报告
+将在后续阶段接入。
