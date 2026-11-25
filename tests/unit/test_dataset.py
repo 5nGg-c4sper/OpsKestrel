@@ -9,6 +9,7 @@ from pathlib import Path
 from soc_agent.dataset_runner import DatasetRunner
 from soc_agent.datasets import DatasetLoadError, load_dataset
 from soc_agent.task_models import (
+    DatasetTargetType,
     TaskDatasetDefinition,
     TaskResult,
     TaskStatus,
@@ -147,6 +148,12 @@ class DatasetLoaderTests(unittest.TestCase):
                 PROJECT_ROOT / "tasks" / "calculator_parameterized.json"
             ).resolve(),
         )
+        self.assertEqual(
+            loaded.target_type,
+            DatasetTargetType.TASK,
+        )
+        self.assertEqual(loaded.target_path, loaded.task_path)
+        self.assertIsNone(loaded.workflow_path)
         self.assertTrue(loaded.task_path.is_file())
 
     def test_load_dataset_rejects_missing_task_file(self):
@@ -224,6 +231,104 @@ class DatasetLoaderTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 DatasetLoadError,
                 "CSV data source is missing",
+            ):
+                load_dataset(dataset_path)
+
+    def test_load_dataset_resolves_workflow_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workflows_dir = root / "workflows"
+            workflows_dir.mkdir()
+            workflow_path = workflows_dir / "customer.json"
+            workflow_path.write_text("{}", encoding="utf-8")
+            dataset_path = root / "dataset.json"
+            dataset_path.write_text(
+                json.dumps(
+                    {
+                        "name": "workflow_dataset",
+                        "workflow": "workflows/customer.json",
+                        "cases": [
+                            {
+                                "name": "customer_01",
+                                "parameters": {
+                                    "customer_name": "张三",
+                                },
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            loaded = load_dataset(dataset_path)
+
+        self.assertEqual(
+            loaded.target_type,
+            DatasetTargetType.WORKFLOW,
+        )
+        self.assertEqual(loaded.target_path, workflow_path.resolve())
+        self.assertEqual(
+            loaded.workflow_path,
+            workflow_path.resolve(),
+        )
+        self.assertIsNone(loaded.task_path)
+
+    def test_load_dataset_loads_csv_cases_for_workflow_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "rows.csv").write_text(
+                "case_id,customer_name\ncustomer_01,张三\n",
+                encoding="utf-8",
+            )
+            (root / "workflow.json").write_text(
+                "{}",
+                encoding="utf-8",
+            )
+            dataset_path = root / "dataset.json"
+            dataset_path.write_text(
+                json.dumps(
+                    {
+                        "name": "workflow_csv",
+                        "workflow": "workflow.json",
+                        "data_source": {
+                            "type": "csv",
+                            "path": "rows.csv",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            loaded = load_dataset(dataset_path)
+
+        self.assertEqual(
+            loaded.target_type,
+            DatasetTargetType.WORKFLOW,
+        )
+        self.assertEqual(
+            loaded.definition.cases[0].parameters,
+            {"customer_name": "张三"},
+        )
+
+    def test_load_dataset_rejects_missing_workflow_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dataset_path = Path(directory) / "dataset.json"
+            dataset_path.write_text(
+                json.dumps(
+                    {
+                        "name": "missing_workflow",
+                        "workflow": "missing.json",
+                        "cases": [
+                            {"name": "case", "parameters": {}}
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                DatasetLoadError,
+                "workflow file is missing or not a file",
             ):
                 load_dataset(dataset_path)
 

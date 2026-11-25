@@ -49,6 +49,16 @@ Workflow JSON
   -> WorkflowResult
 ```
 
+Dataset 目标加载：
+
+```text
+Dataset JSON
+  -> task 或 workflow 互斥目标
+  -> 相对目标路径解析
+  -> DatasetTargetType + 绝对 target_path
+  -> task_path / workflow_path 兼容视图
+```
+
 ## 模块职责
 
 | 模块 | 职责 |
@@ -134,7 +144,9 @@ Workflow JSON
 每个 CSV case 都独立执行任务定义中的 `setup_steps`、主流程和
 `cleanup_steps`，从而保证多行执行之间不会共享未清理的文本编辑状态。
 数据集目标必须且只能声明 `task` 或 `workflow` 之一；Workflow 目标模式目前只
-完成严格模型契约，路径加载和逐 case 执行将在后续阶段接入。
+完成严格模型契约和加载期路径解析，逐 case 执行将在后续阶段接入。`LoadedDataset`
+统一携带 `target_type` 和 `target_path`，同时保留 `task_path` 与 `workflow_path`
+属性，避免现有任务数据集调用方立即被破坏。
 
 `WorkflowDefinition` 用有序 `task_files` 描述子任务，并提供共享参数定义和可选
 `cleanup_task`。`load_workflow` 在返回前解析全部相对路径、验证文件存在、拒绝

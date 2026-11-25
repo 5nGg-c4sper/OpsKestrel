@@ -51,6 +51,11 @@ class TaskStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class DatasetTargetType(str, Enum):
+    TASK = "task"
+    WORKFLOW = "workflow"
+
+
 class TaskStep(StrictModel):
     type: ActionType
 

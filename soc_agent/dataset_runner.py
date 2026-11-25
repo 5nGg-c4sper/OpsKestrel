@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional
 
-from soc_agent.datasets import LoadedTaskDataset
+from soc_agent.datasets import LoadedDataset
 from soc_agent.task_models import (
     TaskCaseDefinition,
     TaskCaseResult,
@@ -33,7 +33,7 @@ class DatasetRunner:
         self._clock = clock or time.monotonic
         self._sleep = sleep or time.sleep
 
-    def run(self, loaded_dataset: LoadedTaskDataset) -> TaskDatasetResult:
+    def run(self, loaded_dataset: LoadedDataset) -> TaskDatasetResult:
         started_at = datetime.now(timezone.utc)
         start_time = self._clock()
         case_results = []
