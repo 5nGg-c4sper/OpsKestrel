@@ -23,6 +23,7 @@ from soc_agent.safety.policy import SafetyPolicy
 from soc_agent.suite import SuiteResult, SuiteRunner
 from soc_agent.task_models import (
     ActionType,
+    DatasetTargetType,
     StepStatus,
     TaskDatasetResult,
     TaskResult,
@@ -428,9 +429,19 @@ def run_dataset(
 ) -> TaskDatasetResult:
     loaded_dataset = load_dataset(dataset_path)
 
-    def execute_case(task_path, case):
+    def execute_case(target_path, case):
+        if loaded_dataset.target_type == DatasetTargetType.WORKFLOW:
+            return run_workflow(
+                target_path,
+                environment,
+                executor,
+                vision_provider,
+                reporter,
+                confirmation_handler=confirmation_handler,
+                parameter_overrides=case.parameters,
+            )
         return run_task(
-            task_path,
+            target_path,
             environment,
             executor,
             vision_provider,
@@ -552,10 +563,14 @@ def print_dataset_result(result: TaskDatasetResult) -> None:
         print(f"  Attempts: {case.attempts}")
         if case.error:
             print(f"  Error: {case.error}")
-        if case.task_result.report_path:
-            print(f"  Task report: {case.task_result.report_path}")
-        if case.task_result.failure_log:
-            print(f"  Failure log: {case.task_result.failure_log}")
+        if case.target_type == DatasetTargetType.WORKFLOW:
+            report_label = "Workflow report"
+        else:
+            report_label = "Task report"
+        if case.report_path:
+            print(f"  {report_label}: {case.report_path}")
+        if case.failure_log:
+            print(f"  Failure log: {case.failure_log}")
 
 
 if __name__ == "__main__":
