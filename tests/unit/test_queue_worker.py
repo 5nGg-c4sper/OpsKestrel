@@ -514,14 +514,17 @@ class QueueWorkerTests(unittest.TestCase):
         lock = threading.Lock()
         active = [0]
         maximum = [0]
+        barrier = threading.Barrier(2)
 
         def execute_job(job):
             with lock:
                 active[0] += 1
                 maximum[0] = max(maximum[0], active[0])
-            time.sleep(0.05)
-            with lock:
-                active[0] -= 1
+            try:
+                barrier.wait(timeout=2)
+            finally:
+                with lock:
+                    active[0] -= 1
             return self.make_task_result()
 
         completed = QueueWorker(
