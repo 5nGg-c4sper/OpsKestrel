@@ -1,0 +1,8 @@
+{
+  "name": "workflow_runtime_variable",
+  "description": "计算器读取值传递到 TextEdit",
+  "task_files": [
+    "../tasks/examples/workflow_read_value.json",
+    "../tasks/examples/workflow_write_value.json"
+  ]
+}

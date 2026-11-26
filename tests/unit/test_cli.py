@@ -49,6 +49,9 @@ class FakeEnvironment:
     def open_app(self, app):
         self.calls.append(("open_app", app))
 
+    def activate_app(self, app):
+        self.calls.append(("activate_app", app))
+
     def close_document(self, app, save_changes=False):
         self.calls.append(
             ("close_document", app, save_changes)
@@ -62,6 +65,15 @@ class FakeEnvironment:
 
     def click(self, x, y):
         self.calls.append(("click", x, y))
+
+    def click_element(self, app, element):
+        self.calls.append(("click_element", app, element))
+
+    def read_element(self, app, element, attribute="value"):
+        self.calls.append(
+            ("read_element", app, element, attribute)
+        )
+        return "391"
 
     def wait(self, seconds):
         self.calls.append(("wait", seconds))
@@ -783,6 +795,32 @@ class CLITests(unittest.TestCase):
         self.assertIn("Report:", output.getvalue())
         self.assertIn(("write", "A:hello"), environment.calls)
         self.assertIn(("write", "B:hello"), environment.calls)
+
+    def test_run_workflow_passes_runtime_value_between_tasks(self):
+        environment = FakeEnvironment()
+        executor = ActionExecutor(environment, settle_delay=0)
+        reporter = ReportWriter(self.root / "reports")
+
+        with redirect_stdout(StringIO()):
+            result = run_workflow(
+                PROJECT_ROOT
+                / "workflows"
+                / "runtime_variable.json",
+                environment,
+                executor,
+                FakeVisionProvider(),
+                reporter,
+            )
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertIn(
+            ("write", "工作流值：391"),
+            environment.calls,
+        )
+        self.assertEqual(
+            result.runtime_variables["display_value"].source_task,
+            "workflow_read_value",
+        )
 
     def test_main_enqueues_and_lists_job_without_api_key(self):
         task_path = self.root / "queued_task.json"

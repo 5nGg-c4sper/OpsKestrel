@@ -319,8 +319,13 @@ def run_task(
     policy=None,
     confirmation_handler=None,
     parameter_overrides: Optional[Dict[str, str]] = None,
+    runtime_values: Optional[Dict[str, str]] = None,
 ) -> TaskResult:
-    task = TaskRunner.load_task(task_path, parameter_overrides)
+    task = TaskRunner.load_task(
+        task_path,
+        parameter_overrides,
+        runtime_values=runtime_values,
+    )
     screenshot_path = Path(
         screenshot_path
         or Path(tempfile.gettempdir()) / f"soc-{task.name}-verify.png"
@@ -380,7 +385,10 @@ def run_task(
         policy=policy or SafetyPolicy(),
         confirmation_handler=confirmation_handler,
     )
-    result = runner.run(task)
+    result = runner.run(
+        task,
+        initial_runtime_values=runtime_values,
+    )
     reporter.write(result)
     return result
 
@@ -747,7 +755,7 @@ def run_workflow(
         parameter_overrides,
     )
 
-    def execute_task(task_path, parameters):
+    def execute_task(task_path, parameters, runtime_values):
         print(f"Running: {task_path.name}")
         result = run_task(
             task_path,
@@ -758,6 +766,7 @@ def run_workflow(
             confirmation_handler=confirmation_handler,
             parameter_overrides=parameters,
             policy=policy,
+            runtime_values=runtime_values,
         )
         print(f"Status: {result.status.value.upper()}")
         return result

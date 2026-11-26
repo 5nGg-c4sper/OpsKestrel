@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from soc_agent.task_models import (
+    RuntimeVariableRecord,
     StepPhase,
     TaskDefinition,
     TaskResult,
@@ -91,7 +92,7 @@ class WorkflowRunnerTests(unittest.TestCase):
         }
         calls = []
 
-        def execute_task(path, parameters):
+        def execute_task(path, parameters, runtime_values):
             calls.append((path.name, parameters))
             return self.make_task_result(
                 definitions[path].name,
@@ -146,7 +147,7 @@ class WorkflowRunnerTests(unittest.TestCase):
         }
         calls = []
 
-        def execute_task(path, parameters):
+        def execute_task(path, parameters, runtime_values):
             calls.append(path.name)
             if path.name == "login.json":
                 return self.make_task_result(
@@ -192,7 +193,7 @@ class WorkflowRunnerTests(unittest.TestCase):
             ),
         }
 
-        def execute_task(path, parameters):
+        def execute_task(path, parameters, runtime_values):
             status = (
                 TaskStatus.FAILED
                 if path.name == "cleanup.json"
@@ -231,7 +232,7 @@ class WorkflowRunnerTests(unittest.TestCase):
         }
         calls = []
 
-        def execute_task(path, parameters):
+        def execute_task(path, parameters, runtime_values):
             calls.append(path.name)
             if path.name == "main.json":
                 raise RuntimeError("executor crashed")
@@ -271,11 +272,83 @@ class WorkflowRunnerTests(unittest.TestCase):
             "requires parameters not provided by the workflow: note",
         ):
             WorkflowRunner(
-                lambda path, parameters: calls.append(path),
+                lambda path, parameters, runtime_values: calls.append(path),
                 task_loader=definitions.__getitem__,
             ).run(loaded)
 
         self.assertEqual(calls, [])
+
+    def test_runtime_value_is_passed_to_later_child_task(self):
+        loaded = self.make_loaded_workflow(
+            ["read_value", "write_value"],
+            {},
+        )
+        definitions = {
+            loaded.task_paths[0]: TaskDefinition.model_validate(
+                {
+                    "name": "read_value",
+                    "steps": [
+                        {
+                            "type": "read_element",
+                            "app": "计算器",
+                            "output": "result",
+                            "element": {"role": "AXStaticText"},
+                        }
+                    ],
+                }
+            ),
+            loaded.task_paths[1]: TaskDefinition.model_validate(
+                {
+                    "name": "write_value",
+                    "steps": [
+                        {"type": "write", "content": "${result}"},
+                        {"type": "done", "summary": "finished"},
+                    ],
+                }
+            ),
+        }
+        seen_runtime_values = []
+
+        def execute_task(path, parameters, runtime_values):
+            seen_runtime_values.append(
+                (path.name, dict(runtime_values))
+            )
+            if path.name == "read_value.json":
+                timestamp = self.make_task_result(
+                    "read_value",
+                    TaskStatus.PASSED,
+                )
+                timestamp.runtime_values = {"result": "391"}
+                timestamp.runtime_variables = {
+                    "result": RuntimeVariableRecord(
+                        name="result",
+                        source_task="read_value",
+                        value="391",
+                    )
+                }
+                return timestamp
+            return self.make_task_result(
+                "write_value",
+                TaskStatus.PASSED,
+            )
+
+        result = WorkflowRunner(
+            execute_task,
+            task_loader=definitions.__getitem__,
+        ).run(loaded)
+
+        self.assertEqual(
+            seen_runtime_values[1],
+            ("write_value.json", {"result": "391"}),
+        )
+        self.assertEqual(
+            result.runtime_variables["result"].source_task,
+            "read_value",
+        )
+        self.assertEqual(
+            result.runtime_variables["result"].value,
+            "391",
+        )
 
 
 if __name__ == "__main__":

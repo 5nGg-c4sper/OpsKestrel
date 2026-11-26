@@ -12,6 +12,7 @@ from soc_agent.task_models import (
     TaskDefinition,
     TaskResult,
     TaskStatus,
+    RuntimeVariableRecord,
     WorkflowResult,
     WorkflowTaskResult,
 )
@@ -27,6 +28,7 @@ class _PreparedTask:
     path: Path
     name: str
     parameters: Dict[str, str]
+    runtime_outputs: List[str]
 
 
 class WorkflowRunner:
@@ -34,7 +36,10 @@ class WorkflowRunner:
 
     def __init__(
         self,
-        execute_task: Callable[[Path, Dict[str, str]], TaskResult],
+        execute_task: Callable[
+            [Path, Dict[str, str], Dict[str, str]],
+            TaskResult,
+        ],
         task_loader: Optional[
             Callable[[Path], TaskDefinition]
         ] = None,
@@ -45,26 +50,44 @@ class WorkflowRunner:
         self._clock = clock or time.monotonic
 
     def run(self, loaded_workflow: LoadedWorkflow) -> WorkflowResult:
-        prepared_tasks = [
-            self._prepare_task(path, loaded_workflow.parameters)
-            for path in loaded_workflow.task_paths
-        ]
+        runtime_names = set()
+        prepared_tasks = []
+        for path in loaded_workflow.task_paths:
+            prepared = self._prepare_task(
+                path,
+                loaded_workflow.parameters,
+                runtime_names,
+            )
+            prepared_tasks.append(prepared)
+            runtime_names.update(prepared.runtime_outputs)
         cleanup_task = None
         if loaded_workflow.cleanup_task_path is not None:
             cleanup_task = self._prepare_task(
                 loaded_workflow.cleanup_task_path,
                 loaded_workflow.parameters,
+                runtime_names,
             )
 
         started_at = datetime.now(timezone.utc)
         start_time = self._clock()
+        runtime_values = {}
+        runtime_variables = {}
         task_results = []
         stopped_early = False
         main_error = None
 
         for position, prepared_task in enumerate(prepared_tasks):
-            result = self._execute(prepared_task, StepPhase.MAIN)
+            result = self._execute(
+                prepared_task,
+                StepPhase.MAIN,
+                runtime_values,
+            )
             task_results.append(result)
+            self._merge_runtime_values(
+                result.task_result,
+                runtime_values,
+                runtime_variables,
+            )
             if result.status != TaskStatus.PASSED:
                 stopped_early = position + 1 < len(prepared_tasks)
                 main_error = result.error
@@ -76,6 +99,12 @@ class WorkflowRunner:
             cleanup_result = self._execute(
                 cleanup_task,
                 StepPhase.CLEANUP,
+                runtime_values,
+            )
+            self._merge_runtime_values(
+                cleanup_result.task_result,
+                runtime_values,
+                runtime_variables,
             )
             if cleanup_result.status != TaskStatus.PASSED:
                 cleanup_error = cleanup_result.error
@@ -100,12 +129,14 @@ class WorkflowRunner:
             cleanup_result=cleanup_result,
             stopped_early=stopped_early,
             error=error,
+            runtime_variables=runtime_variables,
         )
 
     def _prepare_task(
         self,
         task_path: Path,
         workflow_parameters: Dict[str, str],
+        runtime_names,
     ) -> _PreparedTask:
         definition = self.task_loader(task_path)
         task_parameter_names = set(definition.parameters)
@@ -128,25 +159,50 @@ class WorkflowRunner:
             for name, value in workflow_parameters.items()
             if name in task_parameter_names
         }
+        runtime_outputs = [
+            step.output
+            for step in (
+                definition.setup_steps
+                + definition.steps
+                + definition.cleanup_steps
+            )
+            if step.output is not None
+        ]
         try:
             resolved = definition.resolve_parameters(parameters)
-            definition.render_parameters(resolved)
+            definition.render_parameters(
+                resolved,
+                preserve_placeholders=(
+                    set(runtime_names) | set(runtime_outputs)
+                ),
+            )
         except ValueError as error:
             raise WorkflowRunnerError(
                 f"invalid parameters for workflow task "
                 f"{definition.name!r}: {error}"
             ) from error
 
+        conflicts = sorted(
+            set(runtime_outputs) & set(workflow_parameters)
+        )
+        if conflicts:
+            raise WorkflowRunnerError(
+                "workflow task runtime outputs conflict with workflow "
+                f"parameters: {', '.join(conflicts)}"
+            )
+
         return _PreparedTask(
             path=task_path,
             name=definition.name,
             parameters=parameters,
+            runtime_outputs=runtime_outputs,
         )
 
     def _execute(
         self,
         prepared_task: _PreparedTask,
         phase: StepPhase,
+        runtime_values: Dict[str, str],
     ) -> WorkflowTaskResult:
         started_at = datetime.now(timezone.utc)
         start_time = self._clock()
@@ -155,6 +211,7 @@ class WorkflowRunner:
             task_result = self.execute_task(
                 prepared_task.path,
                 dict(prepared_task.parameters),
+                dict(runtime_values),
             )
         except Exception as error:
             finished_at = datetime.now(timezone.utc)
@@ -183,6 +240,15 @@ class WorkflowRunner:
             error=task_result.error,
             task_result=task_result,
         )
+
+    @staticmethod
+    def _merge_runtime_values(
+        task_result: TaskResult,
+        runtime_values: Dict[str, str],
+        runtime_variables: Dict[str, RuntimeVariableRecord],
+    ) -> None:
+        runtime_values.update(task_result.runtime_values)
+        runtime_variables.update(task_result.runtime_variables)
 
     @staticmethod
     def _aggregate_status(

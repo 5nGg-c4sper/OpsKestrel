@@ -163,6 +163,10 @@ QueueWorker
 `StepResult`。`sensitive_output=true` 时只记录变量名，不在报告中持久化提取值。
 TaskRunner 为每个 Task 维护运行时变量表，并在每个步骤执行前动态渲染
 `${output}` 占位符；未声明、重复或与参数冲突的 output 名会被拒绝。
+WorkflowRunner 在同一 Workflow 的子任务之间合并
+`TaskResult.runtime_values`，并把来源任务和敏感状态记录到
+`WorkflowResult.runtime_variables`。敏感变量的实际值只保留在内存上下文中，
+不进入持久化报告。
 
 ## 数据与隐私
 

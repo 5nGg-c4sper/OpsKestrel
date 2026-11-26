@@ -14,6 +14,7 @@ from soc_agent.task_models import (
     StepPhase,
     StepResult,
     StepStatus,
+    RuntimeVariableRecord,
     TaskDefinition,
     TaskResult,
     TaskStep,
@@ -60,6 +61,7 @@ class TaskRunner:
     def load_task(
         task_path,
         parameter_overrides: Optional[Dict[str, str]] = None,
+        runtime_values: Optional[Dict[str, str]] = None,
     ) -> TaskDefinition:
         task = TaskRunner.load_definition(task_path)
         resolved = task.resolve_parameters(parameter_overrides)
@@ -70,6 +72,7 @@ class TaskRunner:
             )
             if step.output is not None
         }
+        runtime_outputs.update((runtime_values or {}).keys())
         return task.render_parameters(
             resolved,
             preserve_placeholders=runtime_outputs,
@@ -81,11 +84,16 @@ class TaskRunner:
         payload = json.loads(path.read_text(encoding="utf-8"))
         return TaskDefinition.model_validate(payload)
 
-    def run(self, task: TaskDefinition) -> TaskResult:
+    def run(
+        self,
+        task: TaskDefinition,
+        initial_runtime_values: Optional[Dict[str, str]] = None,
+    ) -> TaskResult:
         started_at = datetime.now(timezone.utc)
         start_time = self._clock()
         step_results = []
-        runtime_values = {}
+        runtime_values = dict(initial_runtime_values or {})
+        runtime_sensitive = {}
 
         status, task_error = self._run_sequence(
             task,
@@ -94,6 +102,7 @@ class TaskRunner:
             step_results,
             start_time,
             runtime_values,
+            runtime_sensitive,
         )
         if status == TaskStatus.PASSED:
             status, task_error = self._run_sequence(
@@ -103,6 +112,7 @@ class TaskRunner:
                 step_results,
                 start_time,
                 runtime_values,
+                runtime_sensitive,
             )
         else:
             self._append_skipped(
@@ -120,6 +130,7 @@ class TaskRunner:
             step_results,
             start_time,
             runtime_values,
+            runtime_sensitive,
             enforce_timeout=False,
         )
         if cleanup_status != TaskStatus.PASSED and status == TaskStatus.PASSED:
@@ -136,6 +147,21 @@ class TaskRunner:
             duration_seconds=max(0.0, self._clock() - start_time),
             steps=step_results,
             error=task_error,
+            runtime_variables={
+                name: RuntimeVariableRecord(
+                    name=name,
+                    source_task=task.name,
+                    sensitive=runtime_sensitive.get(name, False),
+                    value=(
+                        None
+                        if runtime_sensitive.get(name, False)
+                        else value
+                    ),
+                )
+                for name, value in runtime_values.items()
+                if name in runtime_sensitive
+            },
+            runtime_values=dict(runtime_values),
         )
 
     def _run_sequence(
@@ -146,6 +172,7 @@ class TaskRunner:
         step_results,
         start_time: float,
         runtime_values: Dict[str, str],
+        runtime_sensitive: Dict[str, bool],
         enforce_timeout: bool = True,
     ):
         status = TaskStatus.PASSED
@@ -403,6 +430,9 @@ class TaskRunner:
                             if step.output is not None:
                                 runtime_values[step.output] = (
                                     extracted_value or ""
+                                )
+                                runtime_sensitive[step.output] = (
+                                    step.sensitive_output
                                 )
             except Exception as error:
                 status = TaskStatus.FAILED

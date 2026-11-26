@@ -119,6 +119,16 @@ Undefined, duplicate, or parameter-conflicting output names fail validation.
 `sensitive_output` values remain usable at runtime but are not written to the
 report.
 
+Runtime outputs also flow across child tasks in one workflow:
+
+```bash
+./venv/bin/soc-agent workflow workflows/runtime_variable.json
+```
+
+The first task reads the calculator display; the second task writes that value
+into TextEdit. WorkflowResult records the variable source task and whether the
+value is sensitive.
+
 Sensitive screen regions can be blacked out before any screenshot is uploaded
 to the vision model or copied into report artifacts:
 

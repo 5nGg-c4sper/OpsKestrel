@@ -701,6 +701,20 @@ class StepResult(StrictModel):
     loop_delay_seconds: Optional[float] = Field(default=None, ge=0)
 
 
+class RuntimeVariableRecord(StrictModel):
+    name: str
+    source_task: str
+    sensitive: bool = False
+    value: Optional[str] = None
+
+    @field_validator("name", "source_task")
+    @classmethod
+    def validate_non_empty_text(cls, value):
+        if not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+
 class TaskResult(StrictModel):
     task_name: str
     status: TaskStatus
@@ -713,6 +727,13 @@ class TaskResult(StrictModel):
     error: Optional[str] = None
     report_path: Optional[str] = None
     failure_log: Optional[str] = None
+    runtime_variables: Dict[str, RuntimeVariableRecord] = Field(
+        default_factory=dict
+    )
+    runtime_values: Dict[str, str] = Field(
+        default_factory=dict,
+        exclude=True,
+    )
 
 
 class WorkflowTaskResult(StrictModel):
@@ -750,6 +771,9 @@ class WorkflowResult(StrictModel):
     stopped_early: bool = False
     error: Optional[str] = None
     report_path: Optional[str] = None
+    runtime_variables: Dict[str, RuntimeVariableRecord] = Field(
+        default_factory=dict
+    )
 
     @field_validator("workflow_name")
     @classmethod
