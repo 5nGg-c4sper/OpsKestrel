@@ -20,6 +20,7 @@ from soc_agent.browser import (
     PlaywrightBrowserSession,
 )
 from soc_agent.config import AgentConfig
+from soc_agent.console import create_console_server
 from soc_agent.dataset_runner import DatasetRunner
 from soc_agent.datasets import load_dataset
 from soc_agent.diagnostics import DiagnosticsRunner
@@ -580,6 +581,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--fail-on-differences",
         action="store_true",
     )
+
+    console_parser = subparsers.add_parser(
+        "console",
+        help="Serve the local SOC Agent operations console",
+    )
+    console_parser.add_argument("--reports-dir", default="reports")
+    console_parser.add_argument(
+        "--queue-db",
+        default="reports/queue.db",
+    )
+    console_parser.add_argument("--host", default="127.0.0.1")
+    console_parser.add_argument("--port", type=int, default=8766)
     return parser
 
 
@@ -817,6 +830,9 @@ def main(
 
     if args.command == "erp-reconcile":
         return run_erp_reconcile(args)
+
+    if args.command == "console":
+        return run_console(args)
 
     load_dotenv()
     if args.command == "doctor":
@@ -1188,6 +1204,29 @@ def run_mock_erp(args) -> int:
     print(f"Mock ERP: http://{host}:{port}")
     print(f"Invoice data: {Path(args.data).expanduser().resolve()}")
     print(f"Enterprise mode: {'yes' if args.enterprise else 'no'}")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+    return 0
+
+
+def run_console(args) -> int:
+    try:
+        server = create_console_server(
+            project_root=Path(__file__).resolve().parents[1],
+            reports_dir=args.reports_dir,
+            queue_db=args.queue_db,
+            host=args.host,
+            port=args.port,
+        )
+    except Exception as error:
+        print(f"Console failed: {error}")
+        return 1
+    host, port = server.server_address[:2]
+    print(f"SOC Agent Console: http://{host}:{port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -143,9 +143,62 @@ def load_expected_invoices(
         return load_expected_invoices_xlsx(source_path)
     if suffix == ".csv":
         return load_expected_invoices_csv(source_path)
+    if suffix == ".pdf":
+        return load_expected_invoices_pdf(source_path)
     raise ReconciliationInputError(
         f"unsupported expected invoice format: {suffix or '<none>'}"
     )
+
+
+def load_expected_invoices_pdf(
+    path: Union[str, Path],
+) -> List[Dict[str, str]]:
+    try:
+        from pypdf import PdfReader
+    except ImportError as error:
+        raise ReconciliationInputError(
+            "pypdf is required to read PDF invoice files"
+        ) from error
+
+    source_path = Path(path).expanduser().resolve()
+    reader = PdfReader(source_path)
+    labels = {
+        "invoice id": "invoice_id",
+        "invoice_id": "invoice_id",
+        "发票号": "invoice_id",
+        "customer id": "customer_id",
+        "customer_id": "customer_id",
+        "客户号": "customer_id",
+        "currency": "currency",
+        "币种": "currency",
+        "expected amount": "expected_amount",
+        "expected_amount": "expected_amount",
+        "应收金额": "expected_amount",
+        "expected status": "expected_status",
+        "expected_status": "expected_status",
+        "状态": "expected_status",
+        "due date": "due_date",
+        "due_date": "due_date",
+        "到期日": "due_date",
+    }
+    records = []
+    for page in reader.pages:
+        text = page.extract_text() or ""
+        record = {}
+        for line in text.splitlines():
+            if ":" not in line:
+                continue
+            label, value = line.split(":", 1)
+            canonical = labels.get(label.strip().casefold())
+            if canonical:
+                record[canonical] = value.strip()
+        if record:
+            records.append(record)
+    if not records:
+        raise ReconciliationInputError(
+            f"no labeled invoice data found in PDF: {source_path}"
+        )
+    return records
 
 
 def load_erp_invoices_json(path: Union[str, Path]) -> List[Dict[str, Any]]:

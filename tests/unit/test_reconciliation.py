@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 from openpyxl import Workbook
+from reportlab.pdfgen import canvas
 
 from soc_agent.reconciliation import (
     ReconciliationStatus,
@@ -219,6 +220,31 @@ class ReconciliationTests(unittest.TestCase):
 
         self.assertEqual(rows[0]["invoice_id"], "INV-XLSX")
         self.assertEqual(rows[0]["expected_amount"], "100.5")
+
+    def test_pdf_expected_invoice_input_is_supported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "invoices.pdf"
+            document = canvas.Canvas(str(path))
+            lines = [
+                "Invoice ID: INV-PDF-1",
+                "Customer ID: CUST-PDF",
+                "Currency: CNY",
+                "Expected Amount: 99.50",
+                "Expected Status: paid",
+                "Due Date: 2026-12-01",
+            ]
+            y = 800
+            for line in lines:
+                document.drawString(72, y, line)
+                y -= 24
+            document.showPage()
+            document.save()
+
+            rows = load_expected_invoices(path)
+
+        self.assertEqual(rows[0]["invoice_id"], "INV-PDF-1")
+        self.assertEqual(rows[0]["expected_amount"], "99.50")
+        self.assertEqual(rows[0]["due_date"], "2026-12-01")
 
 
 if __name__ == "__main__":

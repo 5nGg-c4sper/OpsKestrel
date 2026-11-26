@@ -134,6 +134,7 @@ def load_scenario(scenario_path: Union[str, Path]) -> LoadedScenario:
         ".csv",
         ".xlsx",
         ".xlsm",
+        ".pdf",
     }:
         raise ScenarioLoadError(
             "expected input must be CSV or XLSX"

@@ -16,6 +16,9 @@ vision model only for screenshot verification.
 
 Documentation:
 
+- [Project overview and interview walkthrough](docs/PROJECT.md)
+- [Five-minute interview demo](docs/INTERVIEW_DEMO.md)
+- [Promotional and resume notes](docs/PROMO.md)
 - [Product roadmap](docs/ROADMAP.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [PostgreSQL queue deployment](docs/POSTGRES.md)

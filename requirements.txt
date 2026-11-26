@@ -40,6 +40,7 @@ PyScreeze==0.1.29
 python3-xlib==0.15
 python-dateutil==2.8.2
 python-dotenv==1.0.0
+pypdf>=4,<5
 pytweening==1.0.7
 requests==2.31.0
 rubicon-objc==0.4.7

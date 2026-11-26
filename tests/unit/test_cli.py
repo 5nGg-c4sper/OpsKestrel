@@ -489,6 +489,24 @@ class CLITests(unittest.TestCase):
         self.assertEqual(args.password, "secret")
         self.assertEqual(args.failure_config, "failures.json")
 
+    def test_parser_supports_console_command(self):
+        args = build_parser().parse_args(
+            [
+                "console",
+                "--reports-dir",
+                "custom-reports",
+                "--queue-db",
+                "custom.db",
+                "--port",
+                "9001",
+            ]
+        )
+
+        self.assertEqual(args.command, "console")
+        self.assertEqual(args.reports_dir, "custom-reports")
+        self.assertEqual(args.queue_db, "custom.db")
+        self.assertEqual(args.port, 9001)
+
     def test_parser_supports_erp_search_command(self):
         args = build_parser().parse_args(
             [
