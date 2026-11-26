@@ -102,6 +102,29 @@ class MacOSEnvironment:
         )
         self.click(match.center_x, match.center_y)
 
+    def read_element(
+        self,
+        app_name: str,
+        locator,
+        attribute: str = "value",
+    ) -> str:
+        if not app_name or not app_name.strip():
+            raise ValueError("app_name must not be empty")
+        if locator is None:
+            raise ValueError("locator must not be None")
+        if attribute not in {"title", "description", "value"}:
+            raise ValueError(f"unsupported element attribute: {attribute}")
+        match = self._get_accessibility_locator().find(
+            app_name,
+            locator,
+        )
+        value = getattr(match, attribute)
+        if value is None:
+            raise ValueError(
+                f"accessibility element has no {attribute}: {app_name}"
+            )
+        return str(value)
+
     def wait(self, seconds: float) -> None:
         seconds = float(seconds)
         if seconds <= 0:

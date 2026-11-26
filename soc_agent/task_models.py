@@ -24,6 +24,7 @@ class ActionType(str, Enum):
     PRESS = "press"
     CLICK = "click"
     CLICK_ELEMENT = "click_element"
+    READ_ELEMENT = "read_element"
     WAIT = "wait"
     VERIFY_VISION = "verify_vision"
     DONE = "done"
@@ -102,6 +103,9 @@ class TaskStep(StrictModel):
     x: Optional[float] = None
     y: Optional[float] = None
     element: Optional[UIElementLocator] = None
+    output: Optional[str] = None
+    read_attribute: Literal["title", "description", "value"] = "value"
+    sensitive_output: bool = False
 
     prompt: Optional[str] = None
     summary: Optional[str] = None
@@ -178,6 +182,17 @@ class TaskStep(StrictModel):
                 raise ValueError("click_element requires app")
             if self.element is None:
                 raise ValueError("click_element requires element")
+
+        if self.type == ActionType.READ_ELEMENT:
+            if not self.app:
+                raise ValueError("read_element requires app")
+            if self.element is None:
+                raise ValueError("read_element requires element")
+            if self.output is not None and not re.fullmatch(
+                r"[A-Za-z_][A-Za-z0-9_]*",
+                self.output,
+            ):
+                raise ValueError("read_element output has an invalid name")
 
         if self.type == ActionType.WAIT and self.seconds is None:
             raise ValueError("wait requires seconds")
@@ -639,6 +654,8 @@ class StepResult(StrictModel):
     screenshot: Optional[str] = None
     approval_prompt: Optional[str] = None
     approval_result: Optional[bool] = None
+    output: Optional[str] = None
+    extracted_value: Optional[str] = None
     condition_prompt: Optional[str] = None
     condition_expected: Optional[bool] = None
     condition_actual: Optional[bool] = None

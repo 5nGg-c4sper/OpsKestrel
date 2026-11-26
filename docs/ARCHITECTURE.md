@@ -136,6 +136,7 @@ QueueWorker
 - `press`：发送按键或组合键
 - `click`：使用 `0-1` 归一化坐标点击
 - `click_element`：按 macOS Accessibility 控件属性定位并点击中心
+- `read_element`：从 Accessibility 控件读取 title、description 或 value
 - `wait`：等待指定时间
 - `verify_vision`：截图并请求 Qwen 判断
 - `done`：标记任务完成
@@ -158,6 +159,8 @@ QueueWorker
 `click_element` 在点击前查找 role、text、title、description 和 value 匹配的
 控件；`text` 可匹配 title、description 或 value 任一字段。随后使用控件 frame
 中心计算归一化坐标，避免窗口移动后固定坐标失效。
+`read_element` 复用同一控件查找器，将提取值和 output 变量名写入
+`StepResult`。`sensitive_output=true` 时只记录变量名，不在报告中持久化提取值。
 
 ## 数据与隐私
 

@@ -24,8 +24,10 @@ class ActionExecutor:
 
         self.environment = environment
         self.settle_delay = settle_delay
+        self.last_output = None
 
     def execute(self, step: TaskStep) -> StepOutcome:
+        self.last_output = None
         if step.type == ActionType.OPEN_APP:
             self.environment.open_app(step.app)
             self._settle()
@@ -64,6 +66,14 @@ class ActionExecutor:
         if step.type == ActionType.CLICK_ELEMENT:
             self.environment.click_element(step.app, step.element)
             self._settle()
+            return StepOutcome.CONTINUE
+
+        if step.type == ActionType.READ_ELEMENT:
+            self.last_output = self.environment.read_element(
+                step.app,
+                step.element,
+                attribute=step.read_attribute,
+            )
             return StepOutcome.CONTINUE
 
         if step.type == ActionType.WAIT:

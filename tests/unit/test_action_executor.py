@@ -37,6 +37,12 @@ class FakeEnvironment:
     def click_element(self, app, element):
         self.calls.append(("click_element", app, element))
 
+    def read_element(self, app, element, attribute="value"):
+        self.calls.append(
+            ("read_element", app, element, attribute)
+        )
+        return "391"
+
     def wait(self, seconds):
         self.calls.append(("wait", seconds))
 
@@ -146,6 +152,26 @@ class ActionExecutorTests(unittest.TestCase):
             [
                 ("click_element", "计算器", locator),
                 ("wait", 0.6),
+            ],
+        )
+
+    def test_read_element_records_last_output(self):
+        locator = UIElementLocator(role="AXStaticText")
+        result = self.executor.execute(
+            TaskStep(
+                type="read_element",
+                app="计算器",
+                element=locator,
+                output="display",
+            )
+        )
+
+        self.assertEqual(result, StepOutcome.CONTINUE)
+        self.assertEqual(self.executor.last_output, "391")
+        self.assertEqual(
+            self.environment.calls,
+            [
+                ("read_element", "计算器", locator, "value"),
             ],
         )
 

@@ -35,6 +35,12 @@ class FakeEnvironment:
     def click(self, x, y):
         self.calls.append(("click", x, y))
 
+    def read_element(self, app, element, attribute="value"):
+        self.calls.append(
+            ("read_element", app, element, attribute)
+        )
+        return "391"
+
     def wait(self, seconds):
         self.calls.append(("wait", seconds))
 
@@ -290,6 +296,70 @@ class TaskRunnerTests(unittest.TestCase):
         )
         self.assertEqual(task.steps[1].element.role, "AXButton")
         self.assertEqual(task.steps[1].element.text, "7")
+
+    def test_read_element_stores_output_in_step_result(self):
+        task = TaskDefinition.model_validate(
+            {
+                "name": "read_result",
+                "steps": [
+                    {
+                        "type": "read_element",
+                        "app": "计算器",
+                        "output": "display_value",
+                        "element": {"role": "AXStaticText"},
+                    },
+                    {"type": "done", "summary": "finished"},
+                ],
+            }
+        )
+        environment = FakeEnvironment()
+
+        result = TaskRunner(
+            ActionExecutor(environment, settle_delay=0)
+        ).run(task)
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertEqual(result.steps[0].output, "display_value")
+        self.assertEqual(result.steps[0].extracted_value, "391")
+
+    def test_sensitive_read_element_omits_value_from_report(self):
+        task = TaskDefinition.model_validate(
+            {
+                "name": "read_sensitive",
+                "steps": [
+                    {
+                        "type": "read_element",
+                        "app": "计算器",
+                        "output": "secret",
+                        "sensitive_output": True,
+                        "element": {"role": "AXStaticText"},
+                    },
+                    {"type": "done", "summary": "finished"},
+                ],
+            }
+        )
+        environment = FakeEnvironment()
+
+        result = TaskRunner(
+            ActionExecutor(environment, settle_delay=0)
+        ).run(task)
+
+        self.assertEqual(result.steps[0].output, "secret")
+        self.assertIsNone(result.steps[0].extracted_value)
+
+    def test_read_element_example_is_valid(self):
+        task_path = (
+            PROJECT_ROOT
+            / "tasks"
+            / "examples"
+            / "read_element.json"
+        )
+
+        task = TaskRunner.load_task(task_path)
+
+        self.assertEqual(task.name, "read_element")
+        self.assertEqual(task.steps[2].type, ActionType.READ_ELEMENT)
+        self.assertEqual(task.steps[2].output, "display_value")
 
     def test_conditional_step_skip_task_is_valid(self):
         task_path = (

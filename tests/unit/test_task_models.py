@@ -627,6 +627,43 @@ class TaskDefinitionTests(unittest.TestCase):
         ):
             UIElementLocator()
 
+    def test_read_element_is_parsed_and_validates_output_name(self):
+        task = TaskDefinition.model_validate(
+            {
+                "name": "read_element",
+                "steps": [
+                    {
+                        "type": "read_element",
+                        "app": "计算器",
+                        "output": "display_value",
+                        "read_attribute": "value",
+                        "element": {
+                            "role": "AXStaticText",
+                        },
+                    }
+                ],
+            }
+        )
+
+        self.assertEqual(task.steps[0].type, ActionType.READ_ELEMENT)
+        self.assertEqual(task.steps[0].output, "display_value")
+        self.assertEqual(task.steps[0].read_attribute, "value")
+
+        with self.assertRaises(ValidationError):
+            TaskDefinition.model_validate(
+                {
+                    "name": "invalid_output",
+                    "steps": [
+                        {
+                            "type": "read_element",
+                            "app": "计算器",
+                            "output": "invalid-name",
+                            "element": {"role": "AXStaticText"},
+                        }
+                    ],
+                }
+            )
+
     def test_step_accepts_vision_condition(self):
         task = TaskDefinition.model_validate(
             {

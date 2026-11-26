@@ -144,6 +144,7 @@ class TaskRunner:
             condition_screenshot = None
             approval_prompt = None
             approval_result = None
+            extracted_value = None
             configured_loop_count = (
                 step.loop.count if step.loop is not None else None
             )
@@ -365,6 +366,8 @@ class TaskRunner:
                         iterations_completed += 1
                         if iteration + 1 < loop_count:
                             self._sleep(loop_delay_seconds or 0.0)
+                        if step.type == ActionType.READ_ELEMENT:
+                            extracted_value = self.executor.last_output
             except Exception as error:
                 status = TaskStatus.FAILED
                 task_error = str(error)
@@ -388,6 +391,12 @@ class TaskRunner:
                         ),
                         approval_prompt=approval_prompt,
                         approval_result=approval_result,
+                        output=step.output,
+                        extracted_value=(
+                            None
+                            if step.sensitive_output
+                            else extracted_value
+                        ),
                         condition_prompt=condition_prompt,
                         condition_expected=condition_expected,
                         condition_actual=condition_actual,
@@ -419,6 +428,12 @@ class TaskRunner:
                     ),
                     approval_prompt=approval_prompt,
                     approval_result=approval_result,
+                    output=step.output,
+                    extracted_value=(
+                        None
+                        if step.sensitive_output
+                        else extracted_value
+                    ),
                     condition_prompt=condition_prompt,
                     condition_expected=condition_expected,
                     condition_actual=condition_actual,

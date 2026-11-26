@@ -131,6 +131,23 @@ class MacOSEnvironmentTests(unittest.TestCase):
             [("mouse", {"x": 0.125, "y": 0.25})],
         )
 
+    def test_read_element_uses_selected_attribute(self):
+        locator = UIElementLocator(role="AXButton", title="7")
+
+        value = self.environment.read_element(
+            "计算器",
+            locator,
+            attribute="value",
+        )
+        title = self.environment.read_element(
+            "计算器",
+            locator,
+            attribute="title",
+        )
+
+        self.assertEqual(value, "7")
+        self.assertEqual(title, "7")
+
     def test_wait(self):
         self.environment.wait(1.5)
         self.assertEqual(self.sleep_calls, [1.5])

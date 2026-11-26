@@ -1,0 +1,39 @@
+{
+  "name": "read_element",
+  "description": "点击计算器数字 7 并读取显示值",
+  "max_steps": 6,
+  "max_duration_seconds": 30,
+  "steps": [
+    {
+      "type": "open_app",
+      "app": "计算器"
+    },
+    {
+      "type": "click_element",
+      "app": "计算器",
+      "element": {
+        "role": "AXButton",
+        "text": "7"
+      }
+    },
+    {
+      "type": "read_element",
+      "app": "计算器",
+      "element": {
+        "role": "AXStaticText"
+      },
+      "read_attribute": "value",
+      "output": "display_value"
+    },
+    {
+      "type": "done",
+      "summary": "控件值已读取"
+    }
+  ],
+  "cleanup_steps": [
+    {
+      "type": "press",
+      "keys": ["command", "w"]
+    }
+  ]
+}

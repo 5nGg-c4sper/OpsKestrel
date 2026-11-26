@@ -89,6 +89,22 @@ works across apps that expose the same label through different AX fields. The
 matching control frame is converted into the same normalized coordinate space
 used by ordinary clicks.
 
+Read a value from a located Accessibility control:
+
+```json
+{
+  "type": "read_element",
+  "app": "计算器",
+  "element": {"role": "AXStaticText"},
+  "read_attribute": "value",
+  "output": "display_value"
+}
+```
+
+`read_attribute` accepts `title`, `description`, or `value`. The extracted value
+and output name are recorded on the step. Set `sensitive_output` to `true` to
+keep the value out of the persisted report.
+
 Sensitive screen regions can be blacked out before any screenshot is uploaded
 to the vision model or copied into report artifacts:
 
@@ -380,6 +396,12 @@ Run the Accessibility-based click example:
 
 ```bash
 ./venv/bin/soc-agent run tasks/examples/accessibility_click.json
+```
+
+Run the Accessibility value-reading example:
+
+```bash
+./venv/bin/soc-agent run tasks/examples/read_element.json
 ```
 
 `open_app` starts or opens an application. `activate_app` explicitly brings an
