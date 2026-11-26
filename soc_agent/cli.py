@@ -36,6 +36,9 @@ from soc_agent.reconciliation import (
 )
 from soc_agent.reporting.dataset_report import DatasetReportWriter
 from soc_agent.reporting.report import ReportWriter
+from soc_agent.reporting.reconciliation_report import (
+    ReconciliationHTMLReportWriter,
+)
 from soc_agent.reporting.suite_report import SuiteReportWriter
 from soc_agent.reporting.workflow_report import WorkflowReportWriter
 from soc_agent.runner import TaskRunner
@@ -484,6 +487,11 @@ def build_parser() -> argparse.ArgumentParser:
     erp_reconcile_parser.add_argument("--headed", action="store_true")
     erp_reconcile_parser.add_argument("--json", action="store_true")
     erp_reconcile_parser.add_argument("--output", default=None)
+    erp_reconcile_parser.add_argument(
+        "--html",
+        default=None,
+        help="Write a filterable HTML reconciliation report",
+    )
     erp_reconcile_parser.add_argument(
         "--fail-on-differences",
         action="store_true",
@@ -1081,6 +1089,12 @@ def run_erp_reconcile(args) -> int:
             thread.join(timeout=2)
 
     payload = report.to_dict()
+    html_path = None
+    if args.html:
+        html_path = ReconciliationHTMLReportWriter().write(
+            report,
+            args.html,
+        )
     if args.output:
         output_path = Path(args.output).expanduser().resolve()
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1103,6 +1117,8 @@ def run_erp_reconcile(args) -> int:
         print(f"Collection errors: {len(report.collection_errors)}")
         if args.output:
             print(f"Report: {output_path}")
+        if html_path is not None:
+            print(f"HTML report: {html_path}")
 
     if report.collection_errors:
         return 1

@@ -480,6 +480,8 @@ class CLITests(unittest.TestCase):
                 "reports/erp",
                 "--output",
                 "reports/reconcile.json",
+                "--html",
+                "reports/reconcile.html",
                 "--fail-on-differences",
             ]
         )
@@ -488,6 +490,7 @@ class CLITests(unittest.TestCase):
         self.assertEqual(args.expected_csv, "expected.csv")
         self.assertEqual(args.screenshot_dir, "reports/erp")
         self.assertEqual(args.output, "reports/reconcile.json")
+        self.assertEqual(args.html, "reports/reconcile.html")
         self.assertTrue(args.fail_on_differences)
 
     def test_parser_supports_repeated_suite_parameters(self):

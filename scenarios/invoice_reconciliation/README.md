@@ -63,8 +63,11 @@ Run all 20 fixture invoices through the browser and reconciliation engine:
 ./venv/bin/soc-agent erp-reconcile \
   scenarios/invoice_reconciliation/data/input_invoices.csv \
   --screenshot-dir reports/invoice-reconciliation/evidence \
-  --output reports/invoice-reconciliation.json
+  --output reports/invoice-reconciliation.json \
+  --html reports/invoice-reconciliation.html
 ```
 
 The real Chrome regression performs 20 ERP lookups, saves 20 screenshots, and
 produces the same seven-category result as the pure JSON reconciliation path.
+The HTML report supports filter buttons, invoice search, and screenshot links
+for each collected invoice.

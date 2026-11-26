@@ -401,12 +401,15 @@ Run the complete CSV-to-ERP reconciliation batch:
 ./venv/bin/soc-agent erp-reconcile \
   scenarios/invoice_reconciliation/data/input_invoices.csv \
   --screenshot-dir reports/invoice-reconciliation/evidence \
-  --output reports/invoice-reconciliation.json
+  --output reports/invoice-reconciliation.json \
+  --html reports/invoice-reconciliation.html
 ```
 
 Each invoice is collected through the browser, then all records are passed to
 the deterministic reconciliation engine. The report includes one lookup per
 invoice, collection errors, screenshots, and the final reconciliation summary.
+The optional HTML report adds summary cards, status filters, text search, and
+clickable screenshot evidence.
 
 Manage the persistent execution queue:
 
