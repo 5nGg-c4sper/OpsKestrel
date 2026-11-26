@@ -347,6 +347,73 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertEqual(result.steps[0].output, "secret")
         self.assertIsNone(result.steps[0].extracted_value)
 
+    def test_runtime_output_is_available_to_later_step(self):
+        task_payload = {
+            "name": "runtime_output",
+            "steps": [
+                {
+                    "type": "read_element",
+                    "app": "计算器",
+                    "output": "display_value",
+                    "element": {"role": "AXStaticText"},
+                },
+                {
+                    "type": "write",
+                    "content": "value=${display_value}",
+                },
+                {"type": "done", "summary": "finished"},
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            task_path = Path(directory) / "runtime.json"
+            task_path.write_text(
+                json.dumps(task_payload),
+                encoding="utf-8",
+            )
+            task = TaskRunner.load_task(task_path)
+
+        environment = FakeEnvironment()
+        result = TaskRunner(
+            ActionExecutor(environment, settle_delay=0)
+        ).run(task)
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertIn(("write", "value=391"), environment.calls)
+
+    def test_sensitive_runtime_output_is_still_usable(self):
+        task_payload = {
+            "name": "sensitive_runtime",
+            "steps": [
+                {
+                    "type": "read_element",
+                    "app": "计算器",
+                    "output": "secret",
+                    "sensitive_output": True,
+                    "element": {"role": "AXStaticText"},
+                },
+                {"type": "write", "content": "${secret}"},
+                {"type": "done", "summary": "finished"},
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            task_path = Path(directory) / "sensitive-runtime.json"
+            task_path.write_text(
+                json.dumps(task_payload),
+                encoding="utf-8",
+            )
+            task = TaskRunner.load_task(task_path)
+
+        environment = FakeEnvironment()
+        result = TaskRunner(
+            ActionExecutor(environment, settle_delay=0)
+        ).run(task)
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertIsNone(result.steps[0].extracted_value)
+        self.assertIn(("write", "391"), environment.calls)
+
     def test_read_element_example_is_valid(self):
         task_path = (
             PROJECT_ROOT
@@ -360,6 +427,20 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertEqual(task.name, "read_element")
         self.assertEqual(task.steps[2].type, ActionType.READ_ELEMENT)
         self.assertEqual(task.steps[2].output, "display_value")
+
+    def test_runtime_variable_example_is_valid(self):
+        task_path = (
+            PROJECT_ROOT
+            / "tasks"
+            / "examples"
+            / "runtime_variable.json"
+        )
+
+        task = TaskRunner.load_task(task_path)
+
+        self.assertEqual(task.name, "runtime_variable")
+        self.assertEqual(task.steps[2].output, "display_value")
+        self.assertIn("${display_value}", task.steps[5].content)
 
     def test_conditional_step_skip_task_is_valid(self):
         task_path = (

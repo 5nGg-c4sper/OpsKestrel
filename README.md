@@ -105,6 +105,20 @@ Read a value from a located Accessibility control:
 and output name are recorded on the step. Set `sensitive_output` to `true` to
 keep the value out of the persisted report.
 
+Runtime outputs can be referenced by later steps in the same task:
+
+```json
+{
+  "type": "write",
+  "content": "计算器值：${display_value}"
+}
+```
+
+Runtime placeholders are resolved immediately before each step executes.
+Undefined, duplicate, or parameter-conflicting output names fail validation.
+`sensitive_output` values remain usable at runtime but are not written to the
+report.
+
 Sensitive screen regions can be blacked out before any screenshot is uploaded
 to the vision model or copied into report artifacts:
 
@@ -402,6 +416,12 @@ Run the Accessibility value-reading example:
 
 ```bash
 ./venv/bin/soc-agent run tasks/examples/read_element.json
+```
+
+Run the cross-app runtime variable example:
+
+```bash
+./venv/bin/soc-agent run tasks/examples/runtime_variable.json
 ```
 
 `open_app` starts or opens an application. `activate_app` explicitly brings an

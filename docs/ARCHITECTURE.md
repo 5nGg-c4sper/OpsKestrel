@@ -161,6 +161,8 @@ QueueWorker
 中心计算归一化坐标，避免窗口移动后固定坐标失效。
 `read_element` 复用同一控件查找器，将提取值和 output 变量名写入
 `StepResult`。`sensitive_output=true` 时只记录变量名，不在报告中持久化提取值。
+TaskRunner 为每个 Task 维护运行时变量表，并在每个步骤执行前动态渲染
+`${output}` 占位符；未声明、重复或与参数冲突的 output 名会被拒绝。
 
 ## 数据与隐私
 

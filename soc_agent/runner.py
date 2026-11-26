@@ -1,6 +1,7 @@
 """Task execution orchestration."""
 
 import json
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -62,7 +63,17 @@ class TaskRunner:
     ) -> TaskDefinition:
         task = TaskRunner.load_definition(task_path)
         resolved = task.resolve_parameters(parameter_overrides)
-        return task.render_parameters(resolved)
+        runtime_outputs = {
+            step.output
+            for step in (
+                task.setup_steps + task.steps + task.cleanup_steps
+            )
+            if step.output is not None
+        }
+        return task.render_parameters(
+            resolved,
+            preserve_placeholders=runtime_outputs,
+        )
 
     @staticmethod
     def load_definition(task_path) -> TaskDefinition:
@@ -74,6 +85,7 @@ class TaskRunner:
         started_at = datetime.now(timezone.utc)
         start_time = self._clock()
         step_results = []
+        runtime_values = {}
 
         status, task_error = self._run_sequence(
             task,
@@ -81,6 +93,7 @@ class TaskRunner:
             StepPhase.SETUP,
             step_results,
             start_time,
+            runtime_values,
         )
         if status == TaskStatus.PASSED:
             status, task_error = self._run_sequence(
@@ -89,6 +102,7 @@ class TaskRunner:
                 StepPhase.MAIN,
                 step_results,
                 start_time,
+                runtime_values,
             )
         else:
             self._append_skipped(
@@ -105,6 +119,7 @@ class TaskRunner:
             StepPhase.CLEANUP,
             step_results,
             start_time,
+            runtime_values,
             enforce_timeout=False,
         )
         if cleanup_status != TaskStatus.PASSED and status == TaskStatus.PASSED:
@@ -130,6 +145,7 @@ class TaskRunner:
         phase: StepPhase,
         step_results,
         start_time: float,
+        runtime_values: Dict[str, str],
         enforce_timeout: bool = True,
     ):
         status = TaskStatus.PASSED
@@ -137,6 +153,22 @@ class TaskRunner:
 
         for position, step in enumerate(steps):
             index = len(step_results)
+            try:
+                step = self._render_runtime_step(
+                    step,
+                    runtime_values,
+                )
+            except ValueError as error:
+                task_error = str(error)
+                self._append_skipped(
+                    step_results,
+                    steps,
+                    position,
+                    phase,
+                    task_error,
+                )
+                status = TaskStatus.FAILED
+                break
             condition_prompt = None
             condition_expected = None
             condition_actual = None
@@ -368,6 +400,10 @@ class TaskRunner:
                             self._sleep(loop_delay_seconds or 0.0)
                         if step.type == ActionType.READ_ELEMENT:
                             extracted_value = self.executor.last_output
+                            if step.output is not None:
+                                runtime_values[step.output] = (
+                                    extracted_value or ""
+                                )
             except Exception as error:
                 status = TaskStatus.FAILED
                 task_error = str(error)
@@ -456,6 +492,57 @@ class TaskRunner:
                 break
 
         return status, task_error
+
+    @staticmethod
+    def _render_runtime_step(step, runtime_values: Dict[str, str]):
+        pattern = re.compile(r"\$\{([^{}]*)\}")
+
+        def render_text(text: str) -> str:
+            rendered = pattern.sub(
+                lambda match: runtime_values.get(
+                    match.group(1),
+                    match.group(0),
+                ),
+                text,
+            )
+            unresolved = sorted(
+                {
+                    match.group(1) or "<empty>"
+                    for match in pattern.finditer(rendered)
+                }
+            )
+            if unresolved:
+                raise ValueError(
+                    "unresolved runtime variables: "
+                    f"{', '.join(unresolved)}"
+                )
+            return rendered
+
+        data = step.model_dump()
+        for field_name in ("app", "content", "prompt", "summary"):
+            if data[field_name] is not None:
+                data[field_name] = render_text(data[field_name])
+        if data["keys"] is not None:
+            data["keys"] = [
+                render_text(key) for key in data["keys"]
+            ]
+        condition = data["condition"]
+        if condition is not None:
+            condition["prompt"] = render_text(condition["prompt"])
+        element = data["element"]
+        if element is not None:
+            for field_name in (
+                "role",
+                "text",
+                "title",
+                "description",
+                "value",
+            ):
+                if element[field_name] is not None:
+                    element[field_name] = render_text(
+                        element[field_name]
+                    )
+        return TaskStep.model_validate(data)
 
     def _check_vision(
         self,

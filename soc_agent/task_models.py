@@ -4,7 +4,7 @@ import math
 import re
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -356,9 +356,11 @@ class TaskDefinition(StrictModel):
     def render_parameters(
         self,
         values: Dict[str, str],
+        preserve_placeholders: Optional[Set[str]] = None,
     ) -> "TaskDefinition":
         """Return a copy with task parameter placeholders substituted."""
         values = dict(values)
+        preserve_placeholders = set(preserve_placeholders or set())
         invalid_values = sorted(
             name
             for name, value in values.items()
@@ -381,6 +383,7 @@ class TaskDefinition(StrictModel):
                 {
                     match.group(1) or "<empty>"
                     for match in placeholder_pattern.finditer(rendered)
+                    if match.group(1) not in preserve_placeholders
                 }
             )
             if unresolved_names:
@@ -448,6 +451,34 @@ class TaskDefinition(StrictModel):
         ):
             raise ValueError(
                 "done is only supported in main steps"
+            )
+
+        runtime_outputs = [
+            step.output
+            for step in (
+                self.setup_steps + self.steps + self.cleanup_steps
+            )
+            if step.output is not None
+        ]
+        duplicate_outputs = sorted(
+            {
+                name
+                for name in runtime_outputs
+                if runtime_outputs.count(name) > 1
+            }
+        )
+        if duplicate_outputs:
+            raise ValueError(
+                "duplicate runtime outputs: "
+                f"{', '.join(duplicate_outputs)}"
+            )
+        conflicting_outputs = sorted(
+            set(runtime_outputs) & set(self.parameters)
+        )
+        if conflicting_outputs:
+            raise ValueError(
+                "runtime outputs conflict with task parameters: "
+                f"{', '.join(conflicting_outputs)}"
             )
         return self
 

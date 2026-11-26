@@ -664,6 +664,78 @@ class TaskDefinitionTests(unittest.TestCase):
                 }
             )
 
+    def test_render_parameters_can_preserve_runtime_outputs(self):
+        task = TaskDefinition.model_validate(
+            {
+                "name": "runtime_render",
+                "parameters": {"prefix": {"default": "value"}},
+                "steps": [
+                    {
+                        "type": "read_element",
+                        "app": "计算器",
+                        "output": "display_value",
+                        "element": {"role": "AXStaticText"},
+                    },
+                    {
+                        "type": "write",
+                        "content": "${prefix}-${display_value}",
+                    },
+                ],
+            }
+        )
+
+        rendered = task.render_parameters(
+            {"prefix": "value"},
+            preserve_placeholders={"display_value"},
+        )
+
+        self.assertEqual(
+            rendered.steps[1].content,
+            "value-${display_value}",
+        )
+
+    def test_runtime_outputs_must_be_unique_and_not_parameters(self):
+        duplicate = {
+            "name": "duplicate_outputs",
+            "steps": [
+                {
+                    "type": "read_element",
+                    "app": "计算器",
+                    "output": "result",
+                    "element": {"role": "AXStaticText"},
+                },
+                {
+                    "type": "read_element",
+                    "app": "计算器",
+                    "output": "result",
+                    "element": {"role": "AXStaticText"},
+                },
+            ],
+        }
+        with self.assertRaisesRegex(
+            ValidationError,
+            "duplicate runtime outputs",
+        ):
+            TaskDefinition.model_validate(duplicate)
+
+        conflict = {
+            "name": "conflicting_output",
+            "parameters": {"result": {}},
+            "steps": [
+                {
+                    "type": "read_element",
+                    "app": "计算器",
+                    "output": "result",
+                    "element": {"role": "AXStaticText"},
+                }
+            ],
+        }
+        with self.assertRaisesRegex(
+            ValidationError,
+            "conflict with task parameters",
+        ):
+            TaskDefinition.model_validate(conflict)
+
     def test_step_accepts_vision_condition(self):
         task = TaskDefinition.model_validate(
             {
