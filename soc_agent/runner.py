@@ -11,6 +11,7 @@ from soc_agent.actions.executor import ActionExecutor, StepOutcome
 from soc_agent.safety.policy import SafetyPolicy, SafetyViolation
 from soc_agent.task_models import (
     ActionType,
+    ConditionType,
     StepPhase,
     StepResult,
     StepStatus,
@@ -19,6 +20,7 @@ from soc_agent.task_models import (
     TaskResult,
     TaskStep,
     TaskStatus,
+    ValueConditionOperator,
 )
 
 
@@ -197,6 +199,10 @@ class TaskRunner:
                 status = TaskStatus.FAILED
                 break
             condition_prompt = None
+            condition_variable = None
+            condition_operator = None
+            condition_expected_value = None
+            condition_actual_value = None
             condition_expected = None
             condition_actual = None
             condition_duration = None
@@ -233,18 +239,44 @@ class TaskRunner:
                 break
 
             if step.condition is not None:
+                condition_prompt = step.condition.prompt
+                condition_variable = step.condition.variable
+                condition_operator = step.condition.operator
+                condition_expected_value = (
+                    step.condition.expected_value
+                )
+                condition_expected = step.condition.expected
                 condition_started_at = datetime.now(timezone.utc)
                 condition_start_time = self._clock()
                 try:
-                    condition_result = self._check_vision(
-                        step.condition.prompt,
-                        step.condition.expected,
-                        step.condition.attempts,
-                        step.condition.retry_delay_seconds,
-                    )
+                    if (
+                        step.condition.type
+                        == ConditionType.VISION
+                    ):
+                        condition_result = self._check_vision(
+                            step.condition.prompt,
+                            step.condition.expected,
+                            step.condition.attempts,
+                            step.condition.retry_delay_seconds,
+                        )
+                    else:
+                        raw_value = runtime_values.get(
+                            step.condition.variable
+                        )
+                        condition_actual_value = (
+                            None
+                            if runtime_sensitive.get(
+                                step.condition.variable,
+                                False,
+                            )
+                            else raw_value
+                        )
+                        condition_result = self._check_value(
+                            raw_value,
+                            step.condition.operator,
+                            step.condition.expected_value,
+                        )
                 except Exception as error:
-                    condition_prompt = step.condition.prompt
-                    condition_expected = step.condition.expected
                     condition_duration = max(
                         0.0,
                         self._clock() - condition_start_time,
@@ -270,6 +302,10 @@ class TaskRunner:
                                 StepStatus.FAILED,
                             ),
                             condition_prompt=condition_prompt,
+                            condition_variable=condition_variable,
+                            condition_operator=condition_operator,
+                            condition_expected_value=condition_expected_value,
+                            condition_actual_value=condition_actual_value,
                             condition_expected=condition_expected,
                             condition_actual=None,
                             condition_duration_seconds=condition_duration,
@@ -281,8 +317,6 @@ class TaskRunner:
                     )
                     break
 
-                condition_prompt = step.condition.prompt
-                condition_expected = step.condition.expected
                 condition_actual = condition_result
                 condition_duration = max(
                     0.0,
@@ -310,6 +344,10 @@ class TaskRunner:
                                 f"got {condition_result}"
                             ),
                             condition_prompt=condition_prompt,
+                            condition_variable=condition_variable,
+                            condition_operator=condition_operator,
+                            condition_expected_value=condition_expected_value,
+                            condition_actual_value=condition_actual_value,
                             condition_expected=condition_expected,
                             condition_actual=condition_actual,
                             condition_duration_seconds=condition_duration,
@@ -464,6 +502,10 @@ class TaskRunner:
                             else extracted_value
                         ),
                         condition_prompt=condition_prompt,
+                        condition_variable=condition_variable,
+                        condition_operator=condition_operator,
+                        condition_expected_value=condition_expected_value,
+                        condition_actual_value=condition_actual_value,
                         condition_expected=condition_expected,
                         condition_actual=condition_actual,
                         condition_duration_seconds=condition_duration,
@@ -501,6 +543,10 @@ class TaskRunner:
                         else extracted_value
                     ),
                     condition_prompt=condition_prompt,
+                    condition_variable=condition_variable,
+                    condition_operator=condition_operator,
+                    condition_expected_value=condition_expected_value,
+                    condition_actual_value=condition_actual_value,
                     condition_expected=condition_expected,
                     condition_actual=condition_actual,
                     condition_duration_seconds=condition_duration,
@@ -558,7 +604,14 @@ class TaskRunner:
             ]
         condition = data["condition"]
         if condition is not None:
-            condition["prompt"] = render_text(condition["prompt"])
+            if condition["prompt"] is not None:
+                condition["prompt"] = render_text(
+                    condition["prompt"]
+                )
+            if condition["expected_value"] is not None:
+                condition["expected_value"] = render_text(
+                    condition["expected_value"]
+                )
         element = data["element"]
         if element is not None:
             for field_name in (
@@ -595,6 +648,39 @@ class TaskRunner:
                 self._sleep(retry_delay_seconds)
 
         return bool(verification_result)
+
+    @staticmethod
+    def _check_value(
+        actual: Optional[str],
+        operator: Optional[ValueConditionOperator],
+        expected: Optional[str],
+    ) -> bool:
+        if operator is None:
+            raise TaskRunnerError("value condition requires operator")
+        if operator == ValueConditionOperator.EXISTS:
+            return actual is not None
+        if operator == ValueConditionOperator.NOT_EXISTS:
+            return actual is None
+        if actual is None:
+            return False
+
+        actual_value = str(actual)
+        expected_value = str(expected or "")
+        if operator == ValueConditionOperator.EQUALS:
+            return actual_value.casefold() == expected_value.casefold()
+        if operator == ValueConditionOperator.NOT_EQUALS:
+            return actual_value.casefold() != expected_value.casefold()
+        if operator == ValueConditionOperator.CONTAINS:
+            return expected_value.casefold() in actual_value.casefold()
+        if operator == ValueConditionOperator.NOT_CONTAINS:
+            return expected_value.casefold() not in actual_value.casefold()
+        if operator == ValueConditionOperator.MATCHES:
+            return re.search(expected_value, actual_value) is not None
+        if operator == ValueConditionOperator.NOT_MATCHES:
+            return re.search(expected_value, actual_value) is None
+        raise TaskRunnerError(
+            f"unsupported value condition operator: {operator}"
+        )
 
     def _get_artifact(
         self,

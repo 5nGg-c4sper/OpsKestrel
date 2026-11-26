@@ -36,6 +36,7 @@ from soc_agent.task_models import (
     TaskResult,
     TaskStatus,
     TaskStep,
+    ValueConditionOperator,
 )
 
 
@@ -500,6 +501,39 @@ class CLITests(unittest.TestCase):
             "Screenshot: condition-step-000.png",
             printed,
         )
+
+    def test_print_result_includes_value_condition_diagnostics(self):
+        timestamp = datetime.now(timezone.utc)
+        result = TaskResult(
+            task_name="value_condition",
+            status=TaskStatus.FAILED,
+            started_at=timestamp,
+            finished_at=timestamp,
+            steps=[
+                StepResult(
+                    index=0,
+                    type=ActionType.WAIT,
+                    status=StepStatus.SKIPPED,
+                    started_at=timestamp,
+                    finished_at=timestamp,
+                    condition_variable="display_value",
+                    condition_operator=ValueConditionOperator.EQUALS,
+                    condition_expected_value="391",
+                    condition_actual_value=None,
+                    condition_expected=True,
+                    condition_actual=False,
+                )
+            ],
+        )
+        output = StringIO()
+
+        with redirect_stdout(output):
+            print_result(result)
+
+        printed = output.getvalue()
+        self.assertIn("Variable: display_value equals", printed)
+        self.assertIn("Expected value: 391", printed)
+        self.assertIn("Actual value: None", printed)
 
     def test_terminal_confirmation_accepts_yes(self):
         output = StringIO()

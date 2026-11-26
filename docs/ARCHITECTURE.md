@@ -145,6 +145,8 @@ QueueWorker
 数据集 case 可选择对失败结果重试，取消和超时结果不会自动重试。
 普通步骤可以配置视觉 `condition`。条件未命中时按跳过处理，条件验证异常时
 任务失败，从而区分“业务不适用”和“判断过程本身出错”。
+条件还支持 `type: value`，可对运行时变量执行相等、包含、正则和存在性判断；
+来自 `sensitive_output` 的实际变量值不会写入条件报告。
 条件诊断保存在 `StepResult` 的 `condition_*` 字段中，条件截图使用独立 artifact
 文件名，避免覆盖普通视觉验证截图。
 确定性动作可配置 `loop.count` 和 `loop.delay_seconds`。循环结果记录配置次数、

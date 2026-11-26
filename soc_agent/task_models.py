@@ -32,6 +32,18 @@ class ActionType(str, Enum):
 
 class ConditionType(str, Enum):
     VISION = "vision"
+    VALUE = "value"
+
+
+class ValueConditionOperator(str, Enum):
+    EQUALS = "equals"
+    NOT_EQUALS = "not_equals"
+    CONTAINS = "contains"
+    NOT_CONTAINS = "not_contains"
+    MATCHES = "matches"
+    NOT_MATCHES = "not_matches"
+    EXISTS = "exists"
+    NOT_EXISTS = "not_exists"
 
 
 class StepStatus(str, Enum):
@@ -237,7 +249,10 @@ class ExecutionPermissions(StrictModel):
 
 class TaskCondition(StrictModel):
     type: ConditionType
-    prompt: str
+    prompt: Optional[str] = None
+    variable: Optional[str] = None
+    operator: Optional[ValueConditionOperator] = None
+    expected_value: Optional[str] = None
 
     expected: bool = True
     attempts: int = Field(default=1, ge=1, le=5)
@@ -246,9 +261,36 @@ class TaskCondition(StrictModel):
     @field_validator("prompt")
     @classmethod
     def validate_prompt(cls, value):
-        if not value.strip():
+        if value is not None and not value.strip():
             raise ValueError("must not be empty")
         return value
+
+    @model_validator(mode="after")
+    def validate_condition_type(self):
+        if self.type == ConditionType.VISION:
+            if not self.prompt:
+                raise ValueError("vision condition requires prompt")
+            return self
+
+        if not self.variable or not re.fullmatch(
+            r"[A-Za-z_][A-Za-z0-9_]*",
+            self.variable,
+        ):
+            raise ValueError("value condition requires a valid variable")
+        if self.operator is None:
+            raise ValueError("value condition requires operator")
+        if (
+            self.operator
+            not in {
+                ValueConditionOperator.EXISTS,
+                ValueConditionOperator.NOT_EXISTS,
+            }
+            and self.expected_value is None
+        ):
+            raise ValueError(
+                "value condition requires expected_value"
+            )
+        return self
 
 
 class TaskLoop(StrictModel):
@@ -415,7 +457,14 @@ class TaskDefinition(StrictModel):
 
             condition = step["condition"]
             if condition is not None:
-                condition["prompt"] = render_text(condition["prompt"])
+                if condition["prompt"] is not None:
+                    condition["prompt"] = render_text(
+                        condition["prompt"]
+                    )
+                if condition["expected_value"] is not None:
+                    condition["expected_value"] = render_text(
+                        condition["expected_value"]
+                    )
 
             element = step["element"]
             if element is not None:
@@ -688,6 +737,10 @@ class StepResult(StrictModel):
     output: Optional[str] = None
     extracted_value: Optional[str] = None
     condition_prompt: Optional[str] = None
+    condition_variable: Optional[str] = None
+    condition_operator: Optional[ValueConditionOperator] = None
+    condition_expected_value: Optional[str] = None
+    condition_actual_value: Optional[str] = None
     condition_expected: Optional[bool] = None
     condition_actual: Optional[bool] = None
     condition_duration_seconds: Optional[float] = Field(

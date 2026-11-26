@@ -22,6 +22,7 @@ from soc_agent.task_models import (
     TaskStatus,
     WorkflowResult,
     WorkflowTaskResult,
+    ValueConditionOperator,
 )
 
 
@@ -270,6 +271,32 @@ class ReportWriterTests(unittest.TestCase):
             "condition screenshot: artifacts/condition-step-000.png",
             content,
         )
+
+    def test_failure_log_includes_value_condition_diagnostics(self):
+        result = self.make_result(
+            status=TaskStatus.FAILED,
+            error="value condition failed",
+        )
+        step = result.steps[0]
+        step.condition_variable = "display_value"
+        step.condition_operator = ValueConditionOperator.EQUALS
+        step.condition_expected_value = "391"
+        step.condition_actual_value = None
+        writer = ReportWriter(self.output_dir)
+
+        path = writer.write(result)
+        log_path = (
+            self.output_dir
+            / "artifacts"
+            / path.stem
+            / "failure.log"
+        )
+        content = log_path.read_text(encoding="utf-8")
+
+        self.assertIn("variable=display_value", content)
+        self.assertIn("operator=equals", content)
+        self.assertIn("expected_value='391'", content)
+        self.assertIn("actual_value=None", content)
 
 
 class DatasetReportWriterTests(unittest.TestCase):

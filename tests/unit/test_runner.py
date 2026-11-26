@@ -14,6 +14,7 @@ from soc_agent.task_models import (
     StepStatus,
     TaskDefinition,
     TaskStatus,
+    ValueConditionOperator,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -413,6 +414,141 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertEqual(result.status, TaskStatus.PASSED)
         self.assertIsNone(result.steps[0].extracted_value)
         self.assertIn(("write", "391"), environment.calls)
+
+    def test_value_condition_evaluates_runtime_variable(self):
+        task_payload = {
+            "name": "value_condition",
+            "steps": [
+                {
+                    "type": "read_element",
+                    "app": "计算器",
+                    "output": "display_value",
+                    "element": {"role": "AXStaticText"},
+                },
+                {
+                    "type": "wait",
+                    "seconds": 0.1,
+                    "condition": {
+                        "type": "value",
+                        "variable": "display_value",
+                        "operator": "equals",
+                        "expected_value": "391",
+                    },
+                },
+                {
+                    "type": "wait",
+                    "seconds": 0.1,
+                    "condition": {
+                        "type": "value",
+                        "variable": "display_value",
+                        "operator": "equals",
+                        "expected_value": "999",
+                    },
+                },
+                {"type": "done", "summary": "finished"},
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            task_path = Path(directory) / "value-condition.json"
+            task_path.write_text(
+                json.dumps(task_payload),
+                encoding="utf-8",
+            )
+            task = TaskRunner.load_task(task_path)
+
+        environment = FakeEnvironment()
+        result = TaskRunner(
+            ActionExecutor(environment, settle_delay=0)
+        ).run(task)
+
+        self.assertEqual(result.status, TaskStatus.PASSED)
+        self.assertEqual(result.steps[1].status, StepStatus.PASSED)
+        self.assertEqual(
+            result.steps[1].condition_variable,
+            "display_value",
+        )
+        self.assertEqual(
+            result.steps[1].condition_operator,
+            ValueConditionOperator.EQUALS,
+        )
+        self.assertEqual(
+            result.steps[1].condition_actual_value,
+            "391",
+        )
+        self.assertEqual(result.steps[2].status, StepStatus.SKIPPED)
+
+    def test_sensitive_value_condition_omits_actual_value(self):
+        task_payload = {
+            "name": "sensitive_condition",
+            "steps": [
+                {
+                    "type": "read_element",
+                    "app": "计算器",
+                    "output": "secret",
+                    "sensitive_output": True,
+                    "element": {"role": "AXStaticText"},
+                },
+                {
+                    "type": "wait",
+                    "seconds": 0.1,
+                    "condition": {
+                        "type": "value",
+                        "variable": "secret",
+                        "operator": "equals",
+                        "expected_value": "391",
+                    },
+                },
+                {"type": "done", "summary": "finished"},
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            task_path = Path(directory) / "sensitive-condition.json"
+            task_path.write_text(
+                json.dumps(task_payload),
+                encoding="utf-8",
+            )
+            task = TaskRunner.load_task(task_path)
+
+        result = TaskRunner(
+            ActionExecutor(FakeEnvironment(), settle_delay=0)
+        ).run(task)
+
+        self.assertEqual(result.steps[1].status, StepStatus.PASSED)
+        self.assertIsNone(result.steps[1].condition_actual_value)
+
+    def test_value_condition_operators(self):
+        cases = (
+            ("391", ValueConditionOperator.EQUALS, "391", True),
+            ("391", ValueConditionOperator.NOT_EQUALS, "9", True),
+            ("391", ValueConditionOperator.CONTAINS, "9", True),
+            ("391", ValueConditionOperator.NOT_CONTAINS, "8", True),
+            ("391", ValueConditionOperator.MATCHES, r"^\d+$", True),
+            ("391", ValueConditionOperator.NOT_MATCHES, r"^[A-Z]+$", True),
+        )
+
+        for actual, operator, expected, result in cases:
+            with self.subTest(operator=operator):
+                self.assertEqual(
+                    TaskRunner._check_value(actual, operator, expected),
+                    result,
+                )
+
+        self.assertTrue(
+            TaskRunner._check_value(
+                "391",
+                ValueConditionOperator.EXISTS,
+                None,
+            )
+        )
+        self.assertTrue(
+            TaskRunner._check_value(
+                None,
+                ValueConditionOperator.NOT_EXISTS,
+                None,
+            )
+        )
 
     def test_read_element_example_is_valid(self):
         task_path = (

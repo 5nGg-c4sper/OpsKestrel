@@ -20,6 +20,7 @@ from soc_agent.task_models import (
     TaskResult,
     TaskStatus,
     UIElementLocator,
+    ValueConditionOperator,
     WorkflowDefinition,
     WorkflowResult,
 )
@@ -70,6 +71,57 @@ class TaskConditionTests(unittest.TestCase):
                         prompt="结果是否正确？",
                         **values,
                     )
+
+    def test_value_condition_is_parsed(self):
+        condition = TaskCondition(
+            type="value",
+            variable="display_value",
+            operator="equals",
+            expected_value="391",
+        )
+
+        self.assertEqual(condition.type, ConditionType.VALUE)
+        self.assertEqual(
+            condition.operator,
+            ValueConditionOperator.EQUALS,
+        )
+        self.assertEqual(condition.variable, "display_value")
+        self.assertEqual(condition.expected_value, "391")
+
+    def test_value_condition_requires_variable_operator_and_expected(self):
+        invalid_conditions = (
+            {
+                "variable": "invalid-name",
+                "operator": "equals",
+                "expected_value": "391",
+            },
+            {
+                "operator": "equals",
+                "expected_value": "391",
+            },
+            {
+                "variable": "display_value",
+                "expected_value": "391",
+            },
+            {
+                "variable": "display_value",
+                "operator": "equals",
+            },
+        )
+
+        for values in invalid_conditions:
+            with self.subTest(values=values):
+                with self.assertRaises(ValidationError):
+                    TaskCondition(type="value", **values)
+
+    def test_exists_condition_does_not_require_expected_value(self):
+        condition = TaskCondition(
+            type="value",
+            variable="display_value",
+            operator="exists",
+        )
+
+        self.assertIsNone(condition.expected_value)
 
 
 class TaskDefinitionTests(unittest.TestCase):

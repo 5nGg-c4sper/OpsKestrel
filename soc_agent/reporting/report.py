@@ -102,6 +102,15 @@ class ReportWriter:
                     "duration="
                     f"{step.condition_duration_seconds or 0.0:.2f}s"
                 )
+            if step.condition_variable is not None:
+                lines.append(
+                    "  value condition: "
+                    f"variable={step.condition_variable}, "
+                    "operator="
+                    f"{step.condition_operator.value if step.condition_operator else None}, "
+                    f"expected_value={step.condition_expected_value!r}, "
+                    f"actual_value={step.condition_actual_value!r}"
+                )
             if step.condition_screenshot:
                 lines.append(
                     f"  condition screenshot: "

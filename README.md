@@ -119,6 +119,24 @@ Undefined, duplicate, or parameter-conflicting output names fail validation.
 `sensitive_output` values remain usable at runtime but are not written to the
 report.
 
+Use a runtime value condition to continue or skip a step:
+
+```json
+{
+  "type": "write",
+  "content": "approved",
+  "condition": {
+    "type": "value",
+    "variable": "display_value",
+    "operator": "equals",
+    "expected_value": "391"
+  }
+}
+```
+
+Value conditions support `equals`, `not_equals`, `contains`,
+`not_contains`, `matches`, `not_matches`, `exists`, and `not_exists`.
+
 Runtime outputs also flow across child tasks in one workflow:
 
 ```bash

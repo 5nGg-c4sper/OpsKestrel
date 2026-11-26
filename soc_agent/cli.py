@@ -863,7 +863,10 @@ def print_result(result: TaskResult) -> None:
 
 def print_condition_diagnostics(result: TaskResult) -> None:
     for step in result.steps:
-        if step.condition_prompt is None:
+        if (
+            step.condition_prompt is None
+            and step.condition_variable is None
+        ):
             continue
         print(
             f"Condition [{step.index}] {step.status.value}: "
@@ -871,7 +874,15 @@ def print_condition_diagnostics(result: TaskResult) -> None:
             f"actual={step.condition_actual}, "
             f"duration={step.condition_duration_seconds or 0.0:.2f}s"
         )
-        print(f"  Prompt: {step.condition_prompt}")
+        if step.condition_variable is not None:
+            print(
+                f"  Variable: {step.condition_variable} "
+                f"{step.condition_operator.value if step.condition_operator else ''}"
+            )
+            print(f"  Expected value: {step.condition_expected_value}")
+            print(f"  Actual value: {step.condition_actual_value}")
+        if step.condition_prompt is not None:
+            print(f"  Prompt: {step.condition_prompt}")
         if step.condition_screenshot:
             print(
                 f"  Screenshot: {step.condition_screenshot}"
