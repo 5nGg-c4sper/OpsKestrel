@@ -111,6 +111,7 @@ QueueWorker
 | `soc_agent/queue_models.py` | 队列任务、生命周期状态和参数数据模型 |
 | `soc_agent/queue_backend.py` | QueueStore 抽象接口和后端工厂 |
 | `soc_agent/queue_migrations.py` | SQLite 版本化、幂等 schema 迁移 |
+| `soc_agent/postgres_queue_store.py` | PostgreSQL 队列、锁和迁移实现 |
 | `soc_agent/queue_store.py` | SQLite 持久化、优先级、原子领取和 Worker 注册表 |
 | `soc_agent/queue_worker.py` | 领取队列任务、执行并持久化终态 |
 | `soc_agent/cli.py` | 参数解析、依赖装配和 queue CLI |
@@ -222,6 +223,11 @@ CLI、QueueWorker 只依赖 `QueueStore` 抽象接口，具体实例由
 `create_queue_store()` 根据路径或 URL 创建。SQLite schema 由
 `queue_schema_migrations` 记录版本并按顺序幂等执行，升级已有数据库无需删除。
 后续接入 PostgreSQL 时可实现同一接口，而无需修改 Worker 和 CLI 调度逻辑。
+
+PostgreSQL 后端使用 `FOR UPDATE SKIP LOCKED` 原子领取兼容标签的 Job，并使用
+`queue_exclusive_locks` 独占记录保护非 `parallel_safe` 的 GUI 任务。Job、
+Worker、标签、权限、并发、心跳和迁移字段与 SQLite 后端保持一致。真实
+PostgreSQL 集成测试需要在配置数据库服务后执行。
 
 QueueJob 的 `required_labels` 必须全部包含在 Worker `labels` 中才会被领取；
 标签比较大小写不敏感。无标签任务可由任意 Worker 执行，标签不匹配的高优先级

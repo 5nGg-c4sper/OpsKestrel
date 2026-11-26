@@ -132,6 +132,10 @@ def create_queue_store(
     backend = str(location)
     if backend.startswith("sqlite:///"):
         backend = backend[len("sqlite:///"):]
+    elif backend.startswith(("postgresql://", "postgres://")):
+        from soc_agent.postgres_queue_store import PostgreSQLQueueStore
+
+        return PostgreSQLQueueStore(backend, clock=clock)
     elif "://" in backend:
         scheme = backend.split("://", 1)[0]
         raise QueueStoreBackendError(

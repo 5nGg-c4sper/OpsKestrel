@@ -297,9 +297,16 @@ the worker initializes the desktop environment and vision provider. Running
 jobs whose claim lease expires are automatically returned to `pending` or
 failed after `--max-attempts`.
 
-`--queue-db` accepts a filesystem path or a `sqlite:///` URL. Other backend
-schemes are rejected with an explicit configuration error until a compatible
-network-backed implementation is added.
+`--queue-db` accepts a filesystem path, `sqlite:///` URL, or PostgreSQL DSN:
+
+```bash
+./venv/bin/soc-agent queue list \
+  --queue-db postgresql://user:pass@db.example.com/soc_agent
+```
+
+PostgreSQL mode requires the `psycopg` dependency from `requirements.txt`. It
+uses `FOR UPDATE SKIP LOCKED` for multi-machine claims and an exclusive lock row
+to keep non-parallel-safe GUI jobs globally serialized.
 
 Each Worker also receives a unique ID. While a job is executing, a background
 heartbeat renews `claimed_at`; heartbeats and completion are rejected unless

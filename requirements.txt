@@ -27,6 +27,7 @@ prompt-toolkit==3.0.39
 PyAutoGUI==0.9.54
 pydantic==2.4.2
 pydantic_core==2.10.1
+psycopg[binary]>=3.1,<4
 PyGetWindow==0.0.9
 PyMsgBox==1.0.9
 pyparsing==3.1.1

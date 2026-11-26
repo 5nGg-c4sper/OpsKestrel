@@ -4,11 +4,16 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from soc_agent.queue_backend import (
     QueueStore,
     QueueStoreBackendError,
     create_queue_store,
+)
+from soc_agent.postgres_queue_store import (
+    POSTGRES_CLAIM_SQL,
+    POSTGRES_MIGRATIONS,
 )
 from soc_agent.queue_store import SQLiteQueueStore
 from soc_agent.task_models import DatasetTargetType
@@ -44,11 +49,34 @@ class QueueBackendTests(unittest.TestCase):
     def test_unsupported_backend_is_rejected(self):
         with self.assertRaisesRegex(
             QueueStoreBackendError,
-            "unsupported queue backend: postgresql",
+            "unsupported queue backend: mysql",
         ):
             create_queue_store(
+                "mysql://localhost/self_operating_computer"
+            )
+
+    def test_postgres_url_selects_postgres_backend(self):
+        sentinel = object()
+        with patch(
+            "soc_agent.postgres_queue_store.PostgreSQLQueueStore",
+            return_value=sentinel,
+        ) as backend:
+            store = create_queue_store(
                 "postgresql://localhost/self_operating_computer"
             )
+
+        self.assertIs(store, sentinel)
+        backend.assert_called_once_with(
+            "postgresql://localhost/self_operating_computer",
+            clock=None,
+        )
+
+    def test_postgres_claim_uses_skip_locked_and_label_filter(self):
+        self.assertIn("FOR UPDATE SKIP LOCKED", POSTGRES_CLAIM_SQL)
+        self.assertIn("required_labels_json <@", POSTGRES_CLAIM_SQL)
+        schema_sql = "\n".join(POSTGRES_MIGRATIONS)
+        self.assertIn("queue_exclusive_locks", schema_sql)
+        self.assertIn("JSONB", schema_sql)
 
     def test_migrations_are_recorded_once(self):
         database_path = self.root / "queue.db"
