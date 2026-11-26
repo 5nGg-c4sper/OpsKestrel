@@ -77,15 +77,17 @@ Use macOS Accessibility controls instead of raw coordinates:
   "app": "计算器",
   "element": {
     "role": "AXButton",
-    "title": "7",
+    "text": "7",
     "match_index": 0
   }
 }
 ```
 
-Locators support `role`, `title`, `description`, `value`, and `match_index`.
-The matching control frame is converted into the same normalized coordinate
-space used by ordinary clicks.
+Locators support `role`, `text`, `title`, `description`, `value`, and
+`match_index`. `text` matches the control title, description, or value, which
+works across apps that expose the same label through different AX fields. The
+matching control frame is converted into the same normalized coordinate space
+used by ordinary clicks.
 
 Sensitive screen regions can be blacked out before any screenshot is uploaded
 to the vision model or copied into report artifacts:

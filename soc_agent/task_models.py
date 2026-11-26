@@ -61,12 +61,13 @@ class DatasetTargetType(str, Enum):
 
 class UIElementLocator(StrictModel):
     role: Optional[str] = None
+    text: Optional[str] = None
     title: Optional[str] = None
     description: Optional[str] = None
     value: Optional[str] = None
     match_index: int = Field(default=0, ge=0)
 
-    @field_validator("role", "title", "description", "value")
+    @field_validator("role", "text", "title", "description", "value")
     @classmethod
     def validate_non_empty_text(cls, value):
         if value is not None and not value.strip():
@@ -79,6 +80,7 @@ class UIElementLocator(StrictModel):
             value is None
             for value in (
                 self.role,
+                self.text,
                 self.title,
                 self.description,
                 self.value,
@@ -401,6 +403,7 @@ class TaskDefinition(StrictModel):
             if element is not None:
                 for field_name in (
                     "role",
+                    "text",
                     "title",
                     "description",
                     "value",

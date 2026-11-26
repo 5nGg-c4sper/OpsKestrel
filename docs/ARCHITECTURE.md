@@ -155,8 +155,9 @@ QueueWorker
 任务可通过归一化 `redaction_regions` 指定敏感区域。截图先写入同目录临时文件，
 完成黑色遮罩后才替换最终文件；遮罩失败会删除临时原图，避免未脱敏截图上传给
 视觉模型或进入报告 artifact。
-`click_element` 在点击前查找 role、title、description 和 value 匹配的控件，
-使用控件 frame 中心计算归一化坐标，避免窗口移动后固定坐标失效。
+`click_element` 在点击前查找 role、text、title、description 和 value 匹配的
+控件；`text` 可匹配 title、description 或 value 任一字段。随后使用控件 frame
+中心计算归一化坐标，避免窗口移动后固定坐标失效。
 
 ## 数据与隐私
 

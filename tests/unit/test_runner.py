@@ -289,7 +289,7 @@ class TaskRunnerTests(unittest.TestCase):
             ActionType.CLICK_ELEMENT,
         )
         self.assertEqual(task.steps[1].element.role, "AXButton")
-        self.assertEqual(task.steps[1].element.title, "7")
+        self.assertEqual(task.steps[1].element.text, "7")
 
     def test_conditional_step_skip_task_is_valid(self):
         task_path = (

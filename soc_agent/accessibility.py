@@ -1,6 +1,7 @@
 """Find and normalize macOS accessibility elements."""
 
 from dataclasses import dataclass
+from collections import Counter
 from typing import Any, List, Optional, Tuple
 
 from soc_agent.task_models import UIElementLocator
@@ -49,22 +50,44 @@ class AccessibilityLocator:
             raise AccessibilityLookupError("invalid screen dimensions")
 
         matches = []
+        observed_roles = Counter()
+        role_match_count = 0
         queue = [(root, 0)]
         visited = 0
         while queue and visited < max_nodes:
             element, depth = queue.pop(0)
             visited += 1
-            if self._matches(element, locator):
+            role = self.adapter.role(element)
+            title = self.adapter.title(element)
+            description = self.adapter.description(element)
+            value = self.adapter.value(element)
+            observed_roles[role or "<none>"] += 1
+            if (
+                locator.role is None
+                or (
+                    role is not None
+                    and role.casefold() == locator.role.casefold()
+                )
+            ):
+                role_match_count += 1
+
+            if self._matches_values(
+                role,
+                title,
+                description,
+                value,
+                locator,
+            ):
                 frame = self.adapter.frame(element)
                 if frame is not None:
                     x, y, width, height = frame
                     if width > 0 and height > 0:
                         matches.append(
                             UIElementMatch(
-                                role=self.adapter.role(element),
-                                title=self.adapter.title(element),
-                                description=self.adapter.description(element),
-                                value=self.adapter.value(element),
+                                role=role,
+                                title=title,
+                                description=description,
+                                value=value,
                                 x=max(0.0, min(1.0, x / screen_width)),
                                 y=max(0.0, min(1.0, y / screen_height)),
                                 width=max(
@@ -87,20 +110,25 @@ class AccessibilityLocator:
             raise AccessibilityLookupError(
                 "accessibility element not found: "
                 f"app={app_name!r}, locator={locator.model_dump()}, "
-                f"matches={len(matches)}, visited_nodes={visited}"
+                f"matches={len(matches)}, visited_nodes={visited}, "
+                f"role_match_count={role_match_count}, "
+                f"observed_roles={dict(observed_roles.most_common(12))}"
             )
         return matches[locator.match_index]
 
-    def _matches(
+    def _matches_values(
         self,
-        element,
+        role,
+        title,
+        description,
+        value,
         locator: UIElementLocator,
     ) -> bool:
         comparisons = (
-            ("role", self.adapter.role(element)),
-            ("title", self.adapter.title(element)),
-            ("description", self.adapter.description(element)),
-            ("value", self.adapter.value(element)),
+            ("role", role),
+            ("title", title),
+            ("description", description),
+            ("value", value),
         )
         for field_name, actual in comparisons:
             expected = getattr(locator, field_name)
@@ -109,6 +137,14 @@ class AccessibilityLocator:
             if actual is None:
                 return False
             if actual.casefold() != expected.casefold():
+                return False
+        if locator.text is not None:
+            expected_text = locator.text.casefold()
+            if not any(
+                actual is not None
+                and actual.casefold() == expected_text
+                for actual in (title, description, value)
+            ):
                 return False
         return True
 

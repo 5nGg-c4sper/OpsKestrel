@@ -577,6 +577,7 @@ class TaskDefinitionTests(unittest.TestCase):
                         "app": "计算器",
                         "element": {
                             "role": "AXButton",
+                            "text": "${button_name}",
                             "title": "${button_name}",
                             "match_index": 0,
                         },
@@ -595,6 +596,7 @@ class TaskDefinitionTests(unittest.TestCase):
         )
         self.assertEqual(rendered.steps[0].app, "计算器")
         self.assertEqual(rendered.steps[0].element.role, "AXButton")
+        self.assertEqual(rendered.steps[0].element.text, "7")
         self.assertEqual(rendered.steps[0].element.title, "7")
 
     def test_click_element_requires_app_and_locator(self):

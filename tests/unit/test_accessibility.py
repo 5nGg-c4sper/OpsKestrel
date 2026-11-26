@@ -101,6 +101,17 @@ class AccessibilityLocatorTests(unittest.TestCase):
 
         self.assertEqual(match.title, "7")
 
+    def test_text_criterion_matches_title_description_or_value(self):
+        match = self.locator.find(
+            "计算器",
+            UIElementLocator(
+                role="AXButton",
+                text="7",
+            ),
+        )
+
+        self.assertEqual(match.title, "7")
+
     def test_match_index_selects_ordered_match(self):
         match = self.locator.find(
             "计算器",
