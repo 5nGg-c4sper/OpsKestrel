@@ -181,6 +181,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the queue SQLite database",
     )
 
+    queue_cancel = queue_commands.add_parser(
+        "cancel",
+        help="Cancel a pending queue job",
+    )
+    queue_cancel.add_argument("job_id")
+    queue_cancel.add_argument(
+        "--queue-db",
+        default="reports/queue.db",
+        help="Path to the queue SQLite database",
+    )
+
+    queue_retry = queue_commands.add_parser(
+        "retry",
+        help="Requeue a terminal failed or cancelled job",
+    )
+    queue_retry.add_argument("job_id")
+    queue_retry.add_argument(
+        "--queue-db",
+        default="reports/queue.db",
+        help="Path to the queue SQLite database",
+    )
+
     queue_workers = queue_commands.add_parser(
         "workers",
         help="List registered queue workers",
@@ -535,6 +557,10 @@ def main(
             )
         if args.queue_command == "list":
             return list_queue_jobs(args)
+        if args.queue_command == "cancel":
+            return cancel_queue_job(args)
+        if args.queue_command == "retry":
+            return retry_queue_job(args)
         if args.queue_command == "workers":
             return list_queue_workers(args)
 
@@ -779,6 +805,30 @@ def list_queue_jobs(args) -> int:
             )
         if job.parallel_safe:
             print("  Parallel-safe: yes")
+    return 0
+
+
+def cancel_queue_job(args) -> int:
+    try:
+        job = create_queue_store(args.queue_db).cancel(args.job_id)
+    except Exception as error:
+        print(f"Queue cancel failed: {error}")
+        return 1
+
+    print(f"Cancelled: {job.job_id}")
+    return 0
+
+
+def retry_queue_job(args) -> int:
+    try:
+        job = create_queue_store(args.queue_db).retry(args.job_id)
+    except Exception as error:
+        print(f"Queue retry failed: {error}")
+        return 1
+
+    print(f"Retried: {job.job_id}")
+    print(f"State: {job.state.value}")
+    print("Attempts reset: 0")
     return 0
 
 

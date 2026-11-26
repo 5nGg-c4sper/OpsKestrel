@@ -237,6 +237,11 @@ QueueStore 原子接口将任务重新排队，保留上次错误和报告路径
 任务被重新领取时 `attempts` 再次递增；达到上限后写入最终状态。
 `cancelled` 表示安全策略或人工拒绝，不会自动重试。
 
+运营人员可以取消 `pending` Job，或在 Job 进入 `failed`、`timed_out`、
+`cancelled` 终态后手动重试。取消运行中 Job 不提供“假成功”语义，避免界面操作
+仍在执行时提前标记为已停止；当前安全边界是等 Worker 完成或通过 Worker 生命周期
+控制停止。手动重试会清除上次领取、报告和错误信息，并把自动重试次数重置为零。
+
 每个 QueueJob 可持久化 `ExecutionPermissions`：`allowed_apps` 和
 `allowed_actions`。Worker 执行 Task 或 Workflow 时将其转换为 SafetyPolicy，
 每一步在执行前检查动作类型和应用名称；越权命令会产生 `cancelled` 结果，不会

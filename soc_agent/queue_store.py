@@ -516,6 +516,62 @@ class SQLiteQueueStore(QueueStore):
             )
         return self.get(job_id)
 
+    def cancel(self, job_id: str) -> QueueJob:
+        now = self._clock()
+        with self._connection() as connection:
+            updated = connection.execute(
+                """
+                UPDATE queue_jobs
+                SET state = ?, finished_at = ?, updated_at = ?,
+                    error = ?
+                WHERE job_id = ? AND state = ?
+                """,
+                (
+                    QueueState.CANCELLED.value,
+                    now.isoformat(),
+                    now.isoformat(),
+                    "queue job cancelled before execution",
+                    job_id,
+                    QueueState.PENDING.value,
+                ),
+            )
+        if updated.rowcount != 1:
+            raise QueueStoreError(
+                f"queue job is not pending: {job_id}"
+            )
+        return self.get(job_id)
+
+    def retry(self, job_id: str) -> QueueJob:
+        now = self._clock()
+        retryable_states = (
+            QueueState.FAILED.value,
+            QueueState.TIMED_OUT.value,
+            QueueState.CANCELLED.value,
+        )
+        placeholders = ", ".join("?" for _ in retryable_states)
+        with self._connection() as connection:
+            updated = connection.execute(
+                f"""
+                UPDATE queue_jobs
+                SET state = ?, attempts = 0, started_at = NULL,
+                    claimed_at = NULL, worker_id = NULL,
+                    finished_at = NULL, updated_at = ?,
+                    report_path = NULL, error = NULL
+                WHERE job_id = ? AND state IN ({placeholders})
+                """,
+                (
+                    QueueState.PENDING.value,
+                    now.isoformat(),
+                    job_id,
+                    *retryable_states,
+                ),
+            )
+        if updated.rowcount != 1:
+            raise QueueStoreError(
+                f"queue job is not retryable: {job_id}"
+            )
+        return self.get(job_id)
+
     def _initialize(self) -> None:
         with self._connection() as connection:
             apply_sqlite_migrations(

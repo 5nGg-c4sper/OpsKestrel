@@ -361,6 +361,8 @@ Manage the persistent execution queue:
 
 ./venv/bin/soc-agent queue list
 ./venv/bin/soc-agent queue workers
+./venv/bin/soc-agent queue cancel <pending-job-id>
+./venv/bin/soc-agent queue retry <failed-job-id>
 ./venv/bin/soc-agent queue run
 ./venv/bin/soc-agent queue run --drain
 ./venv/bin/soc-agent queue run --stale-after-seconds 3600 --max-attempts 3
@@ -382,6 +384,12 @@ failed after `--max-attempts`.
 
 Failed and timed-out executions are also returned to `pending` until
 `--max-attempts` is reached. Cancelled jobs are never retried automatically.
+
+`queue cancel` only accepts a `pending` job, so an actively running GUI task is
+not reported as cancelled while it is still controlling the desktop.
+`queue retry` accepts `failed`, `timed_out`, or `cancelled` jobs, returns them
+to `pending`, and resets the automatic attempt budget. Both commands support
+SQLite and PostgreSQL through `--queue-db`.
 
 `--queue-db` accepts a filesystem path, `sqlite:///` URL, or PostgreSQL DSN:
 

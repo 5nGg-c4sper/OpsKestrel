@@ -337,6 +337,12 @@ class CLITests(unittest.TestCase):
                 "2",
             ]
         )
+        cancel_args = build_parser().parse_args(
+            ["queue", "cancel", "job-cancel"]
+        )
+        retry_args = build_parser().parse_args(
+            ["queue", "retry", "job-retry"]
+        )
 
         self.assertEqual(enqueue_args.queue_command, "enqueue")
         self.assertEqual(enqueue_args.target_type, "task")
@@ -364,6 +370,10 @@ class CLITests(unittest.TestCase):
         self.assertEqual(worker_args.label, ["office-mac"])
         self.assertEqual(worker_args.poll_interval, 0.5)
         self.assertEqual(worker_args.max_concurrency, 2)
+        self.assertEqual(cancel_args.queue_command, "cancel")
+        self.assertEqual(cancel_args.job_id, "job-cancel")
+        self.assertEqual(retry_args.queue_command, "retry")
+        self.assertEqual(retry_args.job_id, "job-retry")
 
     def test_parser_supports_doctor_command(self):
         args = build_parser().parse_args(
@@ -975,6 +985,61 @@ class CLITests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertIn("worker-visible idle test-mac:999", output.getvalue())
         self.assertIn("Labels: office-mac", output.getvalue())
+        load_dotenv.assert_not_called()
+
+    def test_main_cancels_and_retries_jobs_without_api_key(self):
+        queue_db = self.root / "queue-control.db"
+        store = SQLiteQueueStore(queue_db)
+        store.enqueue(
+            DatasetTargetType.TASK,
+            self.root / "pending-task.json",
+            job_id="job-cancel",
+        )
+        store.enqueue(
+            DatasetTargetType.TASK,
+            self.root / "failed-task.json",
+            job_id="job-retry",
+            priority=10,
+        )
+        store.claim_next("control-worker")
+        store.complete(
+            "job-retry",
+            QueueState.FAILED,
+            worker_id="control-worker",
+        )
+        output = StringIO()
+
+        with (
+            patch("soc_agent.cli.load_dotenv") as load_dotenv,
+            redirect_stdout(output),
+        ):
+            cancel_code = main(
+                [
+                    "queue",
+                    "cancel",
+                    "job-cancel",
+                    "--queue-db",
+                    str(queue_db),
+                ]
+            )
+            retry_code = main(
+                [
+                    "queue",
+                    "retry",
+                    "job-retry",
+                    "--queue-db",
+                    str(queue_db),
+                ]
+            )
+
+        self.assertEqual(cancel_code, 0)
+        self.assertEqual(retry_code, 0)
+        self.assertEqual(store.get("job-cancel").state, QueueState.CANCELLED)
+        retried = store.get("job-retry")
+        self.assertEqual(retried.state, QueueState.PENDING)
+        self.assertEqual(retried.attempts, 0)
+        self.assertIn("Cancelled: job-cancel", output.getvalue())
+        self.assertIn("Retried: job-retry", output.getvalue())
         load_dotenv.assert_not_called()
 
     def test_main_runs_queued_task(self):

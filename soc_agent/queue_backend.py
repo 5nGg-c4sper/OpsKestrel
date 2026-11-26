@@ -84,6 +84,14 @@ class QueueStore(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def cancel(self, job_id: str) -> QueueJob:
+        raise NotImplementedError
+
+    @abstractmethod
+    def retry(self, job_id: str) -> QueueJob:
+        raise NotImplementedError
+
+    @abstractmethod
     def complete(
         self,
         job_id: str,

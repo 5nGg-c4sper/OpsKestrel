@@ -171,6 +171,32 @@ class PostgreSQLQueueIntegrationTests(unittest.TestCase):
         self.assertEqual(requeued.attempts, 1)
         self.assertEqual(requeued.error, "temporary failure")
 
+    def test_cancel_pending_and_retry_failed_job(self):
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "control.json",
+            job_id="control-cancel",
+        )
+        cancelled = self.store.cancel("control-cancel")
+
+        self.assertEqual(cancelled.state, QueueState.CANCELLED)
+
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "control-retry.json",
+            job_id="control-retry",
+        )
+        self.store.claim_next("retry-worker")
+        self.store.complete(
+            "control-retry",
+            QueueState.FAILED,
+            worker_id="retry-worker",
+        )
+        retried = self.store.retry("control-retry")
+
+        self.assertEqual(retried.state, QueueState.PENDING)
+        self.assertEqual(retried.attempts, 0)
+
     def test_worker_registry(self):
         self.store.register_worker(
             "worker-a",

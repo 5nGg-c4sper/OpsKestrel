@@ -448,6 +448,67 @@ class PostgreSQLQueueStore(QueueStore):
             )
         return self._job_from_row(row)
 
+    def cancel(self, job_id: str) -> QueueJob:
+        now = self._clock()
+        with self._connection() as connection:
+            row = connection.execute(
+                """
+                UPDATE queue_jobs
+                SET state = %s, finished_at = %s, updated_at = %s,
+                    error = %s
+                WHERE job_id = %s AND state = %s
+                RETURNING *
+                """,
+                (
+                    QueueState.CANCELLED.value,
+                    now,
+                    now,
+                    "queue job cancelled before execution",
+                    job_id,
+                    QueueState.PENDING.value,
+                ),
+            ).fetchone()
+        if row is None:
+            raise QueueStoreError(
+                f"queue job is not pending: {job_id}"
+            )
+        return self._job_from_row(row)
+
+    def retry(self, job_id: str) -> QueueJob:
+        now = self._clock()
+        with self._connection() as connection:
+            row = connection.execute(
+                """
+                UPDATE queue_jobs
+                SET state = %s, attempts = 0, started_at = NULL,
+                    claimed_at = NULL, worker_id = NULL,
+                    finished_at = NULL, updated_at = %s,
+                    report_path = NULL, error = NULL
+                WHERE job_id = %s
+                  AND state IN (%s, %s, %s)
+                RETURNING *
+                """,
+                (
+                    QueueState.PENDING.value,
+                    now,
+                    job_id,
+                    QueueState.FAILED.value,
+                    QueueState.TIMED_OUT.value,
+                    QueueState.CANCELLED.value,
+                ),
+            ).fetchone()
+            if row is not None:
+                connection.execute(
+                    "DELETE FROM queue_exclusive_locks "
+                    "WHERE job_id = %s",
+                    (job_id,),
+                )
+        if row is None:
+            raise QueueStoreError(
+                f"queue job is not retryable: {job_id}"
+            )
+        return self._job_from_row(row)
+
     def register_worker(
         self,
         worker_id: str,

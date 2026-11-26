@@ -251,6 +251,72 @@ class SQLiteQueueStoreTests(unittest.TestCase):
         ):
             self.store.requeue("job-pending")
 
+    def test_cancel_pending_job(self):
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "task.json",
+            job_id="job-cancel",
+        )
+        self.advance()
+
+        cancelled = self.store.cancel("job-cancel")
+
+        self.assertEqual(cancelled.state, QueueState.CANCELLED)
+        self.assertEqual(cancelled.finished_at, self.current_time)
+        self.assertIn("cancelled", cancelled.error)
+        self.assertIsNone(self.store.claim_next())
+
+    def test_cancel_rejects_running_job(self):
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "task.json",
+            job_id="job-running",
+        )
+        self.store.claim_next()
+
+        with self.assertRaisesRegex(
+            QueueStoreError,
+            "not pending",
+        ):
+            self.store.cancel("job-running")
+
+    def test_retry_resets_terminal_job(self):
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "task.json",
+            job_id="job-retry-final",
+        )
+        self.store.claim_next()
+        self.store.complete(
+            "job-retry-final",
+            QueueState.FAILED,
+            report_path="reports/failure.json",
+            error="failed",
+        )
+
+        retried = self.store.retry("job-retry-final")
+
+        self.assertEqual(retried.state, QueueState.PENDING)
+        self.assertEqual(retried.attempts, 0)
+        self.assertIsNone(retried.report_path)
+        self.assertIsNone(retried.error)
+        self.assertIsNone(retried.finished_at)
+
+    def test_retry_rejects_passed_job(self):
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "task.json",
+            job_id="job-passed",
+        )
+        self.store.claim_next()
+        self.store.complete("job-passed", QueueState.PASSED)
+
+        with self.assertRaisesRegex(
+            QueueStoreError,
+            "not retryable",
+        ):
+            self.store.retry("job-passed")
+
     def test_list_jobs_filters_and_orders_by_priority(self):
         self.store.enqueue(
             DatasetTargetType.TASK,
