@@ -395,6 +395,19 @@ Playwright, fills the invoice search, reads structured DOM fields, handles
 missing and duplicate records, and closes the browser. Use `--json` for machine
 output or `--headed` to watch the browser.
 
+Run the complete CSV-to-ERP reconciliation batch:
+
+```bash
+./venv/bin/soc-agent erp-reconcile \
+  scenarios/invoice_reconciliation/data/input_invoices.csv \
+  --screenshot-dir reports/invoice-reconciliation/evidence \
+  --output reports/invoice-reconciliation.json
+```
+
+Each invoice is collected through the browser, then all records are passed to
+the deterministic reconciliation engine. The report includes one lookup per
+invoice, collection errors, screenshots, and the final reconciliation summary.
+
 Manage the persistent execution queue:
 
 ```bash

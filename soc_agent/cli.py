@@ -21,6 +21,9 @@ from soc_agent.dataset_runner import DatasetRunner
 from soc_agent.datasets import load_dataset
 from soc_agent.diagnostics import DiagnosticsRunner
 from soc_agent.environments.macos import MacOSEnvironment
+from soc_agent.erp_reconciliation import (
+    reconcile_expected_csv_with_browser,
+)
 from soc_agent.mock_erp import create_mock_erp_server
 from soc_agent.providers.qwen import QwenVisionProvider
 from soc_agent.privacy import capture_screenshot
@@ -452,6 +455,39 @@ def build_parser() -> argparse.ArgumentParser:
     erp_search_parser.add_argument("--screenshot", default=None)
     erp_search_parser.add_argument("--headed", action="store_true")
     erp_search_parser.add_argument("--json", action="store_true")
+
+    erp_reconcile_parser = subparsers.add_parser(
+        "erp-reconcile",
+        help="Collect invoices through ERP UI and reconcile a CSV batch",
+    )
+    erp_reconcile_parser.add_argument("expected_csv")
+    erp_reconcile_parser.add_argument(
+        "--base-url",
+        default=None,
+        help="Existing ERP URL; otherwise start the local fixture",
+    )
+    erp_reconcile_parser.add_argument(
+        "--mock-erp-data",
+        default=(
+            "scenarios/invoice_reconciliation/data/erp_invoices.json"
+        ),
+    )
+    erp_reconcile_parser.add_argument(
+        "--screenshot-dir",
+        default=None,
+        help="Directory for one ERP screenshot per invoice",
+    )
+    erp_reconcile_parser.add_argument(
+        "--amount-tolerance",
+        default="0.01",
+    )
+    erp_reconcile_parser.add_argument("--headed", action="store_true")
+    erp_reconcile_parser.add_argument("--json", action="store_true")
+    erp_reconcile_parser.add_argument("--output", default=None)
+    erp_reconcile_parser.add_argument(
+        "--fail-on-differences",
+        action="store_true",
+    )
     return parser
 
 
@@ -675,6 +711,9 @@ def main(
 
     if args.command == "erp-search":
         return run_erp_search(args)
+
+    if args.command == "erp-reconcile":
+        return run_erp_reconcile(args)
 
     load_dotenv()
     if args.command == "doctor":
@@ -998,6 +1037,81 @@ def run_erp_search(args) -> int:
         if result.screenshot_path:
             print(f"Screenshot: {result.screenshot_path}")
     return 0 if result.found else 1
+
+
+def run_erp_reconcile(args) -> int:
+    server = None
+    thread = None
+    base_url = args.base_url
+    try:
+        if base_url is None:
+            server = create_mock_erp_server(
+                args.mock_erp_data,
+                host="127.0.0.1",
+                port=0,
+            )
+            thread = threading.Thread(
+                target=server.serve_forever,
+                daemon=True,
+            )
+            thread.start()
+            host, port = server.server_address[:2]
+            base_url = f"http://{host}:{port}"
+
+        with PlaywrightBrowserSession(
+            headless=not args.headed,
+        ) as session:
+            page = session.new_page()
+            adapter = MockERPAdapter(page, base_url)
+            report = reconcile_expected_csv_with_browser(
+                args.expected_csv,
+                adapter,
+                screenshot_dir=args.screenshot_dir,
+                amount_tolerance=args.amount_tolerance,
+            )
+            page.close()
+    except Exception as error:
+        print(f"ERP reconciliation failed: {error}")
+        return 1
+    finally:
+        if server is not None:
+            server.shutdown()
+            server.server_close()
+        if thread is not None:
+            thread.join(timeout=2)
+
+    payload = report.to_dict()
+    if args.output:
+        output_path = Path(args.output).expanduser().resolve()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        summary = report.reconciliation.summary
+        print(f"Total: {summary['total']}")
+        for status in ReconciliationStatus:
+            print(
+                f"{status.value}: "
+                f"{summary['by_status'][status.value]}"
+            )
+        print(f"ERP lookups: {len(report.lookups)}")
+        print(f"Collection errors: {len(report.collection_errors)}")
+        if args.output:
+            print(f"Report: {output_path}")
+
+    if report.collection_errors:
+        return 1
+    if (
+        args.fail_on_differences
+        and not report.reconciliation.summary["all_matched"]
+    ):
+        return 1
+    return 0
 
 
 def enqueue_queue_job(args, parameters: Dict[str, str]) -> int:

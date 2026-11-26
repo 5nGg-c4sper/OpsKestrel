@@ -316,3 +316,8 @@ Worker `max_concurrency` 只提供并行槽位，不会绕过 GUI 全局串行�
 Playwright 打开页面、填写搜索框、等待结果状态，并用 `data-field` 一次性读取
 所有结构化字段。缺失记录返回空结果，多条记录保留完整数组供重复检测；截图与
 结构化结果写入同一采集结果。当前使用本机 Chrome/Chromium，不依赖视觉模型。
+
+`soc_agent.erp_reconciliation` 把 CSV 中唯一发票号逐条交给 Browser Adapter，
+汇总页面记录后调用确定性对账核心。批量报告同时保存每张发票的查询结果、记录数、
+是否重复、证据截图和采集错误。浏览器只承担数据采集，金额、币种和状态规则仍由
+纯逻辑模块负责，因此可以用 JSON fixture 和真实 Chrome 两条路径得到相同结果。

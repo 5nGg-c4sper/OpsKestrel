@@ -56,3 +56,15 @@ deterministic reconciliation core:
 This starts the fixture automatically, opens system Chrome through Playwright,
 searches by invoice ID, and reads all records through stable DOM selectors.
 `INV-1017` returns two records and is reported as a duplicate.
+
+Run all 20 fixture invoices through the browser and reconciliation engine:
+
+```bash
+./venv/bin/soc-agent erp-reconcile \
+  scenarios/invoice_reconciliation/data/input_invoices.csv \
+  --screenshot-dir reports/invoice-reconciliation/evidence \
+  --output reports/invoice-reconciliation.json
+```
+
+The real Chrome regression performs 20 ERP lookups, saves 20 screenshots, and
+produces the same seven-category result as the pure JSON reconciliation path.

@@ -471,6 +471,25 @@ class CLITests(unittest.TestCase):
         self.assertTrue(args.headed)
         self.assertTrue(args.json)
 
+    def test_parser_supports_erp_reconcile_command(self):
+        args = build_parser().parse_args(
+            [
+                "erp-reconcile",
+                "expected.csv",
+                "--screenshot-dir",
+                "reports/erp",
+                "--output",
+                "reports/reconcile.json",
+                "--fail-on-differences",
+            ]
+        )
+
+        self.assertEqual(args.command, "erp-reconcile")
+        self.assertEqual(args.expected_csv, "expected.csv")
+        self.assertEqual(args.screenshot_dir, "reports/erp")
+        self.assertEqual(args.output, "reports/reconcile.json")
+        self.assertTrue(args.fail_on_differences)
+
     def test_parser_supports_repeated_suite_parameters(self):
         args = build_parser().parse_args(
             [
