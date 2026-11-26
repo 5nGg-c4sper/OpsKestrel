@@ -126,6 +126,7 @@ queue worker
 | `soc_agent/postgres_queue_store.py` | PostgreSQL 队列、锁和迁移实现 |
 | `soc_agent/queue_store.py` | SQLite 持久化、优先级、原子领取和 Worker 注册表 |
 | `soc_agent/queue_worker.py` | 领取队列任务、执行并持久化终态 |
+| `soc_agent/console.py` | 本地运行控制台、运行历史和进程组取消 |
 | `soc_agent/cli.py` | 参数解析、依赖装配和 queue CLI |
 | `soc_agent/config.py` | 从环境变量加载并验证运行配置 |
 

@@ -51,4 +51,7 @@ Artifacts are written to `reports/demo-<timestamp>/`:
 Open `http://127.0.0.1:8766` to view reports, online Workers, and start the
 invoice demo. The console also accepts CSV, XLSX, XLSM, and text-labeled PDF
 inputs up to 10 MB, shows live log output and run history, and links to the
-generated JSON/HTML/XLSX and checkpoint artifacts.
+generated JSON/HTML/XLSX and checkpoint artifacts. The **停止当前运行** button
+terminates the active run's process group, including browser child processes,
+and records the run as `cancelled`. Logs and artifacts completed before
+cancellation remain available.

@@ -24,7 +24,9 @@ Documentation:
 
 The local operations console can start the built-in invoice demo, upload a
 CSV/XLSX/PDF input, stream run logs, download JSON/HTML/XLSX artifacts, and show
-recent run history:
+recent run history. A stuck run can be stopped from the console; this terminates
+the run's process group and records the result as `cancelled` while preserving
+logs and artifacts produced before cancellation:
 
 ```bash
 ./venv/bin/soc-agent console --port 8766

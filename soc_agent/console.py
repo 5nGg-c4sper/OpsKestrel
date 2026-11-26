@@ -2,6 +2,7 @@
 
 import json
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -160,6 +161,43 @@ class ConsoleState:
                 source_name=safe_name,
             )
 
+    def cancel_active_run(self):
+        with self._lock:
+            process = self._process
+            if process is None or process.poll() is not None:
+                return {"cancelled": False, "error": "no active run"}
+
+            self._run_meta["state"] = "cancelling"
+            self._run_meta["cancel_requested"] = True
+            self._write_run_metadata()
+            try:
+                if os.name == "posix":
+                    os.killpg(process.pid, signal.SIGTERM)
+                else:
+                    process.terminate()
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                if os.name == "posix":
+                    os.killpg(process.pid, signal.SIGKILL)
+                else:
+                    process.kill()
+                process.wait(timeout=5)
+            except ProcessLookupError:
+                pass
+
+            exit_code = process.poll()
+            self._run_meta["state"] = "cancelled"
+            self._run_meta["exit_code"] = exit_code
+            self._run_meta["finished_at"] = datetime.now(
+                timezone.utc
+            ).isoformat()
+            self._write_run_metadata()
+            return {
+                "cancelled": True,
+                "exit_code": exit_code,
+                "state": "cancelled",
+            }
+
     def _start_run(
         self,
         kind,
@@ -189,6 +227,7 @@ class ConsoleState:
             stderr=subprocess.STDOUT,
             text=True,
             env=environment,
+            start_new_session=(os.name == "posix"),
         )
         self._log_file = log_file
         self._output_dir = output_dir
@@ -197,6 +236,7 @@ class ConsoleState:
             "kind": kind,
             "source_name": source_name,
             "state": "running",
+            "cancel_requested": False,
             "started_at": datetime.now(timezone.utc).isoformat(),
             "output_dir": str(output_dir),
         }
@@ -211,7 +251,12 @@ class ConsoleState:
         if self._process is None:
             return {"state": "idle", "history": self.history()}
         exit_code = self._process.poll()
-        state = "running" if exit_code is None else "finished"
+        if exit_code is None:
+            state = "running"
+        elif self._run_meta.get("cancel_requested"):
+            state = "cancelled"
+        else:
+            state = "finished"
         if self._run_meta.get("state") != state:
             self._run_meta["state"] = state
             self._run_meta["exit_code"] = exit_code
@@ -436,6 +481,17 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 ),
             )
             return
+        if parsed.path == "/api/demo/cancel":
+            payload = self.server.state.cancel_active_run()
+            self._send_json(
+                payload,
+                status=(
+                    HTTPStatus.OK
+                    if payload.get("cancelled")
+                    else HTTPStatus.CONFLICT
+                ),
+            )
+            return
         if parsed.path == "/api/upload/run":
             query = parsed.query
             filename = ""
@@ -564,6 +620,7 @@ def _console_html() -> str:
     <div class="bar">
       <h1>SOC Agent Console</h1>
       <button id="run-demo">运行发票对账 Demo</button>
+      <button id="cancel-run" style="background:#c53727">停止当前运行</button>
       <input id="upload-file" type="file"
         accept=".csv,.xlsx,.xlsm,.pdf">
       <button id="run-upload">上传并运行</button>
@@ -660,6 +717,16 @@ def _console_html() -> str:
         const response = await fetch("/api/demo/run", {method:"POST"});
         const payload = await response.json();
         if (!response.ok) alert(payload.error || "启动失败");
+        refresh();
+      }
+    );
+    document.getElementById("cancel-run").addEventListener(
+      "click", async () => {
+        const response = await fetch("/api/demo/cancel", {method:"POST"});
+        const payload = await response.json();
+        if (!response.ok && payload.error !== "no active run") {
+          alert(payload.error || "停止失败");
+        }
         refresh();
       }
     );

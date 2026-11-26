@@ -113,6 +113,7 @@ class ConsoleTests(unittest.TestCase):
         self.assertEqual(response.status, 200)
         self.assertIn("SOC Agent Console", html)
         self.assertIn('join("\\n")', html)
+        self.assertIn('id="cancel-run"', html)
         self.assertEqual(status, 200)
         self.assertEqual(payload["reports"][0]["status"], "passed")
         self.assertEqual(len(payload["workers"]), 1)
@@ -177,6 +178,56 @@ class ConsoleTests(unittest.TestCase):
             (Path(status["output_dir"]) / "run.json").is_file()
         )
         self.assertGreaterEqual(len(status["history"]), 1)
+
+    def test_active_demo_can_be_cancelled(self):
+        self.server.state.command_factory = lambda output_dir: [
+            sys.executable,
+            "-c",
+            "import time; time.sleep(30)",
+        ]
+        self.addCleanup(self.server.state.cancel_active_run)
+        request = Request(
+            self.base_url + "/api/demo/run",
+            data=b"",
+            method="POST",
+        )
+        with urlopen(request, timeout=2) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        self.assertTrue(payload["started"])
+        _, status = self.get_json("/api/demo/status")
+        self.assertEqual(status["state"], "running")
+
+        request = Request(
+            self.base_url + "/api/demo/cancel",
+            data=b"",
+            method="POST",
+        )
+        with urlopen(request, timeout=8) as response:
+            cancelled = json.loads(response.read().decode("utf-8"))
+
+        self.assertEqual(response.status, 200)
+        self.assertTrue(cancelled["cancelled"])
+        self.assertEqual(cancelled["state"], "cancelled")
+        self.assertNotEqual(cancelled["exit_code"], 0)
+        _, status = self.get_json("/api/demo/status")
+        self.assertEqual(status["state"], "cancelled")
+        metadata = json.loads(
+            (Path(status["output_dir"]) / "run.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertTrue(metadata["cancel_requested"])
+        self.assertEqual(metadata["state"], "cancelled")
+
+    def test_cancel_without_active_run_is_rejected(self):
+        request = Request(
+            self.base_url + "/api/demo/cancel",
+            data=b"",
+            method="POST",
+        )
+        with self.assertRaises(HTTPError) as context:
+            urlopen(request, timeout=2)
+        self.assertEqual(context.exception.code, 409)
 
     def test_upload_rejects_unsupported_file_type(self):
         request = Request(
