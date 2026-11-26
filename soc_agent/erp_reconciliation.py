@@ -14,6 +14,7 @@ from soc_agent.reconciliation import (
     load_expected_invoices,
     reconcile_invoices,
 )
+from soc_agent.reconciliation_config import ReconciliationConfig
 
 
 @dataclass(frozen=True)
@@ -110,12 +111,14 @@ class ReconciliationCheckpoint:
         self,
         path: Union[str, Path],
         expected_csv: Union[str, Path],
+        config_fingerprint: str = "",
     ):
         self.path = Path(path).expanduser().resolve()
         self.expected_csv = Path(expected_csv).expanduser().resolve()
         self.expected_hash = hashlib.sha256(
             self.expected_csv.read_bytes()
         ).hexdigest()
+        self.config_fingerprint = config_fingerprint
         self.lookups = {}
         self._load()
 
@@ -164,6 +167,10 @@ class ReconciliationCheckpoint:
             raise ReconciliationCheckpointError(
                 "checkpoint does not match the current expected CSV"
             )
+        if payload.get("config_fingerprint", "") != self.config_fingerprint:
+            raise ReconciliationCheckpointError(
+                "checkpoint does not match the reconciliation config"
+            )
         lookups = payload.get("lookups")
         if not isinstance(lookups, dict):
             raise ReconciliationCheckpointError(
@@ -177,6 +184,7 @@ class ReconciliationCheckpoint:
             "schema_version": 1,
             "expected_csv": str(self.expected_csv),
             "expected_sha256": self.expected_hash,
+            "config_fingerprint": self.config_fingerprint,
             "lookups": self.lookups,
         }
         temp_path = self.path.with_suffix(
@@ -193,11 +201,14 @@ def reconcile_expected_csv_with_browser(
     expected_csv: Union[str, Path],
     adapter,
     screenshot_dir: Optional[Union[str, Path]] = None,
-    amount_tolerance: Union[str, Decimal] = "0.01",
+    amount_tolerance: Optional[Union[str, Decimal]] = None,
     checkpoint_path: Optional[Union[str, Path]] = None,
+    config: Optional[ReconciliationConfig] = None,
 ) -> BrowserReconciliationReport:
     source_path = Path(expected_csv).expanduser().resolve()
     expected_rows = load_expected_invoices(source_path)
+    if config is not None:
+        expected_rows = config.map_expected_rows(expected_rows)
     screenshot_root = (
         Path(screenshot_dir).expanduser().resolve()
         if screenshot_dir is not None
@@ -206,7 +217,15 @@ def reconcile_expected_csv_with_browser(
     if screenshot_root is not None:
         screenshot_root.mkdir(parents=True, exist_ok=True)
     checkpoint = (
-        ReconciliationCheckpoint(checkpoint_path, source_path)
+        ReconciliationCheckpoint(
+            checkpoint_path,
+            source_path,
+            config_fingerprint=(
+                config.fingerprint()
+                if config is not None
+                else ReconciliationConfig().fingerprint()
+            ),
+        )
         if checkpoint_path is not None
         else None
     )
@@ -262,20 +281,34 @@ def reconcile_expected_csv_with_browser(
             )
             continue
 
-        erp_rows.extend(result.records)
+        mapped_records = (
+            config.map_erp_rows(result.records)
+            if config is not None
+            else list(result.records)
+        )
+        erp_rows.extend(mapped_records)
         result_evidence = _evidence_from_result(result)
         evidence.append(result_evidence)
         if checkpoint is not None:
             checkpoint.save(
                 invoice_id,
-                result.records,
+                mapped_records,
                 result_evidence,
             )
 
+    tolerance = (
+        amount_tolerance
+        if amount_tolerance is not None
+        else (
+            config.amount_tolerance
+            if config is not None
+            else Decimal("0.01")
+        )
+    )
     reconciliation = reconcile_invoices(
         expected_rows,
         erp_rows,
-        amount_tolerance=amount_tolerance,
+        amount_tolerance=tolerance,
     )
     return BrowserReconciliationReport(
         expected_csv=str(source_path),

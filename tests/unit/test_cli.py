@@ -416,6 +416,10 @@ class CLITests(unittest.TestCase):
                 "3",
                 "--html",
                 "reports/report.html",
+                "--xlsx",
+                "reports/report.xlsx",
+                "--config",
+                "reports/mapping.json",
             ]
         )
 
@@ -426,6 +430,8 @@ class CLITests(unittest.TestCase):
         self.assertEqual(run_args.checkpoint, "reports/checkpoint.json")
         self.assertEqual(run_args.lookup_attempts, 3)
         self.assertEqual(run_args.html, "reports/report.html")
+        self.assertEqual(run_args.xlsx, "reports/report.xlsx")
+        self.assertEqual(run_args.config, "reports/mapping.json")
 
     def test_parser_supports_reconcile_command(self):
         args = build_parser().parse_args(
@@ -491,12 +497,16 @@ class CLITests(unittest.TestCase):
                 "reports/reconcile.json",
                 "--html",
                 "reports/reconcile.html",
+                "--xlsx",
+                "reports/reconcile.xlsx",
                 "--checkpoint",
                 "reports/checkpoint.json",
                 "--lookup-attempts",
                 "3",
                 "--retry-delay",
                 "0.2",
+                "--config",
+                "reports/mapping.json",
                 "--fail-on-differences",
             ]
         )
@@ -506,9 +516,11 @@ class CLITests(unittest.TestCase):
         self.assertEqual(args.screenshot_dir, "reports/erp")
         self.assertEqual(args.output, "reports/reconcile.json")
         self.assertEqual(args.html, "reports/reconcile.html")
+        self.assertEqual(args.xlsx, "reports/reconcile.xlsx")
         self.assertEqual(args.checkpoint, "reports/checkpoint.json")
         self.assertEqual(args.lookup_attempts, 3)
         self.assertEqual(args.retry_delay, 0.2)
+        self.assertEqual(args.config, "reports/mapping.json")
         self.assertTrue(args.fail_on_differences)
 
     def test_parser_supports_repeated_suite_parameters(self):
@@ -1155,6 +1167,7 @@ class CLITests(unittest.TestCase):
             output.getvalue(),
         )
         self.assertIn("Expected input:", output.getvalue())
+        self.assertIn("Reconciliation config:", output.getvalue())
         load_dotenv.assert_not_called()
 
     def test_main_routes_browser_scenario_without_api_key(self):
@@ -1194,6 +1207,7 @@ class CLITests(unittest.TestCase):
             routed_args.checkpoint,
             "reports/checkpoint.json",
         )
+        self.assertTrue(routed_args.config.endswith("mapping.json"))
         load_dotenv.assert_not_called()
 
     def test_main_runs_reconciliation_without_api_key(self):

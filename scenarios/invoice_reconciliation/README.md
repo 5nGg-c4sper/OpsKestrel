@@ -14,6 +14,8 @@ key, browser, or vision model:
 
 Both CSV and XLSX expected-input files are supported. Browser selectors can be
 replaced with `selectors.json` without changing Python code.
+`mapping.json` maps Chinese or vendor-specific columns, statuses, and currencies
+to the canonical reconciliation fields.
 
 Write a machine-readable report and fail CI when differences exist:
 
@@ -90,5 +92,9 @@ The complete scenario manifest is `scenario.json`. Validate and run it with:
 ./venv/bin/soc-agent scenario run \
   scenarios/invoice_reconciliation/scenario.json \
   --checkpoint reports/invoice-reconciliation/checkpoint.json \
-  --html reports/invoice-reconciliation.html
+  --html reports/invoice-reconciliation.html \
+  --xlsx reports/invoice-reconciliation.xlsx
 ```
+
+The XLSX report includes summary metrics, per-invoice results, screenshot links,
+collection errors, retry counts, and cache state.

@@ -36,10 +36,14 @@ from soc_agent.reconciliation import (
     ReconciliationStatus,
     reconcile_files,
 )
+from soc_agent.reconciliation_config import ReconciliationConfig
 from soc_agent.reporting.dataset_report import DatasetReportWriter
 from soc_agent.reporting.report import ReportWriter
 from soc_agent.reporting.reconciliation_report import (
     ReconciliationHTMLReportWriter,
+)
+from soc_agent.reporting.reconciliation_xlsx import (
+    ReconciliationXLSXWriter,
 )
 from soc_agent.reporting.suite_report import SuiteReportWriter
 from soc_agent.reporting.workflow_report import WorkflowReportWriter
@@ -407,12 +411,14 @@ def build_parser() -> argparse.ArgumentParser:
     scenario_run.add_argument("--retry-delay", type=float, default=0.5)
     scenario_run.add_argument("--headed", action="store_true")
     scenario_run.add_argument("--html", default=None)
+    scenario_run.add_argument("--xlsx", default=None)
     scenario_run.add_argument("--json", action="store_true")
     scenario_run.add_argument("--output", default=None)
     scenario_run.add_argument(
         "--amount-tolerance",
-        default="0.01",
+        default=None,
     )
+    scenario_run.add_argument("--config", default=None)
     scenario_run.add_argument(
         "--fail-on-differences",
         action="store_true",
@@ -426,8 +432,13 @@ def build_parser() -> argparse.ArgumentParser:
     reconcile_parser.add_argument("erp_json")
     reconcile_parser.add_argument(
         "--amount-tolerance",
-        default="0.01",
+        default=None,
         help="Allowed absolute amount difference",
+    )
+    reconcile_parser.add_argument(
+        "--config",
+        default=None,
+        help="Field mapping and normalization JSON",
     )
     reconcile_parser.add_argument(
         "--json",
@@ -503,8 +514,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     erp_reconcile_parser.add_argument(
         "--amount-tolerance",
-        default="0.01",
+        default=None,
     )
+    erp_reconcile_parser.add_argument("--config", default=None)
     erp_reconcile_parser.add_argument("--selector-profile", default=None)
     erp_reconcile_parser.add_argument("--headed", action="store_true")
     erp_reconcile_parser.add_argument("--json", action="store_true")
@@ -513,6 +525,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--html",
         default=None,
         help="Write a filterable HTML reconciliation report",
+    )
+    erp_reconcile_parser.add_argument(
+        "--xlsx",
+        default=None,
+        help="Write an Excel reconciliation workbook",
     )
     erp_reconcile_parser.add_argument(
         "--checkpoint",
@@ -967,6 +984,11 @@ def validate_scenario(args) -> int:
         print(f"ERP fixture: {scenario.erp_fixture}")
         if scenario.selector_profile:
             print(f"Selector profile: {scenario.selector_profile}")
+        if scenario.reconciliation_config:
+            print(
+                "Reconciliation config: "
+                f"{scenario.reconciliation_config}"
+            )
         print("Validation: PASSED")
         return 0
 
@@ -980,6 +1002,15 @@ def validate_scenario(args) -> int:
 
 
 def run_scenario_browser(args, scenario) -> int:
+    config_path = (
+        args.config
+        if getattr(args, "config", None)
+        else (
+            str(scenario.reconciliation_config)
+            if scenario.reconciliation_config
+            else None
+        )
+    )
     browser_args = SimpleNamespace(
         expected_csv=str(scenario.expected_input),
         base_url=args.base_url,
@@ -995,21 +1026,29 @@ def run_scenario_browser(args, scenario) -> int:
         json=args.json,
         output=args.output,
         html=args.html,
+        xlsx=args.xlsx,
         checkpoint=args.checkpoint,
         reset_checkpoint=args.reset_checkpoint,
         lookup_attempts=args.lookup_attempts,
         retry_delay=args.retry_delay,
         fail_on_differences=args.fail_on_differences,
+        config=config_path,
     )
     return run_erp_reconcile(browser_args)
 
 
 def run_reconciliation(args) -> int:
     try:
+        config = (
+            ReconciliationConfig.from_file(args.config)
+            if args.config
+            else None
+        )
         report = reconcile_files(
             args.expected_csv,
             args.erp_json,
             amount_tolerance=args.amount_tolerance,
+            config=config,
         )
     except Exception as error:
         print(f"Reconciliation failed: {error}")
@@ -1147,6 +1186,11 @@ def run_erp_reconcile(args) -> int:
     thread = None
     base_url = args.base_url
     try:
+        reconciliation_config = (
+            ReconciliationConfig.from_file(args.config)
+            if args.config
+            else None
+        )
         if args.reset_checkpoint:
             if not args.checkpoint:
                 print(
@@ -1194,6 +1238,7 @@ def run_erp_reconcile(args) -> int:
                 screenshot_dir=args.screenshot_dir,
                 amount_tolerance=args.amount_tolerance,
                 checkpoint_path=args.checkpoint,
+                config=reconciliation_config,
             )
             page.close()
     except Exception as error:
@@ -1212,6 +1257,12 @@ def run_erp_reconcile(args) -> int:
         html_path = ReconciliationHTMLReportWriter().write(
             report,
             args.html,
+        )
+    xlsx_path = None
+    if args.xlsx:
+        xlsx_path = ReconciliationXLSXWriter().write(
+            report,
+            args.xlsx,
         )
     if args.output:
         output_path = Path(args.output).expanduser().resolve()
@@ -1242,6 +1293,8 @@ def run_erp_reconcile(args) -> int:
             print(f"Report: {output_path}")
         if html_path is not None:
             print(f"HTML report: {html_path}")
+        if xlsx_path is not None:
+            print(f"XLSX report: {xlsx_path}")
 
     if report.collection_errors:
         return 1

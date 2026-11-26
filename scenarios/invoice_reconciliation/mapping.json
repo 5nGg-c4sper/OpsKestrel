@@ -1,0 +1,12 @@
+{
+  "amount_tolerance": "0.01",
+  "status_aliases": {
+    "已支付": "paid",
+    "待审核": "pending",
+    "已作废": "void"
+  },
+  "currency_aliases": {
+    "人民币": "CNY",
+    "美元": "USD"
+  }
+}

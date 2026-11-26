@@ -5,6 +5,7 @@
   "expected_input": "data/input_invoices.csv",
   "erp_fixture": "data/erp_invoices.json",
   "selector_profile": "selectors.json",
+  "reconciliation_config": "mapping.json",
   "required_apps": [
     "Google Chrome"
   ],

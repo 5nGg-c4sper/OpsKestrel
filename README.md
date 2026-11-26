@@ -403,7 +403,8 @@ Run the complete CSV-to-ERP reconciliation batch:
   --screenshot-dir reports/invoice-reconciliation/evidence \
   --checkpoint reports/invoice-reconciliation/checkpoint.json \
   --output reports/invoice-reconciliation.json \
-  --html reports/invoice-reconciliation.html
+  --html reports/invoice-reconciliation.html \
+  --xlsx reports/invoice-reconciliation.xlsx
 ```
 
 Each invoice is collected through the browser, then all records are passed to
@@ -418,6 +419,9 @@ missing invoices on the next run. The checkpoint is tied to the exact expected
 CSV hash; use `--reset-checkpoint` to start a new collection explicitly.
 `--selector-profile` loads ERP field selectors from a JSON file, so switching
 target systems does not require Python changes.
+`--config` applies expected-column mappings, ERP field mappings, status aliases,
+currency aliases, and an optional amount tolerance. `--xlsx` writes Summary,
+Results, and Collection worksheets with screenshot hyperlinks.
 
 The packaged browser scenario can also be validated and run directly:
 
@@ -428,7 +432,8 @@ The packaged browser scenario can also be validated and run directly:
 ./venv/bin/soc-agent scenario run \
   scenarios/invoice_reconciliation/scenario.json \
   --checkpoint reports/invoice-reconciliation/checkpoint.json \
-  --html reports/invoice-reconciliation.html
+  --html reports/invoice-reconciliation.html \
+  --xlsx reports/invoice-reconciliation.xlsx
 ```
 
 Manage the persistent execution queue:

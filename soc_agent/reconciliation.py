@@ -9,6 +9,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
+from soc_agent.reconciliation_config import ReconciliationConfig
+
 
 class ReconciliationStatus(str, Enum):
     MATCHED = "matched"
@@ -161,12 +163,27 @@ def load_erp_invoices_json(path: Union[str, Path]) -> List[Dict[str, Any]]:
 def reconcile_files(
     expected_csv: Union[str, Path],
     erp_json: Union[str, Path],
-    amount_tolerance: Union[str, Decimal] = "0.01",
+    amount_tolerance: Optional[Union[str, Decimal]] = None,
+    config: Optional[ReconciliationConfig] = None,
 ) -> ReconciliationReport:
+    expected_rows = load_expected_invoices(expected_csv)
+    erp_rows = load_erp_invoices_json(erp_json)
+    if config is not None:
+        expected_rows = config.map_expected_rows(expected_rows)
+        erp_rows = config.map_erp_rows(erp_rows)
+    tolerance = (
+        amount_tolerance
+        if amount_tolerance is not None
+        else (
+            config.amount_tolerance
+            if config is not None
+            else Decimal("0.01")
+        )
+    )
     return reconcile_invoices(
-        load_expected_invoices(expected_csv),
-        load_erp_invoices_json(erp_json),
-        amount_tolerance=amount_tolerance,
+        expected_rows,
+        erp_rows,
+        amount_tolerance=tolerance,
     )
 
 

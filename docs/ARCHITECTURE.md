@@ -334,7 +334,13 @@ Browser Adapter 支持有限次数重试和重试间隔。最终失败会为当�
 文本诊断，但不会中止其他发票。ERP 批量检查点使用预期 CSV 的 SHA-256 作为批次
 标识，每张成功发票查询后立即原子写入记录、证据和重试信息。再次执行时只访问尚未
 成功的发票；CSV 发生变化时拒绝复用旧检查点，避免混淆不同批次的数据。
+检查点同时保存 reconciliation config 的 SHA-256，字段映射、别名或金额容差变化
+后不会误用旧缓存。
 
 场景清单支持 `workflow_dataset` 和 `browser_reconciliation` 两种类型。浏览器
 场景声明预期输入、ERP fixture 和选择器档案，`scenario validate/run` 会复用同一
 浏览器对账链路，不依赖模型 API Key。
+
+`ReconciliationConfig` 将供应商列名映射到规范字段，并对状态与币种执行显式别名
+归一化。`ReconciliationXLSXWriter` 生成 Summary、Results、Collection 三个工作表，
+包含筛选、冻结表头、截图超链接和重试/缓存信息。

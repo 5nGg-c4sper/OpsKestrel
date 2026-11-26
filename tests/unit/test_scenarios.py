@@ -46,6 +46,7 @@ class ScenarioLoaderTests(unittest.TestCase):
         self.assertTrue(scenario.expected_input.is_file())
         self.assertTrue(scenario.erp_fixture.is_file())
         self.assertTrue(scenario.selector_profile.is_file())
+        self.assertTrue(scenario.reconciliation_config.is_file())
         self.assertIsNone(scenario.dataset)
 
     def test_scenario_rejects_task_dataset(self):

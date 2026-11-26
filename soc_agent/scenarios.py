@@ -9,6 +9,7 @@ from pydantic import Field, ValidationError, field_validator
 
 from soc_agent.browser import ERPSelectors
 from soc_agent.datasets import LoadedDataset, load_dataset
+from soc_agent.reconciliation_config import ReconciliationConfig
 from soc_agent.task_models import DatasetTargetType, StrictModel
 
 
@@ -24,6 +25,7 @@ class ScenarioDefinition(StrictModel):
     expected_input: Optional[str] = None
     erp_fixture: Optional[str] = None
     selector_profile: Optional[str] = None
+    reconciliation_config: Optional[str] = None
     required_apps: List[str] = Field(default_factory=list)
     safety_notes: List[str] = Field(default_factory=list)
 
@@ -33,6 +35,7 @@ class ScenarioDefinition(StrictModel):
         "expected_input",
         "erp_fixture",
         "selector_profile",
+        "reconciliation_config",
     )
     @classmethod
     def validate_non_empty_text(cls, value):
@@ -67,6 +70,7 @@ class LoadedScenario:
     expected_input: Optional[Path] = None
     erp_fixture: Optional[Path] = None
     selector_profile: Optional[Path] = None
+    reconciliation_config: Optional[Path] = None
 
 
 def load_scenario(scenario_path: Union[str, Path]) -> LoadedScenario:
@@ -150,6 +154,20 @@ def load_scenario(scenario_path: Union[str, Path]) -> LoadedScenario:
             ERPSelectors.from_file(selector_profile)
         except Exception as error:
             raise ScenarioLoadError(str(error)) from error
+    reconciliation_config = None
+    if definition.reconciliation_config:
+        reconciliation_config = (
+            source_path.parent / definition.reconciliation_config
+        ).resolve()
+        if not reconciliation_config.is_file():
+            raise ScenarioLoadError(
+                "reconciliation config is missing: "
+                f"{reconciliation_config}"
+            )
+        try:
+            ReconciliationConfig.from_file(reconciliation_config)
+        except Exception as error:
+            raise ScenarioLoadError(str(error)) from error
 
     return LoadedScenario(
         definition=definition,
@@ -157,4 +175,5 @@ def load_scenario(scenario_path: Union[str, Path]) -> LoadedScenario:
         expected_input=expected_input,
         erp_fixture=erp_fixture,
         selector_profile=selector_profile,
+        reconciliation_config=reconciliation_config,
     )
