@@ -6,6 +6,7 @@
   "erp_fixture": "data/erp_invoices.json",
   "selector_profile": "selectors.json",
   "reconciliation_config": "mapping.json",
+  "mock_enterprise": true,
   "required_apps": [
     "Google Chrome"
   ],

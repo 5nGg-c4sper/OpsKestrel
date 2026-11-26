@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import signal
 import sys
 import tempfile
@@ -27,6 +28,10 @@ from soc_agent.erp_reconciliation import (
     reconcile_expected_csv_with_browser,
 )
 from soc_agent.mock_erp import create_mock_erp_server
+from soc_agent.mock_erp_enterprise import (
+    EnterpriseERPConfig,
+    create_enterprise_erp_server,
+)
 from soc_agent.providers.qwen import QwenVisionProvider
 from soc_agent.privacy import capture_screenshot
 from soc_agent.queue_backend import create_queue_store
@@ -410,6 +415,11 @@ def build_parser() -> argparse.ArgumentParser:
     scenario_run.add_argument("--lookup-attempts", type=int, default=2)
     scenario_run.add_argument("--retry-delay", type=float, default=0.5)
     scenario_run.add_argument("--headed", action="store_true")
+    scenario_run.add_argument("--username", default=None)
+    scenario_run.add_argument("--password", default=None)
+    scenario_run.add_argument("--failure-config", default=None)
+    scenario_run.add_argument("--session-ttl", type=float, default=300.0)
+    scenario_run.add_argument("--erp-page-size", type=int, default=10)
     scenario_run.add_argument("--html", default=None)
     scenario_run.add_argument("--xlsx", default=None)
     scenario_run.add_argument("--json", action="store_true")
@@ -469,6 +479,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     mock_erp_parser.add_argument("--host", default="127.0.0.1")
     mock_erp_parser.add_argument("--port", type=int, default=8765)
+    mock_erp_parser.add_argument("--enterprise", action="store_true")
+    mock_erp_parser.add_argument("--username", default="demo")
+    mock_erp_parser.add_argument("--password", default="demo")
+    mock_erp_parser.add_argument(
+        "--session-ttl",
+        type=float,
+        default=300.0,
+    )
+    mock_erp_parser.add_argument("--page-size", type=int, default=10)
+    mock_erp_parser.add_argument("--failure-config", default=None)
 
     erp_search_parser = subparsers.add_parser(
         "erp-search",
@@ -490,6 +510,9 @@ def build_parser() -> argparse.ArgumentParser:
     erp_search_parser.add_argument("--selector-profile", default=None)
     erp_search_parser.add_argument("--headed", action="store_true")
     erp_search_parser.add_argument("--json", action="store_true")
+    erp_search_parser.add_argument("--enterprise", action="store_true")
+    erp_search_parser.add_argument("--username", default=None)
+    erp_search_parser.add_argument("--password", default=None)
 
     erp_reconcile_parser = subparsers.add_parser(
         "erp-reconcile",
@@ -519,6 +542,9 @@ def build_parser() -> argparse.ArgumentParser:
     erp_reconcile_parser.add_argument("--config", default=None)
     erp_reconcile_parser.add_argument("--selector-profile", default=None)
     erp_reconcile_parser.add_argument("--headed", action="store_true")
+    erp_reconcile_parser.add_argument("--enterprise", action="store_true")
+    erp_reconcile_parser.add_argument("--username", default=None)
+    erp_reconcile_parser.add_argument("--password", default=None)
     erp_reconcile_parser.add_argument("--json", action="store_true")
     erp_reconcile_parser.add_argument("--output", default=None)
     erp_reconcile_parser.add_argument(
@@ -989,6 +1015,10 @@ def validate_scenario(args) -> int:
                 "Reconciliation config: "
                 f"{scenario.reconciliation_config}"
             )
+        print(
+            "Mock enterprise: "
+            f"{'yes' if definition.mock_enterprise else 'no'}"
+        )
         print("Validation: PASSED")
         return 0
 
@@ -1023,6 +1053,12 @@ def run_scenario_browser(args, scenario) -> int:
             else None
         ),
         headed=args.headed,
+        enterprise=scenario.definition.mock_enterprise,
+        username=args.username,
+        password=args.password,
+        failure_config=args.failure_config,
+        session_ttl=args.session_ttl,
+        page_size=args.erp_page_size,
         json=args.json,
         output=args.output,
         html=args.html,
@@ -1093,13 +1129,57 @@ def run_reconciliation(args) -> int:
     return 0
 
 
+def _enterprise_config(args) -> EnterpriseERPConfig:
+    username, password = _resolve_erp_credentials(
+        args,
+        default_mock=True,
+    )
+    failure = (
+        EnterpriseERPConfig.from_file(args.failure_config)
+        if getattr(args, "failure_config", None)
+        else EnterpriseERPConfig()
+    )
+    return EnterpriseERPConfig(
+        require_login=True,
+        username=username,
+        password=password,
+        session_ttl_seconds=getattr(args, "session_ttl", 300.0),
+        page_size=getattr(args, "page_size", 10),
+        slow_invoices=failure.slow_invoices,
+        fail_once_invoices=failure.fail_once_invoices,
+    )
+
+
+def _resolve_erp_credentials(args, default_mock=False):
+    username = getattr(args, "username", None)
+    password = getattr(args, "password", None)
+    if username is None:
+        username = os.getenv("SOC_ERP_USERNAME")
+    if password is None:
+        password = os.getenv("SOC_ERP_PASSWORD")
+    if default_mock:
+        if username is None:
+            username = "demo"
+        if password is None:
+            password = "demo"
+    return username, password
+
+
 def run_mock_erp(args) -> int:
     try:
-        server = create_mock_erp_server(
-            args.data,
-            host=args.host,
-            port=args.port,
-        )
+        if args.enterprise:
+            server = create_enterprise_erp_server(
+                args.data,
+                host=args.host,
+                port=args.port,
+                config=_enterprise_config(args),
+            )
+        else:
+            server = create_mock_erp_server(
+                args.data,
+                host=args.host,
+                port=args.port,
+            )
     except Exception as error:
         print(f"Mock ERP failed: {error}")
         return 1
@@ -1107,6 +1187,7 @@ def run_mock_erp(args) -> int:
     host, port = server.server_address[:2]
     print(f"Mock ERP: http://{host}:{port}")
     print(f"Invoice data: {Path(args.data).expanduser().resolve()}")
+    print(f"Enterprise mode: {'yes' if args.enterprise else 'no'}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -1122,11 +1203,19 @@ def run_erp_search(args) -> int:
     base_url = args.base_url
     try:
         if base_url is None:
-            server = create_mock_erp_server(
-                args.mock_erp_data,
-                host="127.0.0.1",
-                port=0,
-            )
+            if args.enterprise:
+                server = create_enterprise_erp_server(
+                    args.mock_erp_data,
+                    host="127.0.0.1",
+                    port=0,
+                    config=_enterprise_config(args),
+                )
+            else:
+                server = create_mock_erp_server(
+                    args.mock_erp_data,
+                    host="127.0.0.1",
+                    port=0,
+                )
             thread = threading.Thread(
                 target=server.serve_forever,
                 daemon=True,
@@ -1148,6 +1237,14 @@ def run_erp_search(args) -> int:
                 page,
                 base_url,
                 selectors=selectors,
+                username=_resolve_erp_credentials(
+                    args,
+                    default_mock=args.enterprise,
+                )[0],
+                password=_resolve_erp_credentials(
+                    args,
+                    default_mock=args.enterprise,
+                )[1],
             )
             result = adapter.search(
                 args.invoice_id,
@@ -1203,11 +1300,19 @@ def run_erp_reconcile(args) -> int:
                 checkpoint_path.unlink()
 
         if base_url is None:
-            server = create_mock_erp_server(
-                args.mock_erp_data,
-                host="127.0.0.1",
-                port=0,
-            )
+            if args.enterprise:
+                server = create_enterprise_erp_server(
+                    args.mock_erp_data,
+                    host="127.0.0.1",
+                    port=0,
+                    config=_enterprise_config(args),
+                )
+            else:
+                server = create_mock_erp_server(
+                    args.mock_erp_data,
+                    host="127.0.0.1",
+                    port=0,
+                )
             thread = threading.Thread(
                 target=server.serve_forever,
                 daemon=True,
@@ -1231,6 +1336,14 @@ def run_erp_reconcile(args) -> int:
                 selectors=selectors,
                 attempts=args.lookup_attempts,
                 retry_delay_seconds=args.retry_delay,
+                username=_resolve_erp_credentials(
+                    args,
+                    default_mock=args.enterprise,
+                )[0],
+                password=_resolve_erp_credentials(
+                    args,
+                    default_mock=args.enterprise,
+                )[1],
             )
             report = reconcile_expected_csv_with_browser(
                 args.expected_csv,

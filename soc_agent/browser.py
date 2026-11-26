@@ -7,6 +7,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote
 
 
 class BrowserAdapterError(RuntimeError):
@@ -32,6 +33,13 @@ class ERPSelectors:
     record: str = '[data-testid="invoice-record"]'
     not_found: str = '[data-testid="invoice-not-found"]'
     field: str = "[data-field]"
+    login_username: str = '[data-testid="login-username"]'
+    login_password: str = '[data-testid="login-password"]'
+    login_submit: str = '[data-testid="login-submit"]'
+    page_status: str = '[data-testid="page-status"]'
+    page_next: str = '[data-testid="page-next"]'
+    export_csv: str = '[data-testid="export-csv"]'
+    erp_error: str = '[data-testid="erp-error"]'
 
     @classmethod
     def from_file(cls, path) -> "ERPSelectors":
@@ -54,6 +62,13 @@ class ERPSelectors:
             "record",
             "not_found",
             "field",
+            "login_username",
+            "login_password",
+            "login_submit",
+            "page_status",
+            "page_next",
+            "export_csv",
+            "erp_error",
         }
         unknown = sorted(set(payload) - allowed)
         if unknown:
@@ -106,6 +121,26 @@ class ERPSearchResult:
         }
 
 
+@dataclass(frozen=True)
+class ERPPageResult:
+    page: int
+    records: Tuple[Dict[str, Any], ...]
+    page_status: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "page": self.page,
+            "records": list(self.records),
+            "page_status": self.page_status,
+        }
+
+
+@dataclass(frozen=True)
+class ERPLoginResult:
+    authenticated: bool
+    url: str
+
+
 class MockERPAdapter:
     """Collect invoice data from structured selectors on the Mock ERP page."""
 
@@ -118,6 +153,8 @@ class MockERPAdapter:
         attempts: int = 1,
         retry_delay_seconds: float = 0.5,
         sleep_fn=None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
     ):
         if timeout_ms <= 0:
             raise ValueError("timeout_ms must be greater than 0")
@@ -134,6 +171,81 @@ class MockERPAdapter:
         self.attempts = attempts
         self.retry_delay_seconds = retry_delay_seconds
         self._sleep = sleep_fn or time.sleep
+        self.username = username
+        self.password = password
+
+    def login(self) -> ERPLoginResult:
+        if not self.username or self.password is None:
+            raise BrowserAdapterError(
+                "ERP username and password are required for login"
+            )
+        self._login_once()
+        return ERPLoginResult(
+            authenticated=True,
+            url=self.page.url,
+        )
+
+    def list_page(
+        self,
+        page: int = 1,
+        page_size: int = 10,
+        invoice_id: Optional[str] = None,
+    ) -> ERPPageResult:
+        if page < 1:
+            raise ValueError("page must be at least 1")
+        if page_size < 1:
+            raise ValueError("page_size must be at least 1")
+        query = [f"page={page}", f"page_size={page_size}"]
+        if invoice_id:
+            query.append(
+                "invoice_id=" + quote(invoice_id.strip(), safe="")
+            )
+        self.page.goto(
+            self.base_url + "?" + "&".join(query),
+            wait_until="domcontentloaded",
+            timeout=self.timeout_ms,
+        )
+        self._ensure_authenticated()
+        self.page.wait_for_selector(
+            self.selectors.page_status,
+            timeout=self.timeout_ms,
+        )
+        records = self._read_records()
+        page_status = self.page.locator(
+            self.selectors.page_status
+        ).inner_text()
+        return ERPPageResult(
+            page=page,
+            records=tuple(records),
+            page_status=page_status.strip(),
+        )
+
+    def next_page(self) -> ERPPageResult:
+        self.page.click(
+            self.selectors.page_next,
+            timeout=self.timeout_ms,
+        )
+        self.page.wait_for_timeout(250)
+        records = self._read_records()
+        page_status = self.page.locator(
+            self.selectors.page_status
+        ).inner_text()
+        return ERPPageResult(
+            page=_page_number(page_status),
+            records=tuple(records),
+            page_status=page_status.strip(),
+        )
+
+    def export_csv(self, output_path) -> str:
+        path = Path(output_path).expanduser().resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with self.page.expect_download() as download_info:
+            self.page.click(
+                self.selectors.export_csv,
+                timeout=self.timeout_ms,
+            )
+        download_info.value.save_as(str(path))
+        return str(path)
 
     def search(
         self,
@@ -191,6 +303,7 @@ class MockERPAdapter:
             wait_until="domcontentloaded",
             timeout=self.timeout_ms,
         )
+        self._ensure_authenticated()
         self.page.fill(
             self.selectors.invoice_input,
             query,
@@ -203,13 +316,21 @@ class MockERPAdapter:
         self.page.wait_for_selector(
             (
                 f"{self.selectors.record}, "
-                f"{self.selectors.not_found}"
+                f"{self.selectors.not_found}, "
+                f"{self.selectors.erp_error}"
             ),
             timeout=self.timeout_ms,
         )
-        return self.page.locator(
-            self.selectors.record
-        ).evaluate_all(
+        error_locator = self.page.locator(self.selectors.erp_error)
+        if error_locator.count() > 0:
+            raise BrowserAdapterError(
+                error_locator.inner_text().strip()
+                or "ERP returned a server error"
+            )
+        return self._read_records()
+
+    def _read_records(self):
+        return self.page.locator(self.selectors.record).evaluate_all(
             """
             (elements, fieldSelector) => elements.map((element) => {
               const result = {};
@@ -220,6 +341,33 @@ class MockERPAdapter:
             })
             """,
             self.selectors.field,
+        )
+
+    def _ensure_authenticated(self):
+        if not self.username or self.password is None:
+            return
+        current_url = str(getattr(self.page, "url", ""))
+        if "/login" in current_url:
+            self._login_once()
+
+    def _login_once(self):
+        self.page.fill(
+            self.selectors.login_username,
+            self.username,
+            timeout=self.timeout_ms,
+        )
+        self.page.fill(
+            self.selectors.login_password,
+            self.password,
+            timeout=self.timeout_ms,
+        )
+        self.page.click(
+            self.selectors.login_submit,
+            timeout=self.timeout_ms,
+        )
+        self.page.wait_for_selector(
+            self.selectors.invoice_input,
+            timeout=self.timeout_ms,
         )
 
     def _capture_failure_diagnostics(
@@ -339,3 +487,10 @@ def find_browser_executable() -> str:
     raise BrowserAdapterError(
         "Chrome, Edge, or Chromium executable was not found"
     )
+
+
+def _page_number(page_status: str) -> int:
+    parts = str(page_status).strip().split()
+    if len(parts) >= 2 and parts[1].isdigit():
+        return int(parts[1])
+    return 1

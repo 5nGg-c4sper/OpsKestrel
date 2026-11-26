@@ -26,6 +26,7 @@ class ScenarioDefinition(StrictModel):
     erp_fixture: Optional[str] = None
     selector_profile: Optional[str] = None
     reconciliation_config: Optional[str] = None
+    mock_enterprise: bool = False
     required_apps: List[str] = Field(default_factory=list)
     safety_notes: List[str] = Field(default_factory=list)
 

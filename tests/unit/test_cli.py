@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from soc_agent.actions.executor import ActionExecutor
 from soc_agent.cli import (
+    _resolve_erp_credentials,
     build_parser,
     exit_code_for_status,
     main,
@@ -420,6 +421,12 @@ class CLITests(unittest.TestCase):
                 "reports/report.xlsx",
                 "--config",
                 "reports/mapping.json",
+                "--username",
+                "demo",
+                "--password",
+                "secret",
+                "--failure-config",
+                "failures.json",
             ]
         )
 
@@ -432,6 +439,9 @@ class CLITests(unittest.TestCase):
         self.assertEqual(run_args.html, "reports/report.html")
         self.assertEqual(run_args.xlsx, "reports/report.xlsx")
         self.assertEqual(run_args.config, "reports/mapping.json")
+        self.assertEqual(run_args.username, "demo")
+        self.assertEqual(run_args.password, "secret")
+        self.assertEqual(run_args.failure_config, "failures.json")
 
     def test_parser_supports_reconcile_command(self):
         args = build_parser().parse_args(
@@ -461,12 +471,23 @@ class CLITests(unittest.TestCase):
                 "127.0.0.1",
                 "--port",
                 "9000",
+                "--enterprise",
+                "--username",
+                "demo",
+                "--password",
+                "secret",
+                "--failure-config",
+                "failures.json",
             ]
         )
 
         self.assertEqual(args.command, "mock-erp")
         self.assertEqual(args.data, "erp.json")
         self.assertEqual(args.port, 9000)
+        self.assertTrue(args.enterprise)
+        self.assertEqual(args.username, "demo")
+        self.assertEqual(args.password, "secret")
+        self.assertEqual(args.failure_config, "failures.json")
 
     def test_parser_supports_erp_search_command(self):
         args = build_parser().parse_args(
@@ -485,6 +506,31 @@ class CLITests(unittest.TestCase):
         self.assertEqual(args.screenshot, "reports/erp.png")
         self.assertTrue(args.headed)
         self.assertTrue(args.json)
+
+    def test_erp_credentials_support_environment_and_cli_override(self):
+        args = build_parser().parse_args(
+            ["erp-search", "INV-1001", "--enterprise"]
+        )
+
+        with patch.dict(
+            os.environ,
+            {
+                "SOC_ERP_USERNAME": "env-user",
+                "SOC_ERP_PASSWORD": "env-pass",
+            },
+            clear=False,
+        ):
+            self.assertEqual(
+                _resolve_erp_credentials(args, default_mock=True),
+                ("env-user", "env-pass"),
+            )
+
+        args.username = "cli-user"
+        args.password = "cli-pass"
+        self.assertEqual(
+            _resolve_erp_credentials(args, default_mock=False),
+            ("cli-user", "cli-pass"),
+        )
 
     def test_parser_supports_erp_reconcile_command(self):
         args = build_parser().parse_args(
@@ -507,6 +553,11 @@ class CLITests(unittest.TestCase):
                 "0.2",
                 "--config",
                 "reports/mapping.json",
+                "--enterprise",
+                "--username",
+                "demo",
+                "--password",
+                "secret",
                 "--fail-on-differences",
             ]
         )
@@ -521,6 +572,9 @@ class CLITests(unittest.TestCase):
         self.assertEqual(args.lookup_attempts, 3)
         self.assertEqual(args.retry_delay, 0.2)
         self.assertEqual(args.config, "reports/mapping.json")
+        self.assertTrue(args.enterprise)
+        self.assertEqual(args.username, "demo")
+        self.assertEqual(args.password, "secret")
         self.assertTrue(args.fail_on_differences)
 
     def test_parser_supports_repeated_suite_parameters(self):
@@ -1208,6 +1262,7 @@ class CLITests(unittest.TestCase):
             "reports/checkpoint.json",
         )
         self.assertTrue(routed_args.config.endswith("mapping.json"))
+        self.assertTrue(routed_args.enterprise)
         load_dotenv.assert_not_called()
 
     def test_main_runs_reconciliation_without_api_key(self):

@@ -1,0 +1,8 @@
+{
+  "slow_invoices": {
+    "INV-1002": 0.2
+  },
+  "fail_once_invoices": {
+    "INV-1001": 1
+  }
+}

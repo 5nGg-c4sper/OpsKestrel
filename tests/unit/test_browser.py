@@ -3,6 +3,7 @@
 import json
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 
 from soc_agent.browser import (
@@ -14,13 +15,25 @@ from soc_agent.browser import (
 
 
 class FakeLocator:
-    def __init__(self, records):
+    def __init__(self, records, text=""):
         self.records = records
+        self.text = text
 
     def evaluate_all(self, script, argument):
         self.script = script
         self.argument = argument
         return self.records
+
+    def inner_text(self):
+        return self.text
+
+    def count(self):
+        return 1 if self.text == "ERP server error" else 0
+
+
+class FakeDownload:
+    def save_as(self, path):
+        Path(path).write_bytes(b"csv-data")
 
 
 class FakePage:
@@ -28,26 +41,54 @@ class FakePage:
         self.records = records
         self.calls = []
         self.screenshot_path = None
+        self.url = ""
+        self.page_status = "Page 1"
+        self.requires_login = False
 
     def goto(self, url, **kwargs):
         self.calls.append(("goto", url, kwargs))
+        self.url = url.rstrip("/") + (
+            "/login" if self.requires_login else "/"
+        )
 
     def fill(self, selector, value, **kwargs):
         self.calls.append(("fill", selector, value, kwargs))
 
     def click(self, selector, **kwargs):
         self.calls.append(("click", selector, kwargs))
+        if selector == '[data-testid="login-submit"]':
+            self.url = "http://localhost/"
+            self.requires_login = False
+        if selector == '[data-testid="page-next"]':
+            self.page_status = "Page 2"
 
     def wait_for_selector(self, selector, **kwargs):
         self.calls.append(("wait", selector, kwargs))
 
     def locator(self, selector):
         self.calls.append(("locator", selector))
-        return FakeLocator(self.records)
+        text = (
+            "ERP server error"
+            if selector == '[data-testid="erp-error"]'
+            and getattr(self, "has_erp_error", False)
+            else self.page_status
+        )
+        return FakeLocator(self.records, text)
 
     def screenshot(self, path, full_page=False):
         Path(path).write_bytes(b"fake-image")
         self.screenshot_path = (path, full_page)
+
+    def wait_for_timeout(self, milliseconds):
+        self.calls.append(("wait_timeout", milliseconds))
+
+    @contextmanager
+    def expect_download(self):
+        yield type(
+            "DownloadInfo",
+            (),
+            {"value": FakeDownload()},
+        )()
 
 
 class FlakyPage(FakePage):
@@ -243,6 +284,74 @@ class MockERPAdapterTests(unittest.TestCase):
                 "unknown selector fields",
             ):
                 ERPSelectors.from_file(profile)
+
+    def test_login_pagination_and_csv_download(self):
+        page = FakePage(
+            [
+                {"invoice_id": "INV-1", "amount": "100.00"},
+                {"invoice_id": "INV-2", "amount": "200.00"},
+            ]
+        )
+        page.url = "http://localhost/login"
+        adapter = MockERPAdapter(
+            page,
+            "http://localhost",
+            username="demo",
+            password="demo",
+        )
+
+        login = adapter.login()
+        first_page = adapter.list_page(page_size=2)
+        next_page = adapter.next_page()
+        with tempfile.TemporaryDirectory() as directory:
+            exported = adapter.export_csv(
+                Path(directory) / "erp.csv"
+            )
+            self.assertTrue(Path(exported).is_file())
+
+        self.assertTrue(login.authenticated)
+        self.assertEqual(first_page.records[0]["invoice_id"], "INV-1")
+        self.assertEqual(next_page.page, 2)
+        self.assertIn(
+            (
+                "fill",
+                '[data-testid="login-username"]',
+                "demo",
+            ),
+            [
+                (call[0], call[1], call[2])
+                for call in page.calls
+                if call[0] == "fill"
+            ],
+        )
+
+    def test_search_recovers_from_login_redirect(self):
+        page = FakePage(
+            [{"invoice_id": "INV-1", "amount": "100.00"}]
+        )
+        page.requires_login = True
+        adapter = MockERPAdapter(
+            page,
+            "http://localhost",
+            username="demo",
+            password="demo",
+        )
+
+        result = adapter.search("INV-1")
+
+        self.assertTrue(result.found)
+        self.assertIn(
+            (
+                "fill",
+                '[data-testid="login-username"]',
+                "demo",
+            ),
+            [
+                (call[0], call[1], call[2])
+                for call in page.calls
+                if call[0] == "fill"
+            ],
+        )
 
 
 if __name__ == "__main__":

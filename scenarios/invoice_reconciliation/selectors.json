@@ -3,5 +3,6 @@
   "search_submit": "[data-testid=\"invoice-search-submit\"]",
   "record": "[data-testid=\"invoice-record\"]",
   "not_found": "[data-testid=\"invoice-not-found\"]",
-  "field": "[data-field]"
+  "field": "[data-field]",
+  "erp_error": "[data-testid=\"erp-error\"]"
 }

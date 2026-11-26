@@ -62,6 +62,14 @@ This starts the fixture automatically, opens system Chrome through Playwright,
 searches by invoice ID, and reads all records through stable DOM selectors.
 `INV-1017` returns two records and is reported as a duplicate.
 
+The scenario manifest enables the enterprise-like Mock ERP by default. It
+supports login, session expiry, pagination, one-time server errors, slow
+responses, and CSV download. Use `failure-example.json` to exercise retry and
+diagnostics.
+
+Credentials are read from `SOC_ERP_USERNAME` and `SOC_ERP_PASSWORD` when CLI
+values are omitted. The local demo falls back to `demo` / `demo`.
+
 Run all 20 fixture invoices through the browser and reconciliation engine:
 
 ```bash

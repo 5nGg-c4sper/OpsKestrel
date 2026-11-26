@@ -383,6 +383,21 @@ provides stable `data-testid` selectors and structured field attributes for the
 upcoming browser adapter. It uses only the synthetic JSON fixture and does not
 require credentials or external services.
 
+Start the enterprise-like fixture with login, pagination, failure injection,
+and CSV export:
+
+```bash
+./venv/bin/soc-agent mock-erp \
+  --enterprise \
+  --port 8765 \
+  --failure-config scenarios/invoice_reconciliation/failure-example.json
+```
+
+The demo login is `demo` / `demo`. Browser commands can read production-like
+credentials from `SOC_ERP_USERNAME` and `SOC_ERP_PASSWORD`, avoiding secrets in
+the command line. Explicit `--username` and `--password` options are available
+for local testing only.
+
 Collect an invoice through the browser UI without starting the server manually:
 
 ```bash

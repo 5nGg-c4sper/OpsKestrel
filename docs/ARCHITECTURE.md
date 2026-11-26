@@ -314,6 +314,11 @@ ISO 文本，之后进入同一对账与检查点流程。
 重复记录、缺失记录等场景。它不依赖真实账号、外部网络或前端构建工具，可通过
 固定 JSON fixture 在测试和演示中重复启动。
 
+企业模式在兼容基础夹具的基础上增加 Cookie 会话、登录、退出、分页、CSV 下载和
+可控故障。浏览器命令优先使用 `SOC_ERP_USERNAME` / `SOC_ERP_PASSWORD`，显式密码
+只用于本地演示。故障配置支持逐票慢响应和一次性 5xx，帮助验证查询重试、错误诊断
+和会话恢复。
+
 `soc_agent.browser` 提供 DOM 优先的 Browser Adapter。`MockERPAdapter` 通过
 Playwright 打开页面、填写搜索框、等待结果状态，并用 `data-field` 一次性读取
 所有结构化字段。缺失记录返回空结果，多条记录保留完整数组供重复检测；截图与
