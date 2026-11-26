@@ -365,6 +365,26 @@ class CLITests(unittest.TestCase):
         self.assertEqual(worker_args.poll_interval, 0.5)
         self.assertEqual(worker_args.max_concurrency, 2)
 
+    def test_parser_supports_doctor_command(self):
+        args = build_parser().parse_args(
+            [
+                "doctor",
+                "--queue-db",
+                "reports/test-queue.db",
+                "--worker-id",
+                "office-mac-1",
+                "--online-within-seconds",
+                "120",
+                "--json",
+            ]
+        )
+
+        self.assertEqual(args.command, "doctor")
+        self.assertEqual(args.queue_db, "reports/test-queue.db")
+        self.assertEqual(args.worker_id, "office-mac-1")
+        self.assertEqual(args.online_within_seconds, 120)
+        self.assertTrue(args.json)
+
     def test_parser_supports_repeated_suite_parameters(self):
         args = build_parser().parse_args(
             [

@@ -407,6 +407,22 @@ online window.
 It remains registered as idle, polls for new jobs, and shuts down gracefully on
 `SIGINT` or `SIGTERM` after the current job completes.
 
+Run deployment diagnostics before starting unattended work:
+
+```bash
+./venv/bin/soc-agent doctor \
+  --worker-id macbook-runner-1
+
+./venv/bin/soc-agent doctor \
+  --worker-id macbook-runner-1 \
+  --json
+```
+
+The doctor checks Python, macOS, model configuration, GUI session, Screen
+Recording and Accessibility permissions, report directory, queue backend, and
+Worker heartbeat. It does not execute desktop actions. A missing requested
+Worker or failed prerequisite returns exit code `1`.
+
 To start a Worker automatically after macOS login, render and inspect a
 LaunchAgent without installing it:
 

@@ -1,6 +1,7 @@
 """Command-line interface for running task files."""
 
 import argparse
+import json
 import signal
 import sys
 import tempfile
@@ -14,6 +15,7 @@ from soc_agent.actions.executor import ActionExecutor
 from soc_agent.config import AgentConfig
 from soc_agent.dataset_runner import DatasetRunner
 from soc_agent.datasets import load_dataset
+from soc_agent.diagnostics import DiagnosticsRunner
 from soc_agent.environments.macos import MacOSEnvironment
 from soc_agent.providers.qwen import QwenVisionProvider
 from soc_agent.privacy import capture_screenshot
@@ -298,6 +300,37 @@ def build_parser() -> argparse.ArgumentParser:
         queue_worker,
         include_parameters=False,
     )
+
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="Check runtime configuration and Worker readiness",
+    )
+    doctor_parser.add_argument(
+        "--queue-db",
+        default="reports/queue.db",
+        help="Queue database path or backend URL",
+    )
+    doctor_parser.add_argument(
+        "--reports-dir",
+        default=None,
+        help="Report directory override",
+    )
+    doctor_parser.add_argument(
+        "--worker-id",
+        default=None,
+        help="Require a specific Worker to be online",
+    )
+    doctor_parser.add_argument(
+        "--online-within-seconds",
+        type=float,
+        default=300.0,
+        help="Worker heartbeat window",
+    )
+    doctor_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Render diagnostics as JSON",
+    )
     return parser
 
 
@@ -506,6 +539,9 @@ def main(
             return list_queue_workers(args)
 
     load_dotenv()
+    if args.command == "doctor":
+        return run_doctor(args)
+
     config = AgentConfig.from_env().with_overrides(
         screenshot_scale=args.scale,
         settle_delay=args.settle_delay,
@@ -630,6 +666,39 @@ def main(
 
     print_result(result)
     return exit_code_for_status(result.status)
+
+
+def run_doctor(args) -> int:
+    try:
+        report = DiagnosticsRunner().run(
+            queue_db=args.queue_db,
+            reports_dir=args.reports_dir,
+            worker_id=args.worker_id,
+            online_within_seconds=args.online_within_seconds,
+        )
+    except Exception as error:
+        print(f"Diagnostics failed: {error}")
+        return 1
+
+    if args.json:
+        print(
+            json.dumps(
+                report.to_dict(),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+    else:
+        for check in report.checks:
+            print(
+                f"[{check.status.value.upper()}] "
+                f"{check.name}: {check.message}"
+            )
+        print(
+            "Runtime diagnostics: "
+            f"{'PASSED' if report.healthy else 'FAILED'}"
+        )
+    return 0 if report.healthy else 1
 
 
 def enqueue_queue_job(args, parameters: Dict[str, str]) -> int:

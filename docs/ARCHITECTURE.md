@@ -271,3 +271,11 @@ QueueJob 的 `required_labels` 必须全部包含在 Worker `labels` 中才会�
 QueueJob 默认 `parallel_safe=false`。SQLite 领取事务会检查全局是否存在正在运行
 的非并行安全任务；存在时只允许继续领取显式 `parallel_safe=true` 的 Job。
 Worker `max_concurrency` 只提供并行槽位，不会绕过 GUI 全局串行约束。
+
+## 运行诊断
+
+`soc-agent doctor` 使用只读探针检查 Python、macOS 版本、模型配置、Aqua GUI
+会话、Accessibility、Screen Recording、报告目录、QueueStore 和 Worker 心跳。
+权限检查调用 macOS 的进程级 preflight API，不触发桌面操作。指定
+`--worker-id` 时，该 Worker 必须位于在线窗口内；未指定 Worker 时只产生警告。
+命令支持文本和 JSON 输出，只要存在失败项即返回退出码 `1`。

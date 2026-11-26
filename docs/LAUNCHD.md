@@ -117,3 +117,8 @@ After changing permission, restart the service:
   --worker-id office-mac-1 \
   --label office-mac
 ```
+
+`soc-agent doctor` checks the permissions of the process that launches it.
+IDE terminals and sandboxed tools can have different macOS privacy identities
+from the LaunchAgent. Use the doctor result for that calling process, and use a
+real permission smoke task to verify the LaunchAgent itself.
