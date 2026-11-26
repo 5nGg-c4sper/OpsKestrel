@@ -181,6 +181,17 @@ class AccessibilityLocatorTests(unittest.TestCase):
         )
         self.assertEqual(
             adapter._pair_values(
+                (
+                    True,
+                    SimpleNamespace(x=10, y=20),
+                ),
+                "x",
+                "y",
+            ),
+            (10.0, 20.0),
+        )
+        self.assertEqual(
+            adapter._pair_values(
                 SimpleNamespace(x=10, y=20),
                 "x",
                 "y",

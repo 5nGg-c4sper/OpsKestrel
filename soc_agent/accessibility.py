@@ -281,6 +281,12 @@ class PyObjCAccessibilityAdapter:
             if len(value) == 1:
                 return cls._pair_values(value[0], first, second)
             if len(value) >= 2:
+                if isinstance(value[0], bool):
+                    return cls._pair_values(
+                        value[1],
+                        first,
+                        second,
+                    )
                 if (
                     isinstance(value[0], (tuple, list))
                     and len(value[0]) >= 2
