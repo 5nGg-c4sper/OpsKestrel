@@ -29,6 +29,18 @@ recent run history:
 ```bash
 ./venv/bin/soc-agent console --port 8766
 ```
+
+![SOC Agent Console](docs/assets/console.png)
+
+The enterprise Mock ERP provides a real login page, session expiry, pagination,
+controlled failures, and CSV export without external services:
+
+![Enterprise Mock ERP Login](docs/assets/erp-login.png)
+
+The invoice reconciliation report combines deterministic result classification,
+business filters, retry/cache state, and screenshot evidence:
+
+![Invoice Reconciliation Report](docs/assets/reconciliation-report.png)
 - [PostgreSQL queue deployment](docs/POSTGRES.md)
 
 Configure the project root `.env` from [.env.example](.env.example).

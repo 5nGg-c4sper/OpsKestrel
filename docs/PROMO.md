@@ -59,9 +59,9 @@ checkpoints, and JSON/HTML/XLSX reports.
 
 ## Suggested Screenshots
 
-1. HTML report with difference filters and screenshot links
+1. `docs/assets/reconciliation-report.png`
 2. XLSX Summary and Results sheets
-3. Enterprise Mock ERP login page
-4. Local operations console
+3. `docs/assets/erp-login.png`
+4. `docs/assets/console.png`
 5. Terminal result showing a 503 retry and successful completion
 6. Architecture diagram from `docs/assets/architecture.svg`

@@ -112,6 +112,7 @@ class ConsoleTests(unittest.TestCase):
 
         self.assertEqual(response.status, 200)
         self.assertIn("SOC Agent Console", html)
+        self.assertIn('join("\\n")', html)
         self.assertEqual(status, 200)
         self.assertEqual(payload["reports"][0]["status"], "passed")
         self.assertEqual(len(payload["workers"]), 1)

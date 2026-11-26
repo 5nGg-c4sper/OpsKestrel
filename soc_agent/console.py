@@ -638,7 +638,7 @@ def _console_html() -> str:
       const log = document.getElementById("run-log");
       if (run.log_tail && run.log_tail.length) {
         log.hidden = false;
-        log.textContent = run.log_tail.join("\n");
+        log.textContent = run.log_tail.join("\\n");
         log.scrollTop = log.scrollHeight;
       } else {
         log.hidden = true;

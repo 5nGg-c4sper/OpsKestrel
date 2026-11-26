@@ -163,5 +163,7 @@ cython_debug/
 
 # Avoid sending testing screenshots up
 *.png
+!docs/assets/
+!docs/assets/*.png
 operate/screenshots/
 reports/
