@@ -507,6 +507,38 @@ class CLITests(unittest.TestCase):
         self.assertEqual(args.queue_db, "custom.db")
         self.assertEqual(args.port, 9001)
 
+    def test_parser_supports_evidence_bundle_command(self):
+        args = build_parser().parse_args(
+            [
+                "bundle",
+                "reports/run-001",
+                "--output",
+                "archive.zip",
+            ]
+        )
+
+        self.assertEqual(args.command, "bundle")
+        self.assertEqual(args.run_dir, "reports/run-001")
+        self.assertEqual(args.output, "archive.zip")
+
+    def test_main_creates_evidence_bundle(self):
+        run_dir = self.root / "run-001"
+        run_dir.mkdir()
+        (run_dir / "report.json").write_text(
+            '{"status": "passed"}\n',
+            encoding="utf-8",
+        )
+        output = StringIO()
+
+        with redirect_stdout(output):
+            exit_code = main(["bundle", str(run_dir)])
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Evidence bundle:", output.getvalue())
+        self.assertTrue(
+            (run_dir / "evidence-bundle.zip").is_file()
+        )
+
     def test_parser_supports_erp_search_command(self):
         args = build_parser().parse_args(
             [

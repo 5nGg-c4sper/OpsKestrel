@@ -14,6 +14,9 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import unquote, urlparse
 
+from soc_agent.evidence_bundle import (
+    create_evidence_bundle as archive_evidence_bundle,
+)
 from soc_agent.queue_backend import create_queue_store
 
 
@@ -196,6 +199,23 @@ class ConsoleState:
                 "cancelled": True,
                 "exit_code": exit_code,
                 "state": "cancelled",
+            }
+
+    def create_run_evidence_bundle(self):
+        with self._lock:
+            if self._output_dir is None:
+                return {"created": False, "error": "no run selected"}
+            if self._process is not None and self._process.poll() is None:
+                return {
+                    "created": False,
+                    "error": "run must finish before packaging",
+                }
+            path = archive_evidence_bundle(self._output_dir)
+            return {
+                "created": True,
+                "name": path.name,
+                "url": "/files/"
+                + path.relative_to(self.reports_dir).as_posix(),
             }
 
     def _start_run(
@@ -406,6 +426,7 @@ class ConsoleState:
             "checkpoint.json",
             "run.log",
             "run.json",
+            "evidence-bundle.zip",
         ):
             path = root / name
             if path.is_file():
@@ -488,6 +509,17 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 status=(
                     HTTPStatus.OK
                     if payload.get("cancelled")
+                    else HTTPStatus.CONFLICT
+                ),
+            )
+            return
+        if parsed.path == "/api/demo/bundle":
+            payload = self.server.state.create_run_evidence_bundle()
+            self._send_json(
+                payload,
+                status=(
+                    HTTPStatus.OK
+                    if payload.get("created")
                     else HTTPStatus.CONFLICT
                 ),
             )
@@ -621,6 +653,7 @@ def _console_html() -> str:
       <h1>SOC Agent Console</h1>
       <button id="run-demo">运行发票对账 Demo</button>
       <button id="cancel-run" style="background:#c53727">停止当前运行</button>
+      <button id="bundle-run" style="background:#34495e">生成证据包</button>
       <input id="upload-file" type="file"
         accept=".csv,.xlsx,.xlsm,.pdf">
       <button id="run-upload">上传并运行</button>
@@ -727,6 +760,14 @@ def _console_html() -> str:
         if (!response.ok && payload.error !== "no active run") {
           alert(payload.error || "停止失败");
         }
+        refresh();
+      }
+    );
+    document.getElementById("bundle-run").addEventListener(
+      "click", async () => {
+        const response = await fetch("/api/demo/bundle", {method:"POST"});
+        const payload = await response.json();
+        if (!response.ok) alert(payload.error || "打包失败");
         refresh();
       }
     );

@@ -26,11 +26,21 @@ The local operations console can start the built-in invoice demo, upload a
 CSV/XLSX/PDF input, stream run logs, download JSON/HTML/XLSX artifacts, and show
 recent run history. A stuck run can be stopped from the console; this terminates
 the run's process group and records the result as `cancelled` while preserving
-logs and artifacts produced before cancellation:
+logs and artifacts produced before cancellation. Completed runs can be packaged
+as one auditable ZIP with a SHA-256 file manifest:
 
 ```bash
 ./venv/bin/soc-agent console --port 8766
 ```
+
+The same archive can be created from the command line:
+
+```bash
+./venv/bin/soc-agent bundle reports/demo-20261126-120000
+```
+
+Evidence packages can contain invoice data and screenshots. Review them before
+sharing outside the operator's machine.
 
 ![SOC Agent Console](docs/assets/console.png)
 

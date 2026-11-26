@@ -114,6 +114,7 @@ class ConsoleTests(unittest.TestCase):
         self.assertIn("SOC Agent Console", html)
         self.assertIn('join("\\n")', html)
         self.assertIn('id="cancel-run"', html)
+        self.assertIn('id="bundle-run"', html)
         self.assertEqual(status, 200)
         self.assertEqual(payload["reports"][0]["status"], "passed")
         self.assertEqual(len(payload["workers"]), 1)
@@ -152,6 +153,20 @@ class ConsoleTests(unittest.TestCase):
             time.sleep(0.01)
         self.assertEqual(status["state"], "finished")
         self.assertEqual(status["exit_code"], 0)
+        request = Request(
+            self.base_url + "/api/demo/bundle",
+            data=b"",
+            method="POST",
+        )
+        with urlopen(request, timeout=2) as response:
+            bundle = json.loads(response.read().decode("utf-8"))
+        self.assertTrue(bundle["created"])
+        self.assertEqual(bundle["name"], "evidence-bundle.zip")
+        _, status = self.get_json("/api/demo/status")
+        self.assertIn(
+            "evidence-bundle.zip",
+            [item["name"] for item in status["artifacts"]],
+        )
 
     def test_uploaded_input_starts_run_and_history(self):
         request = Request(
@@ -196,6 +211,14 @@ class ConsoleTests(unittest.TestCase):
         self.assertTrue(payload["started"])
         _, status = self.get_json("/api/demo/status")
         self.assertEqual(status["state"], "running")
+        request = Request(
+            self.base_url + "/api/demo/bundle",
+            data=b"",
+            method="POST",
+        )
+        with self.assertRaises(HTTPError) as context:
+            urlopen(request, timeout=2)
+        self.assertEqual(context.exception.code, 409)
 
         request = Request(
             self.base_url + "/api/demo/cancel",

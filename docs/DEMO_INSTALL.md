@@ -54,4 +54,7 @@ inputs up to 10 MB, shows live log output and run history, and links to the
 generated JSON/HTML/XLSX and checkpoint artifacts. The **停止当前运行** button
 terminates the active run's process group, including browser child processes,
 and records the run as `cancelled`. Logs and artifacts completed before
-cancellation remain available.
+cancellation remain available. After a run finishes, **生成证据包** creates
+`evidence-bundle.zip` with every report, screenshot, checkpoint, and log plus a
+SHA-256 manifest. Review the archive before sharing it because it can contain
+invoice data and screenshots.

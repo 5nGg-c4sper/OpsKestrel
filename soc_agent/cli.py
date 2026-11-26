@@ -28,6 +28,7 @@ from soc_agent.environments.macos import MacOSEnvironment
 from soc_agent.erp_reconciliation import (
     reconcile_expected_csv_with_browser,
 )
+from soc_agent.evidence_bundle import create_evidence_bundle
 from soc_agent.mock_erp import create_mock_erp_server
 from soc_agent.mock_erp_enterprise import (
     EnterpriseERPConfig,
@@ -582,6 +583,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
     )
 
+    bundle_parser = subparsers.add_parser(
+        "bundle",
+        help="Archive a completed run with a SHA-256 evidence manifest",
+    )
+    bundle_parser.add_argument("run_dir")
+    bundle_parser.add_argument("--output", default=None)
+
     console_parser = subparsers.add_parser(
         "console",
         help="Serve the local SOC Agent operations console",
@@ -830,6 +838,9 @@ def main(
 
     if args.command == "erp-reconcile":
         return run_erp_reconcile(args)
+
+    if args.command == "bundle":
+        return run_bundle(args)
 
     if args.command == "console":
         return run_console(args)
@@ -1210,6 +1221,19 @@ def run_mock_erp(args) -> int:
         pass
     finally:
         server.server_close()
+    return 0
+
+
+def run_bundle(args) -> int:
+    try:
+        path = create_evidence_bundle(
+            args.run_dir,
+            output_path=args.output,
+        )
+    except Exception as error:
+        print(f"Evidence bundle failed: {error}")
+        return 1
+    print(f"Evidence bundle: {path}")
     return 0
 
 
