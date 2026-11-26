@@ -404,6 +404,23 @@ online window.
 It remains registered as idle, polls for new jobs, and shuts down gracefully on
 `SIGINT` or `SIGTERM` after the current job completes.
 
+To start a Worker automatically after macOS login, render and inspect a
+LaunchAgent without installing it:
+
+```bash
+./venv/bin/python scripts/worker_launchd.py render \
+  --worker-id macbook-runner-1 \
+  --label office-mac \
+  --output /private/tmp/soc-agent-worker.plist
+```
+
+After granting the required Accessibility and Screen Recording permissions,
+install it with `install` instead of `render`. A per-user LaunchAgent starts
+the Worker in the graphical login session, restarts it after abnormal exits,
+and writes logs under `~/Library/Logs/SOCAgent/`. See
+[docs/LAUNCHD.md](docs/LAUNCHD.md) for installation, status, restart, and
+uninstall commands.
+
 `--require-label` restricts a job to Workers advertising every required label.
 `queue run --label` advertises capabilities for the current Worker. Matching is
 case-insensitive; jobs with no required labels can run on any Worker.
