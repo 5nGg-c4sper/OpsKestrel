@@ -181,7 +181,15 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertEqual(task.name, "textedit_parameterized")
         self.assertEqual(task.setup_steps[0].app, "文本编辑")
         self.assertEqual(
-            task.setup_steps[1].keys,
+            task.setup_steps[1].seconds,
+            0.5,
+        )
+        self.assertEqual(
+            task.setup_steps[2].keys,
+            ["escape"],
+        )
+        self.assertEqual(
+            task.setup_steps[3].keys,
             ["command", "n"],
         )
         self.assertEqual(task.steps[0].content, "客户：张三")

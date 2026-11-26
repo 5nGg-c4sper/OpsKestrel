@@ -18,6 +18,14 @@
       "app": "文本编辑"
     },
     {
+      "type": "wait",
+      "seconds": 0.5
+    },
+    {
+      "type": "press",
+      "keys": ["escape"]
+    },
+    {
       "type": "press",
       "keys": ["command", "n"]
     }
