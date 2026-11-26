@@ -19,6 +19,7 @@ from soc_agent.task_models import (
     TaskLoop,
     TaskResult,
     TaskStatus,
+    UIElementLocator,
     WorkflowDefinition,
     WorkflowResult,
 )
@@ -564,6 +565,65 @@ class TaskDefinitionTests(unittest.TestCase):
                     "steps": [{"type": "approval"}],
                 }
             )
+
+    def test_click_element_is_parsed_and_rendered(self):
+        task = TaskDefinition.model_validate(
+            {
+                "name": "element_click",
+                "parameters": {"button_name": {}},
+                "steps": [
+                    {
+                        "type": "click_element",
+                        "app": "计算器",
+                        "element": {
+                            "role": "AXButton",
+                            "title": "${button_name}",
+                            "match_index": 0,
+                        },
+                    }
+                ],
+            }
+        )
+
+        rendered = task.render_parameters(
+            {"button_name": "7"}
+        )
+
+        self.assertEqual(
+            rendered.steps[0].type,
+            ActionType.CLICK_ELEMENT,
+        )
+        self.assertEqual(rendered.steps[0].app, "计算器")
+        self.assertEqual(rendered.steps[0].element.role, "AXButton")
+        self.assertEqual(rendered.steps[0].element.title, "7")
+
+    def test_click_element_requires_app_and_locator(self):
+        invalid_steps = (
+            {
+                "type": "click_element",
+                "element": {"role": "AXButton"},
+            },
+            {
+                "type": "click_element",
+                "app": "计算器",
+            },
+        )
+        for step in invalid_steps:
+            with self.subTest(step=step):
+                with self.assertRaises(ValidationError):
+                    TaskDefinition.model_validate(
+                        {
+                            "name": "invalid_element_click",
+                            "steps": [step],
+                        }
+                    )
+
+    def test_element_locator_requires_criterion(self):
+        with self.assertRaisesRegex(
+            ValidationError,
+            "at least one criterion",
+        ):
+            UIElementLocator()
 
     def test_step_accepts_vision_condition(self):
         task = TaskDefinition.model_validate(

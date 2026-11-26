@@ -23,6 +23,7 @@ class ActionType(str, Enum):
     WRITE = "write"
     PRESS = "press"
     CLICK = "click"
+    CLICK_ELEMENT = "click_element"
     WAIT = "wait"
     VERIFY_VISION = "verify_vision"
     DONE = "done"
@@ -58,6 +59,37 @@ class DatasetTargetType(str, Enum):
     WORKFLOW = "workflow"
 
 
+class UIElementLocator(StrictModel):
+    role: Optional[str] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+    value: Optional[str] = None
+    match_index: int = Field(default=0, ge=0)
+
+    @field_validator("role", "title", "description", "value")
+    @classmethod
+    def validate_non_empty_text(cls, value):
+        if value is not None and not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+    @model_validator(mode="after")
+    def validate_has_criterion(self):
+        if all(
+            value is None
+            for value in (
+                self.role,
+                self.title,
+                self.description,
+                self.value,
+            )
+        ):
+            raise ValueError(
+                "UI element locator requires at least one criterion"
+            )
+        return self
+
+
 class TaskStep(StrictModel):
     type: ActionType
 
@@ -67,6 +99,7 @@ class TaskStep(StrictModel):
 
     x: Optional[float] = None
     y: Optional[float] = None
+    element: Optional[UIElementLocator] = None
 
     prompt: Optional[str] = None
     summary: Optional[str] = None
@@ -137,6 +170,12 @@ class TaskStep(StrictModel):
         if self.type == ActionType.CLICK:
             if self.x is None or self.y is None:
                 raise ValueError("click requires x and y")
+
+        if self.type == ActionType.CLICK_ELEMENT:
+            if not self.app:
+                raise ValueError("click_element requires app")
+            if self.element is None:
+                raise ValueError("click_element requires element")
 
         if self.type == ActionType.WAIT and self.seconds is None:
             raise ValueError("wait requires seconds")
@@ -357,6 +396,19 @@ class TaskDefinition(StrictModel):
             condition = step["condition"]
             if condition is not None:
                 condition["prompt"] = render_text(condition["prompt"])
+
+            element = step["element"]
+            if element is not None:
+                for field_name in (
+                    "role",
+                    "title",
+                    "description",
+                    "value",
+                ):
+                    if element[field_name] is not None:
+                        element[field_name] = render_text(
+                            element[field_name]
+                        )
 
         return TaskDefinition.model_validate(data)
 
