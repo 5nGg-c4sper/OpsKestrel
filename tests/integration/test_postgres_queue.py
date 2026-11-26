@@ -110,18 +110,18 @@ class PostgreSQLQueueIntegrationTests(unittest.TestCase):
             "worker-a",
             worker_labels=["office-mac"],
         )
-        blocked_gui = self.store.claim_next(
-            "worker-b",
-            worker_labels=["office-mac"],
-        )
         parallel = self.store.claim_next(
             "worker-b",
             worker_labels=["office-mac"],
         )
+        blocked = self.store.claim_next(
+            "worker-c",
+            worker_labels=["office-mac"],
+        )
 
         self.assertEqual(first_gui.job_id, "gui-a")
-        self.assertIsNone(blocked_gui)
         self.assertEqual(parallel.job_id, "parallel")
+        self.assertIsNone(blocked)
 
     def test_recover_stale_job(self):
         self.store.enqueue(
