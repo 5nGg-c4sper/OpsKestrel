@@ -6,19 +6,19 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-from soc_agent.erp_reconciliation import (
+from opskestrel.erp_reconciliation import (
     BrowserReconciliationReport,
     ERPLookupEvidence,
 )
-from soc_agent.reconciliation import (
+from opskestrel.reconciliation import (
     ReconciliationReport,
     ReconciliationResult,
     ReconciliationStatus,
 )
-from soc_agent.reporting.reconciliation_xlsx import (
+from opskestrel.reporting.reconciliation_xlsx import (
     ReconciliationXLSXWriter,
 )
-from soc_agent.reviews import ReviewRecord, ReviewStatus
+from opskestrel.reviews import ReviewRecord, ReviewStatus
 
 
 class ReconciliationXLSXTests(unittest.TestCase):

@@ -1,8 +1,8 @@
-# SOC Agent Roadmap
+# OpsKestrel Roadmap
 
 ## 产品定位
 
-SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优先使用确定性操作完成
+OpsKestrel 是一个面向 macOS 桌面软件的可观测自动化工具。它优先使用确定性操作完成
 任务，并将视觉模型用于截图验证和异常恢复，最终输出可审计的执行报告。
 
 目标场景：
@@ -96,7 +96,7 @@ SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优
 - 历史运行选择、批量复核、复核关闭和内容指纹校验
 - 一键启动、健康检查、离线发布自检和发行工作流
 - README 实拍控制台、企业 ERP 登录页和 HTML 对账报告截图
-- `soc-agent dataset` 数据集命令、失败停止/重试策略和诊断输出
+- `opskestrel dataset` 数据集命令、失败停止/重试策略和诊断输出
 - 基础安全策略
 - GitHub Actions 单元测试配置
 - 手动触发的自托管 macOS GUI 冒烟工作流

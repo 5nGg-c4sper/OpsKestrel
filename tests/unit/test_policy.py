@@ -2,8 +2,8 @@
 
 import unittest
 
-from soc_agent.safety.policy import SafetyPolicy, SafetyViolation
-from soc_agent.task_models import ActionType, TaskStep
+from opskestrel.safety.policy import SafetyPolicy, SafetyViolation
+from opskestrel.task_models import ActionType, TaskStep
 
 
 class SafetyPolicyTests(unittest.TestCase):

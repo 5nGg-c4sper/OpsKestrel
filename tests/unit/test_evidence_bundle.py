@@ -7,7 +7,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from soc_agent.evidence_bundle import (
+from opskestrel.evidence_bundle import (
     EvidenceBundleError,
     create_evidence_bundle,
 )

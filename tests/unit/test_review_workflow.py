@@ -8,30 +8,30 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-from soc_agent.erp_reconciliation import (
+from opskestrel.erp_reconciliation import (
     BrowserReconciliationReport,
     ERPLookupEvidence,
 )
-from soc_agent.evidence_bundle import create_evidence_bundle
-from soc_agent.reconciliation import (
+from opskestrel.evidence_bundle import create_evidence_bundle
+from opskestrel.reconciliation import (
     ReconciliationReport,
     ReconciliationResult,
     ReconciliationStatus,
 )
-from soc_agent.reporting.reconciliation_report import (
+from opskestrel.reporting.reconciliation_report import (
     ReconciliationHTMLReportWriter,
 )
-from soc_agent.reporting.reconciliation_xlsx import (
+from opskestrel.reporting.reconciliation_xlsx import (
     ReconciliationXLSXWriter,
 )
-from soc_agent.review_workflow import (
+from opskestrel.review_workflow import (
     close_review,
     list_review_runs,
     review_state,
     save_review,
     save_review_batch,
 )
-from soc_agent.reviews import ReviewError, ReviewStatus
+from opskestrel.reviews import ReviewError, ReviewStatus
 
 
 class ReviewWorkflowTests(unittest.TestCase):

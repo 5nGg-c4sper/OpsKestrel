@@ -2,7 +2,7 @@
 
 import unittest
 
-from soc_agent.operators import (
+from opskestrel.operators import (
     OperatorAuthenticator,
     OperatorError,
     OperatorRole,

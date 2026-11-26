@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-from soc_agent import __version__
+from opskestrel import __version__
 
 # Read the contents of your requirements.txt file
 with open("requirements.txt") as f:
@@ -11,7 +11,7 @@ with open("README.md", "r", encoding="utf-8") as readme_file:
     long_description = readme_file.read()
 
 setup(
-    name="self-operating-computer",
+    name="opskestrel",
     version=__version__,
     packages=find_packages(),
     python_requires=">=3.9,<3.13",
@@ -20,7 +20,7 @@ setup(
     entry_points={
         "console_scripts": [
             "operate=operate.main:main_entry",
-            "soc-agent=soc_agent.cli:main",
+            "opskestrel=opskestrel.cli:main",
         ],
     },
     package_data={

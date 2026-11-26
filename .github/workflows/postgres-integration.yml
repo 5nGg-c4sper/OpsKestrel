@@ -15,20 +15,20 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: soc_agent_test
-          POSTGRES_USER: soc_agent
-          POSTGRES_PASSWORD: soc_agent_test
+          POSTGRES_DB: opskestrel_test
+          POSTGRES_USER: opskestrel
+          POSTGRES_PASSWORD: opskestrel_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U soc_agent -d soc_agent_test"
+          --health-cmd "pg_isready -U opskestrel -d opskestrel_test"
           --health-interval 2s
           --health-timeout 3s
           --health-retries 20
 
     env:
-      SOC_TEST_POSTGRES_DSN: >-
-        postgresql://soc_agent:soc_agent_test@localhost:5432/soc_agent_test
+      OPSKESTREL_TEST_POSTGRES_DSN: >-
+        postgresql://opskestrel:opskestrel_test@localhost:5432/opskestrel_test
 
     steps:
       - name: Check out repository

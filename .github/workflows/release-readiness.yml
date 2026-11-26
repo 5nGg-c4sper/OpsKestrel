@@ -32,7 +32,7 @@ jobs:
           python -m pip install setuptools wheel twine
 
       - name: Run release checks
-        run: python -m soc_agent release-check --json
+        run: python -m opskestrel release-check --json
 
       - name: Build and validate distributions
         run: |
@@ -42,6 +42,6 @@ jobs:
       - name: Upload distributions
         uses: actions/upload-artifact@v4
         with:
-          name: soc-agent-distributions
+          name: opskestrel-distributions
           path: dist/*
           retention-days: 14

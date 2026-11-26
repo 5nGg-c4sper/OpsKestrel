@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install and manage the SOC Agent launchd worker."""
+"""Install and manage the OpsKestrel launchd worker."""
 
 import argparse
 import os
@@ -14,7 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from soc_agent.launchd import (
+from opskestrel.launchd import (
     WorkerLaunchConfig,
     build_launch_agent_plist,
     service_label,
@@ -24,7 +24,7 @@ from soc_agent.launchd import (
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        description="Manage the SOC Agent macOS launchd worker",
+        description="Manage the OpsKestrel macOS launchd worker",
     )
     parser.add_argument(
         "command",

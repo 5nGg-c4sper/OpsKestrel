@@ -4,12 +4,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from soc_agent.reconciliation import (
+from opskestrel.reconciliation import (
     ReconciliationReport,
     ReconciliationResult,
     ReconciliationStatus,
 )
-from soc_agent.reviews import (
+from opskestrel.reviews import (
     ReviewAuditError,
     ReviewAuditLog,
     ReviewError,

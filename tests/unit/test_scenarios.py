@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from soc_agent.scenarios import ScenarioLoadError, load_scenario
+from opskestrel.scenarios import ScenarioLoadError, load_scenario
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

@@ -9,8 +9,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from soc_agent.cli import build_parser
-from soc_agent.launchd import (
+from opskestrel.cli import build_parser
+from opskestrel.launchd import (
     WorkerLaunchConfig,
     build_launch_agent_plist,
     build_program_arguments,
@@ -58,11 +58,11 @@ class WorkerLaunchConfigTests(unittest.TestCase):
     def test_service_label_is_stable_and_safe(self):
         self.assertEqual(
             service_label("Office Mac/1"),
-            "com.soc-agent.worker.office-mac-1",
+            "com.opskestrel.worker.office-mac-1",
         )
         self.assertEqual(
             service_label("..."),
-            "com.soc-agent.worker.default",
+            "com.opskestrel.worker.default",
         )
 
     def test_program_arguments_include_worker_options(self):
@@ -71,7 +71,7 @@ class WorkerLaunchConfigTests(unittest.TestCase):
         self.assertEqual(arguments[:5], [
             str(self.python_path),
             "-m",
-            "soc_agent.cli",
+            "opskestrel.cli",
             "queue",
             "worker",
         ])
@@ -104,7 +104,7 @@ class WorkerLaunchConfigTests(unittest.TestCase):
 
         self.assertEqual(
             plist["Label"],
-            "com.soc-agent.worker.office-mac-1",
+            "com.opskestrel.worker.office-mac-1",
         )
         self.assertEqual(
             plist["WorkingDirectory"],
@@ -182,7 +182,7 @@ class WorkerLaunchConfigTests(unittest.TestCase):
             plist = plistlib.load(plist_file)
         self.assertEqual(
             plist["Label"],
-            "com.soc-agent.worker.office-mac-1",
+            "com.opskestrel.worker.office-mac-1",
         )
         self.assertTrue(self.log_dir.exists())
         self.assertFalse(output_path.with_suffix(".plist.tmp").exists())
@@ -230,14 +230,14 @@ class WorkerLaunchConfigTests(unittest.TestCase):
         self.assertEqual(
             calls,
             [
-                ("bootout", "gui/501/com.soc-agent.worker.office-mac-1"),
-                ("print", "gui/501/com.soc-agent.worker.office-mac-1"),
+                ("bootout", "gui/501/com.opskestrel.worker.office-mac-1"),
+                ("print", "gui/501/com.opskestrel.worker.office-mac-1"),
                 ("bootstrap", "gui/501", str(plist_path.resolve())),
-                ("enable", "gui/501/com.soc-agent.worker.office-mac-1"),
+                ("enable", "gui/501/com.opskestrel.worker.office-mac-1"),
                 (
                     "kickstart",
                     "-k",
-                    "gui/501/com.soc-agent.worker.office-mac-1",
+                    "gui/501/com.opskestrel.worker.office-mac-1",
                 ),
             ],
         )

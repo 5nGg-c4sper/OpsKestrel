@@ -28,13 +28,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: soc-macos-gui-${{ github.repository }}
+  group: opskestrel-macos-gui-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
   gui-smoke:
     name: Manual macOS GUI smoke
-    runs-on: [self-hosted, macOS, soc-gui]
+    runs-on: [self-hosted, macOS, opskestrel-gui]
     timeout-minutes: 30
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -85,7 +85,7 @@ jobs:
             exit 1
           fi
 
-          screenshot_path="$(mktemp -t soc-ci-screen).png"
+          screenshot_path="$(mktemp -t opskestrel-ci-screen).png"
           trap 'rm -f "$screenshot_path"' EXIT
           screencapture -x "$screenshot_path"
           if [ ! -s "$screenshot_path" ]; then
@@ -113,7 +113,7 @@ jobs:
 
       - name: Run GUI smoke task
         run: |
-          .venv-ci/bin/python -m soc_agent run "$TASK_PATH" \
+          .venv-ci/bin/python -m opskestrel run "$TASK_PATH" \
             --non-interactive \
             --reports-dir reports/ci
 
@@ -121,7 +121,7 @@ jobs:
         if: ${{ always() && inputs.upload_reports }}
         uses: actions/upload-artifact@v4
         with:
-          name: soc-macos-gui-reports-${{ github.run_id }}
+          name: opskestrel-macos-gui-reports-${{ github.run_id }}
           path: reports/ci/
           if-no-files-found: warn
           retention-days: 7

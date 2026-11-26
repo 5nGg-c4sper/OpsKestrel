@@ -9,7 +9,7 @@
   </defs>
   <rect width="1200" height="680" fill="#f3f6f9"/>
   <text x="60" y="70" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="34" font-weight="700" fill="#17202a">
-    SOC Agent: Auditable Cross-System Automation
+    OpsKestrel: Auditable Cross-System Automation
   </text>
   <text x="60" y="104" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="18" fill="#65717c">
     Browser-first data collection, deterministic business rules, evidence, checkpoints, and reports

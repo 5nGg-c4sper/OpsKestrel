@@ -1,20 +1,20 @@
 """PostgreSQL queue integration tests.
 
-Set SOC_TEST_POSTGRES_DSN to run these tests:
+Set OPSKESTREL_TEST_POSTGRES_DSN to run these tests:
 
-    SOC_TEST_POSTGRES_DSN=postgresql://soc_agent:soc_agent_test@localhost:5432/soc_agent_test
+    OPSKESTREL_TEST_POSTGRES_DSN=postgresql://opskestrel:opskestrel_test@localhost:5432/opskestrel_test
 """
 
 import os
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from soc_agent.postgres_queue_store import PostgreSQLQueueStore
-from soc_agent.queue_models import QueueState, WorkerState
-from soc_agent.task_models import DatasetTargetType
+from opskestrel.postgres_queue_store import PostgreSQLQueueStore
+from opskestrel.queue_models import QueueState, WorkerState
+from opskestrel.task_models import DatasetTargetType
 
 
-POSTGRES_DSN = os.getenv("SOC_TEST_POSTGRES_DSN", "").strip()
+POSTGRES_DSN = os.getenv("OPSKESTREL_TEST_POSTGRES_DSN", "").strip()
 
 
 def _psycopg_connection():
@@ -26,7 +26,7 @@ def _psycopg_connection():
 
 @unittest.skipUnless(
     POSTGRES_DSN,
-    "SOC_TEST_POSTGRES_DSN is required for PostgreSQL integration tests",
+    "OPSKESTREL_TEST_POSTGRES_DSN is required for PostgreSQL integration tests",
 )
 class PostgreSQLQueueIntegrationTests(unittest.TestCase):
     @classmethod

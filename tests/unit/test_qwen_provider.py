@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from soc_agent.providers.base import VisionProviderError
-from soc_agent.providers.qwen import QwenVisionProvider
+from opskestrel.providers.base import VisionProviderError
+from opskestrel.providers.qwen import QwenVisionProvider
 
 
 class FakeCompletions:

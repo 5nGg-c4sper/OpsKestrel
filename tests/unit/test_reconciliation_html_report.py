@@ -4,16 +4,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from soc_agent.erp_reconciliation import (
+from opskestrel.erp_reconciliation import (
     BrowserReconciliationReport,
     ERPLookupEvidence,
 )
-from soc_agent.reconciliation import (
+from opskestrel.reconciliation import (
     ReconciliationReport,
     ReconciliationResult,
     ReconciliationStatus,
 )
-from soc_agent.reporting.reconciliation_report import (
+from opskestrel.reporting.reconciliation_report import (
     ReconciliationHTMLReportWriter,
 )
 

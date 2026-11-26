@@ -2,7 +2,7 @@
 
 import unittest
 
-from soc_agent.providers.base import VisionProvider
+from opskestrel.providers.base import VisionProvider
 
 
 class StubVisionProvider(VisionProvider):

@@ -6,21 +6,21 @@ Security fixes target the current `2.x` release line.
 
 ## Local Console
 
-SOC Agent is designed to bind to `127.0.0.1` by default. Do not bind the
+OpsKestrel is designed to bind to `127.0.0.1` by default. Do not bind the
 operations console to a public interface without an HTTPS reverse proxy and an
 external identity layer.
 
 Review mutations require a server-configured operator token:
 
 ```bash
-export SOC_OPERATOR_NAME=interview-operator
-export SOC_OPERATOR_ROLE=admin
-export SOC_OPERATOR_TOKEN="$(openssl rand -hex 32)"
-./venv/bin/soc-agent console
+export OPSKESTREL_OPERATOR_NAME=interview-operator
+export OPSKESTREL_OPERATOR_ROLE=admin
+export OPSKESTREL_OPERATOR_TOKEN="$(openssl rand -hex 32)"
+./venv/bin/opskestrel console
 ```
 
-The `scripts/start_soc_agent.sh` launcher writes the generated token to
-`.soc-console-token` with owner-only permissions. The file is ignored by Git.
+The `scripts/start_opskestrel.sh` launcher writes the generated token to
+`.opskestrel-console-token` with owner-only permissions. The file is ignored by Git.
 
 ## Report Data
 

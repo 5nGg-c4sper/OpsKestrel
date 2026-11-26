@@ -14,14 +14,14 @@ follow-up batch:
 Validate the package without touching the desktop:
 
 ```bash
-./venv/bin/soc-agent scenario validate \
+./venv/bin/opskestrel scenario validate \
   scenarios/customer_followup/scenario.json
 ```
 
 Run the complete batch:
 
 ```bash
-./venv/bin/soc-agent scenario run \
+./venv/bin/opskestrel scenario run \
   scenarios/customer_followup/scenario.json \
   --non-interactive
 ```

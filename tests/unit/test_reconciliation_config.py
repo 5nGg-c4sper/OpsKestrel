@@ -6,8 +6,8 @@ import unittest
 from decimal import Decimal
 from pathlib import Path
 
-from soc_agent.reconciliation import reconcile_files
-from soc_agent.reconciliation_config import (
+from opskestrel.reconciliation import reconcile_files
+from opskestrel.reconciliation_config import (
     ReconciliationConfig,
     ReconciliationConfigError,
 )

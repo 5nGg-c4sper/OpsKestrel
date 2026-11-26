@@ -6,12 +6,12 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
-from soc_agent.postgres_queue_store import PostgreSQLQueueStore
-from soc_agent.queue_models import QueueState, WorkerState
-from soc_agent.task_models import DatasetTargetType
+from opskestrel.postgres_queue_store import PostgreSQLQueueStore
+from opskestrel.queue_models import QueueState, WorkerState
+from opskestrel.task_models import DatasetTargetType
 
 
-POSTGRES_DSN = os.getenv("SOC_TEST_POSTGRES_DSN", "").strip()
+POSTGRES_DSN = os.getenv("OPSKESTREL_TEST_POSTGRES_DSN", "").strip()
 
 
 def _psycopg_connection():
@@ -23,7 +23,7 @@ def _psycopg_connection():
 
 @unittest.skipUnless(
     POSTGRES_DSN,
-    "SOC_TEST_POSTGRES_DSN is required for multi-worker tests",
+    "OPSKESTREL_TEST_POSTGRES_DSN is required for multi-worker tests",
 )
 class PostgreSQLMultiWorkerTests(unittest.TestCase):
     def setUp(self):

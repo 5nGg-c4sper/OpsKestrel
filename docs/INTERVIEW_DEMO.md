@@ -5,14 +5,14 @@
 Prepare a terminal at the repository root:
 
 ```bash
-cd /Users/mmmz/self-operating-computer
+cd /Users/mmmz/Documents/Codex/OpsKestrel
 source venv/bin/activate
-./venv/bin/soc-agent doctor --worker-id macbook-runner-1
-./scripts/start_soc_agent.sh
+./venv/bin/opskestrel doctor --worker-id macbook-runner-1
+./scripts/start_opskestrel.sh
 ```
 
 Open `http://127.0.0.1:8766`, then enter the token stored in
-`.soc-console-token`.
+`.opskestrel-console-token`.
 
 Keep Chrome installed and the Mac unlocked. Do not use a real ERP account or
 customer data for this demonstration.

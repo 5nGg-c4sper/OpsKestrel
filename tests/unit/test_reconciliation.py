@@ -7,7 +7,7 @@ from pathlib import Path
 from openpyxl import Workbook
 from reportlab.pdfgen import canvas
 
-from soc_agent.reconciliation import (
+from opskestrel.reconciliation import (
     ReconciliationStatus,
     load_expected_invoices,
     reconcile_files,

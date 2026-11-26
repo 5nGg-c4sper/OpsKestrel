@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from pydantic import ValidationError
 
-from soc_agent.task_models import (
+from opskestrel.task_models import (
     ActionType,
     ConditionType,
     StepResult,

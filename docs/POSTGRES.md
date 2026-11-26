@@ -21,7 +21,7 @@ Install dependencies and run integration tests:
 ```bash
 ./venv/bin/python -m pip install -r requirements-integration.txt
 
-export SOC_TEST_POSTGRES_DSN='postgresql://soc_agent:soc_agent_test@localhost:5432/soc_agent_test'
+export OPSKESTREL_TEST_POSTGRES_DSN='postgresql://opskestrel:opskestrel_test@localhost:5432/opskestrel_test'
 ./venv/bin/python -m unittest discover -s tests/integration -p 'test_*.py' -v
 ```
 
@@ -38,7 +38,7 @@ The Compose database is test-only and uses ephemeral data.
 Use a dedicated database and a least-privilege role:
 
 ```text
-postgresql://soc_agent:password@db.example.com/soc_agent
+postgresql://opskestrel:password@db.example.com/opskestrel
 ```
 
 Recommended controls:
@@ -56,8 +56,8 @@ Recommended controls:
 Start each Mac with a stable Worker ID and its capabilities:
 
 ```bash
-./venv/bin/soc-agent queue run \
-  --queue-db 'postgresql://soc_agent:password@db.example.com/soc_agent' \
+./venv/bin/opskestrel queue run \
+  --queue-db 'postgresql://opskestrel:password@db.example.com/opskestrel' \
   --worker-id office-mac-1 \
   --label office-mac \
   --label high-memory \
@@ -67,8 +67,8 @@ Start each Mac with a stable Worker ID and its capabilities:
 Query online Workers:
 
 ```bash
-./venv/bin/soc-agent queue workers \
-  --queue-db 'postgresql://soc_agent:password@db.example.com/soc_agent'
+./venv/bin/opskestrel queue workers \
+  --queue-db 'postgresql://opskestrel:password@db.example.com/opskestrel'
 ```
 
 ## Scheduling Guarantees
