@@ -380,6 +380,9 @@ the worker initializes the desktop environment and vision provider. Running
 jobs whose claim lease expires are automatically returned to `pending` or
 failed after `--max-attempts`.
 
+Failed and timed-out executions are also returned to `pending` until
+`--max-attempts` is reached. Cancelled jobs are never retried automatically.
+
 `--queue-db` accepts a filesystem path, `sqlite:///` URL, or PostgreSQL DSN:
 
 ```bash

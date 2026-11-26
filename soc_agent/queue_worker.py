@@ -17,6 +17,12 @@ from soc_agent.task_models import TaskResult, TaskStatus, WorkflowResult
 
 
 ExecutionResult = Union[TaskResult, WorkflowResult]
+RETRYABLE_QUEUE_STATES = frozenset(
+    {
+        QueueState.FAILED,
+        QueueState.TIMED_OUT,
+    }
+)
 
 
 class QueueWorker:
@@ -140,21 +146,32 @@ class QueueWorker:
 
         try:
             if result is None:
-                completed = self.store.complete(
+                queue_state = QueueState.FAILED
+                report_path = None
+                error = (
+                    "queue worker execution failed: "
+                    f"{execution_error}"
+                )
+            else:
+                queue_state = self._queue_state(result.status)
+                report_path = result.report_path
+                error = result.error
+
+            if (
+                queue_state in RETRYABLE_QUEUE_STATES
+                and job.attempts < self.max_attempts
+            ):
+                completed = self.store.requeue(
                     job.job_id,
-                    QueueState.FAILED,
-                    error=(
-                        "queue worker execution failed: "
-                        f"{execution_error}"
-                    ),
+                    error=error,
                     worker_id=worker_id,
                 )
             else:
                 completed = self.store.complete(
                     job.job_id,
-                    self._queue_state(result.status),
-                    report_path=result.report_path,
-                    error=result.error,
+                    queue_state,
+                    report_path=report_path,
+                    error=error,
                     worker_id=worker_id,
                 )
         except QueueStoreError as error:
@@ -188,7 +205,8 @@ class QueueWorker:
             completed = self.run_once()
             if completed is None:
                 break
-            completed_jobs.append(completed)
+            if completed.terminal:
+                completed_jobs.append(completed)
         return completed_jobs
 
     def run_forever(
@@ -229,13 +247,13 @@ class QueueWorker:
                         worker_labels=self.labels,
                     )
                     if job is not None:
-                        completed_jobs.append(
-                            self._execute_claimed(
-                                job,
-                                self.worker_id,
-                                keep_worker_online=True,
-                            )
+                        completed = self._execute_claimed(
+                            job,
+                            self.worker_id,
+                            keep_worker_online=True,
                         )
+                        if completed.terminal:
+                            completed_jobs.append(completed)
                         had_jobs = True
                     else:
                         had_jobs = False
@@ -308,7 +326,9 @@ class QueueWorker:
                 )
                 for future in done:
                     active.pop(future)
-                    completed_jobs.append(future.result())
+                    completed = future.result()
+                    if completed.terminal:
+                        completed_jobs.append(completed)
                     if (
                         max_jobs is not None
                         and len(completed_jobs) >= max_jobs

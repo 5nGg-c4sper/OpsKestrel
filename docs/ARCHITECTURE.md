@@ -232,6 +232,11 @@ WorkflowRunner 在同一 Workflow 的子任务之间合并
 任务标记为 `failed`；`recovery_count` 保留恢复次数。旧版 SQLite 表会在初始化
 时自动增加这些列，无需删除已有队列数据库。
 
+任务执行返回 `failed` 或 `timed_out` 且尚未达到最大尝试次数时，Worker 通过
+QueueStore 原子接口将任务重新排队，保留上次错误和报告路径并清除本次领取信息。
+任务被重新领取时 `attempts` 再次递增；达到上限后写入最终状态。
+`cancelled` 表示安全策略或人工拒绝，不会自动重试。
+
 每个 QueueJob 可持久化 `ExecutionPermissions`：`allowed_apps` 和
 `allowed_actions`。Worker 执行 Task 或 Workflow 时将其转换为 SafetyPolicy，
 每一步在执行前检查动作类型和应用名称；越权命令会产生 `cancelled` 结果，不会

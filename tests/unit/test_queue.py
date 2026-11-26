@@ -212,6 +212,45 @@ class SQLiteQueueStoreTests(unittest.TestCase):
         ):
             self.store.complete("job-pending", QueueState.FAILED)
 
+    def test_requeue_returns_running_job_to_pending(self):
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "task.json",
+            job_id="job-retry",
+        )
+        self.store.claim_next("worker-a")
+        self.advance()
+
+        requeued = self.store.requeue(
+            "job-retry",
+            error="temporary failure",
+            worker_id="worker-a",
+        )
+
+        self.assertEqual(requeued.state, QueueState.PENDING)
+        self.assertIsNone(requeued.started_at)
+        self.assertIsNone(requeued.claimed_at)
+        self.assertIsNone(requeued.worker_id)
+        self.assertEqual(requeued.attempts, 1)
+        self.assertEqual(requeued.error, "temporary failure")
+
+        reclaimed = self.store.claim_next("worker-a")
+        self.assertEqual(reclaimed.job_id, "job-retry")
+        self.assertEqual(reclaimed.attempts, 2)
+
+    def test_requeue_requires_running_job(self):
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "task.json",
+            job_id="job-pending",
+        )
+
+        with self.assertRaisesRegex(
+            QueueStoreError,
+            "is not running",
+        ):
+            self.store.requeue("job-pending")
+
     def test_list_jobs_filters_and_orders_by_priority(self):
         self.store.enqueue(
             DatasetTargetType.TASK,

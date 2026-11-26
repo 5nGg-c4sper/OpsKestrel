@@ -75,6 +75,15 @@ class QueueStore(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def requeue(
+        self,
+        job_id: str,
+        error: Optional[str] = None,
+        worker_id: Optional[str] = None,
+    ) -> QueueJob:
+        raise NotImplementedError
+
+    @abstractmethod
     def complete(
         self,
         job_id: str,

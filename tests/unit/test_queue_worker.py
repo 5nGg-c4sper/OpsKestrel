@@ -102,6 +102,7 @@ class QueueWorkerTests(unittest.TestCase):
         worker = QueueWorker(
             self.store,
             lambda job: workflow_result,
+            max_attempts=1,
         )
 
         completed = worker.run_once()
@@ -126,6 +127,7 @@ class QueueWorkerTests(unittest.TestCase):
         completed = QueueWorker(
             self.store,
             execute_job,
+            max_attempts=1,
         ).run_once()
 
         self.assertEqual(completed.state, QueueState.FAILED)
@@ -156,12 +158,105 @@ class QueueWorkerTests(unittest.TestCase):
                         status=value,
                         error=value.value,
                     ),
+                    max_attempts=1,
                 )
 
                 completed = worker.run_once()
 
                 self.assertEqual(completed.state, expected_state)
                 self.assertEqual(completed.error, status.value)
+
+    def test_failed_job_retries_until_it_passes(self):
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "tasks/flaky.json",
+            job_id="flaky-job",
+        )
+        calls = []
+
+        def execute_job(job):
+            calls.append(job.job_id)
+            if len(calls) == 1:
+                return self.make_task_result(
+                    status=TaskStatus.FAILED,
+                    report_path="reports/first.json",
+                    error="temporary failure",
+                )
+            return self.make_task_result(
+                report_path="reports/second.json"
+            )
+
+        completed = QueueWorker(
+            self.store,
+            execute_job,
+            max_attempts=2,
+        ).run_until_empty()
+
+        self.assertEqual(calls, ["flaky-job", "flaky-job"])
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].state, QueueState.PASSED)
+        self.assertEqual(completed[0].attempts, 2)
+        self.assertEqual(
+            completed[0].report_path,
+            "reports/second.json",
+        )
+
+    def test_failed_job_stops_retrying_at_max_attempts(self):
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "tasks/always-fails.json",
+            job_id="always-fails",
+        )
+        calls = []
+
+        def execute_job(job):
+            calls.append(job.job_id)
+            return self.make_task_result(
+                status=TaskStatus.FAILED,
+                report_path=f"reports/failure-{len(calls)}.json",
+                error="permanent failure",
+            )
+
+        completed = QueueWorker(
+            self.store,
+            execute_job,
+            max_attempts=2,
+        ).run_until_empty()
+
+        self.assertEqual(calls, ["always-fails", "always-fails"])
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].state, QueueState.FAILED)
+        self.assertEqual(completed[0].attempts, 2)
+        self.assertEqual(
+            completed[0].report_path,
+            "reports/failure-2.json",
+        )
+
+    def test_cancelled_job_is_not_retried(self):
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "tasks/cancelled.json",
+            job_id="cancelled-job",
+        )
+        calls = []
+
+        def execute_job(job):
+            calls.append(job.job_id)
+            return self.make_task_result(
+                status=TaskStatus.CANCELLED,
+                error="approval rejected",
+            )
+
+        completed = QueueWorker(
+            self.store,
+            execute_job,
+            max_attempts=3,
+        ).run_until_empty()
+
+        self.assertEqual(calls, ["cancelled-job"])
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].state, QueueState.CANCELLED)
+        self.assertEqual(completed[0].attempts, 1)
 
     def test_run_until_empty_processes_jobs_in_priority_order(self):
         self.store.enqueue(

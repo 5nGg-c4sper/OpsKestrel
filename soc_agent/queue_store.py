@@ -480,6 +480,42 @@ class SQLiteQueueStore(QueueStore):
             )
         return self.get(job_id)
 
+    def requeue(
+        self,
+        job_id: str,
+        error: Optional[str] = None,
+        worker_id: Optional[str] = None,
+    ) -> QueueJob:
+        now = self._clock()
+        owner_clause = ""
+        values = [
+            QueueState.PENDING.value,
+            now.isoformat(),
+            error,
+            job_id,
+            QueueState.RUNNING.value,
+        ]
+        if worker_id is not None:
+            owner_clause = " AND worker_id = ?"
+            values.append(worker_id)
+
+        with self._connection() as connection:
+            updated = connection.execute(
+                f"""
+                UPDATE queue_jobs
+                SET state = ?, started_at = NULL, claimed_at = NULL,
+                    worker_id = NULL, finished_at = NULL,
+                    updated_at = ?, error = ?
+                WHERE job_id = ? AND state = ?{owner_clause}
+                """,
+                tuple(values),
+            )
+        if updated.rowcount != 1:
+            raise QueueStoreError(
+                f"queue job is not running: {job_id}"
+            )
+        return self.get(job_id)
+
     def _initialize(self) -> None:
         with self._connection() as connection:
             apply_sqlite_migrations(

@@ -406,6 +406,48 @@ class PostgreSQLQueueStore(QueueStore):
             )
         return self._job_from_row(row)
 
+    def requeue(
+        self,
+        job_id: str,
+        error: Optional[str] = None,
+        worker_id: Optional[str] = None,
+    ) -> QueueJob:
+        now = self._clock()
+        query = """
+            UPDATE queue_jobs
+            SET state = %s, started_at = NULL, claimed_at = NULL,
+                worker_id = NULL, finished_at = NULL,
+                updated_at = %s, error = %s
+            WHERE job_id = %s AND state = %s
+        """
+        values = [
+            QueueState.PENDING.value,
+            now,
+            error,
+            job_id,
+            QueueState.RUNNING.value,
+        ]
+        if worker_id is not None:
+            query += " AND worker_id = %s"
+            values.append(worker_id)
+        query += " RETURNING *"
+        with self._connection() as connection:
+            row = connection.execute(
+                query,
+                tuple(values),
+            ).fetchone()
+            if row is not None:
+                connection.execute(
+                    "DELETE FROM queue_exclusive_locks "
+                    "WHERE job_id = %s",
+                    (job_id,),
+                )
+        if row is None:
+            raise QueueStoreError(
+                f"queue job is not running: {job_id}"
+            )
+        return self._job_from_row(row)
+
     def register_worker(
         self,
         worker_id: str,
