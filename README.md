@@ -359,6 +359,19 @@ records in TextEdit, verifies each record, checks an associated amount in
 Calculator, closes documents without saving, and writes nested workflow and
 dataset reports.
 
+Run deterministic invoice reconciliation without a model or API key:
+
+```bash
+./venv/bin/soc-agent reconcile \
+  scenarios/invoice_reconciliation/data/input_invoices.csv \
+  scenarios/invoice_reconciliation/data/erp_invoices.json \
+  --output reports/invoice-reconciliation.json
+```
+
+Use `--fail-on-differences` in CI when any mismatch, missing record, duplicate,
+or invalid input should return exit code `1`. Amounts use decimal arithmetic and
+a configurable absolute tolerance.
+
 Manage the persistent execution queue:
 
 ```bash

@@ -418,6 +418,24 @@ class CLITests(unittest.TestCase):
         self.assertTrue(run_args.non_interactive)
         self.assertTrue(run_args.stop_on_failure)
 
+    def test_parser_supports_reconcile_command(self):
+        args = build_parser().parse_args(
+            [
+                "reconcile",
+                "expected.csv",
+                "erp.json",
+                "--amount-tolerance",
+                "0.02",
+                "--json",
+                "--fail-on-differences",
+            ]
+        )
+
+        self.assertEqual(args.command, "reconcile")
+        self.assertEqual(args.amount_tolerance, "0.02")
+        self.assertTrue(args.json)
+        self.assertTrue(args.fail_on_differences)
+
     def test_parser_supports_repeated_suite_parameters(self):
         args = build_parser().parse_args(
             [
@@ -1034,6 +1052,48 @@ class CLITests(unittest.TestCase):
         self.assertIn("Scenario: customer_followup_batch", output.getvalue())
         self.assertIn("Cases: 3", output.getvalue())
         self.assertIn("Validation: PASSED", output.getvalue())
+        load_dotenv.assert_not_called()
+
+    def test_main_runs_reconciliation_without_api_key(self):
+        fixtures = (
+            PROJECT_ROOT
+            / "scenarios"
+            / "invoice_reconciliation"
+            / "data"
+        )
+        report_path = self.root / "reconciliation.json"
+        output = StringIO()
+
+        with (
+            patch("soc_agent.cli.load_dotenv") as load_dotenv,
+            redirect_stdout(output),
+        ):
+            exit_code = main(
+                [
+                    "reconcile",
+                    str(fixtures / "input_invoices.csv"),
+                    str(fixtures / "erp_invoices.json"),
+                    "--output",
+                    str(report_path),
+                ]
+            )
+            strict_exit_code = main(
+                [
+                    "reconcile",
+                    str(fixtures / "input_invoices.csv"),
+                    str(fixtures / "erp_invoices.json"),
+                    "--fail-on-differences",
+                ]
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(strict_exit_code, 1)
+        self.assertIn("Total: 20", output.getvalue())
+        self.assertIn("matched: 10", output.getvalue())
+        self.assertIn("INV-1011 amount_mismatch", output.getvalue())
+        self.assertTrue(report_path.is_file())
+        payload = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["summary"]["total"], 20)
         load_dotenv.assert_not_called()
 
     def test_main_cancels_and_retries_jobs_without_api_key(self):

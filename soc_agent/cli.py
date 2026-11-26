@@ -22,6 +22,10 @@ from soc_agent.privacy import capture_screenshot
 from soc_agent.queue_backend import create_queue_store
 from soc_agent.queue_models import QueueJob, QueueState
 from soc_agent.queue_worker import QueueWorker
+from soc_agent.reconciliation import (
+    ReconciliationStatus,
+    reconcile_files,
+)
 from soc_agent.reporting.dataset_report import DatasetReportWriter
 from soc_agent.reporting.report import ReportWriter
 from soc_agent.reporting.suite_report import SuiteReportWriter
@@ -382,6 +386,33 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Stop after the first unsuccessful case",
     )
+
+    reconcile_parser = subparsers.add_parser(
+        "reconcile",
+        help="Compare expected invoices with ERP records",
+    )
+    reconcile_parser.add_argument("expected_csv")
+    reconcile_parser.add_argument("erp_json")
+    reconcile_parser.add_argument(
+        "--amount-tolerance",
+        default="0.01",
+        help="Allowed absolute amount difference",
+    )
+    reconcile_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the full reconciliation report as JSON",
+    )
+    reconcile_parser.add_argument(
+        "--output",
+        default=None,
+        help="Write the JSON report to this path",
+    )
+    reconcile_parser.add_argument(
+        "--fail-on-differences",
+        action="store_true",
+        help="Return exit code 1 when any difference is found",
+    )
     return parser
 
 
@@ -597,6 +628,9 @@ def main(
         if args.scenario_command == "validate":
             return validate_scenario(args)
 
+    if args.command == "reconcile":
+        return run_reconciliation(args)
+
     load_dotenv()
     if args.command == "doctor":
         return run_doctor(args)
@@ -789,6 +823,56 @@ def validate_scenario(args) -> int:
     if definition.required_apps:
         print(f"Apps: {', '.join(definition.required_apps)}")
     print("Validation: PASSED")
+    return 0
+
+
+def run_reconciliation(args) -> int:
+    try:
+        report = reconcile_files(
+            args.expected_csv,
+            args.erp_json,
+            amount_tolerance=args.amount_tolerance,
+        )
+    except Exception as error:
+        print(f"Reconciliation failed: {error}")
+        return 1
+
+    payload = report.to_dict()
+    if args.output:
+        output_path = Path(args.output).expanduser().resolve()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        summary = report.summary
+        print(f"Total: {summary['total']}")
+        for status in ReconciliationStatus:
+            print(
+                f"{status.value}: "
+                f"{summary['by_status'][status.value]}"
+            )
+        for result in report.results:
+            if result.status == ReconciliationStatus.MATCHED:
+                continue
+            detail = (
+                result.error
+                or "; ".join(result.differences)
+                or result.status.value
+            )
+            print(
+                f"{result.invoice_id} "
+                f"{result.status.value}: {detail}"
+            )
+        if args.output:
+            print(f"Report: {output_path}")
+
+    if args.fail_on_differences and not report.summary["all_matched"]:
+        return 1
     return 0
 
 

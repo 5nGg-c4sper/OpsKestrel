@@ -295,3 +295,14 @@ Worker `max_concurrency` 只提供并行槽位，不会绕过 GUI 全局串行�
 场景 package 必须使用 workflow target，避免把缺少跨应用编排的单任务包装成完整
 业务场景。示例 `customer_followup` 使用虚构客户数据，执行 TextEdit 回访录入、
 视觉验证、无保存清理、Calculator 金额核对和批量汇总。
+
+## 对账核心
+
+`soc_agent.reconciliation` 将业务比较与浏览器或视觉数据采集解耦。输入行按
+`invoice_id` 对齐，金额使用 `Decimal` 和可配置绝对误差，结果稳定排序并分为
+`matched`、`amount_mismatch`、`currency_mismatch`、`status_mismatch`、
+`missing_in_erp`、`duplicate_in_erp` 和 `invalid_input`。
+
+`soc-agent reconcile` 不读取模型凭证、不访问桌面。CSV/JSON 对账结果可输出为
+文本或 JSON 报告，`--fail-on-differences` 可将任何业务差异转换为 CI 非零退出码。
+后续 Browser Adapter 只负责从 ERP 页面采集结构化字段，不复制金额比较规则。
