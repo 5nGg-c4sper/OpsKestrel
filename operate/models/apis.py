@@ -39,8 +39,8 @@ async def get_next_action(model, messages, objective, session_id, scale=1.0):
     model = os.getenv("MODEL", model)
     model_lower = model.lower()
     if config.verbose:
-        print("[Self-Operating Computer][get_next_action]")
-        print("[Self-Operating Computer][get_next_action] model", model)
+        print("[OpsKestrel][get_next_action]")
+        print("[OpsKestrel][get_next_action] model", model)
     if "deepseek-vl" in model_lower:
         operation = await call_deepseek_vl(messages, objective, model, scale)
         return (operation, None)
@@ -117,11 +117,11 @@ def call_gpt_4o(messages, scale=1.0):
 
     except Exception as e:
         print(
-            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_BRIGHT_MAGENTA}[Operate] That did not work. Trying again {ANSI_RESET}",
+            f"{ANSI_GREEN}[OpsKestrel]{ANSI_BRIGHT_MAGENTA}[Operate] That did not work. Trying again {ANSI_RESET}",
             e,
         )
         print(
-            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_RED}[Error] AI response was {ANSI_RESET}",
+            f"{ANSI_GREEN}[OpsKestrel]{ANSI_RED}[Error] AI response was {ANSI_RESET}",
             content,
         )
         if config.verbose:
@@ -239,17 +239,17 @@ async def call_qwen_vl_with_ocr(messages, objective, model, scale=1.0):
 
     except Exception as e:
         print(
-            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
+            f"{ANSI_GREEN}[OpsKestrel]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
         )
         if config.verbose:
-            print("[Self-Operating Computer][Operate] error", e)
+            print("[OpsKestrel][Operate] error", e)
             traceback.print_exc()
         return await gpt_4_fallback(messages, objective, model, scale)
 
 
 def call_gemini_pro_vision(messages, objective, scale=1.0):
     """
-    Get the next action for Self-Operating Computer using Gemini Pro Vision
+    Get the next action for OpsKestrel using Gemini Pro Vision
     """
     if config.verbose:
         print(
@@ -291,10 +291,10 @@ def call_gemini_pro_vision(messages, objective, scale=1.0):
 
     except Exception as e:
         print(
-            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_BRIGHT_MAGENTA}[Operate] That did not work. Trying another method {ANSI_RESET}"
+            f"{ANSI_GREEN}[OpsKestrel]{ANSI_BRIGHT_MAGENTA}[Operate] That did not work. Trying another method {ANSI_RESET}"
         )
         if config.verbose:
-            print("[Self-Operating Computer][Operate] error", e)
+            print("[OpsKestrel][Operate] error", e)
             traceback.print_exc()
         return call_gpt_4o(messages, scale)
 
@@ -404,10 +404,10 @@ async def call_gpt_4o_with_ocr(messages, objective, model, scale=1.0):
 
     except Exception as e:
         print(
-            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
+            f"{ANSI_GREEN}[OpsKestrel]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
         )
         if config.verbose:
-            print("[Self-Operating Computer][Operate] error", e)
+            print("[OpsKestrel][Operate] error", e)
             traceback.print_exc()
         return await gpt_4_fallback(messages, objective, model, scale)
 
@@ -510,10 +510,10 @@ async def call_gpt_4_1_with_ocr(messages, objective, model, scale=1.0):
 
     except Exception as e:
         print(
-            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
+            f"{ANSI_GREEN}[OpsKestrel]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
         )
         if config.verbose:
-            print("[Self-Operating Computer][Operate] error", e)
+            print("[OpsKestrel][Operate] error", e)
             traceback.print_exc()
         return await gpt_4_fallback(messages, objective, model, scale)
 
@@ -623,10 +623,10 @@ async def call_o1_with_ocr(messages, objective, model, scale=1.0):
 
     except Exception as e:
         print(
-            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
+            f"{ANSI_GREEN}[OpsKestrel]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
         )
         if config.verbose:
-            print("[Self-Operating Computer][Operate] error", e)
+            print("[OpsKestrel][Operate] error", e)
             traceback.print_exc()
         return await gpt_4_fallback(messages, objective, model, scale)
 
@@ -735,7 +735,7 @@ async def call_gpt_4o_labeled(messages, objective, model, scale=1.0):
                     )
                 if not click_position_percent:
                     print(
-                        f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_RED}[Error] Failed to get click position in percent. Trying another method {ANSI_RESET}"
+                        f"{ANSI_GREEN}[OpsKestrel]{ANSI_RED}[Error] Failed to get click position in percent. Trying another method {ANSI_RESET}"
                     )
                     return call_gpt_4o(messages, scale)
 
@@ -767,10 +767,10 @@ async def call_gpt_4o_labeled(messages, objective, model, scale=1.0):
 
     except Exception as e:
         print(
-            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
+            f"{ANSI_GREEN}[OpsKestrel]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
         )
         if config.verbose:
-            print("[Self-Operating Computer][Operate] error", e)
+            print("[OpsKestrel][Operate] error", e)
             traceback.print_exc()
         return call_gpt_4o(messages, scale)
 
@@ -835,17 +835,17 @@ def call_ollama_llava(messages, scale=1.0):
 
     except ollama.ResponseError as e:
         print(
-            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_RED}[Operate] Couldn't connect to Ollama. With Ollama installed, run `ollama pull llava` then `ollama serve`{ANSI_RESET}",
+            f"{ANSI_GREEN}[OpsKestrel]{ANSI_RED}[Operate] Couldn't connect to Ollama. With Ollama installed, run `ollama pull llava` then `ollama serve`{ANSI_RESET}",
             e,
         )
 
     except Exception as e:
         print(
-            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_BRIGHT_MAGENTA}[llava] That did not work. Trying again {ANSI_RESET}",
+            f"{ANSI_GREEN}[OpsKestrel]{ANSI_BRIGHT_MAGENTA}[llava] That did not work. Trying again {ANSI_RESET}",
             e,
         )
         print(
-            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_RED}[Error] AI response was {ANSI_RESET}",
+            f"{ANSI_GREEN}[OpsKestrel]{ANSI_RED}[Error] AI response was {ANSI_RESET}",
             content,
         )
         if config.verbose:
@@ -925,7 +925,7 @@ async def call_claude_3_with_ocr(messages, objective, model, scale=1.0):
         except json.JSONDecodeError as e:
             if config.verbose:
                 print(
-                    f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_RED}[Error] JSONDecodeError: {e} {ANSI_RESET}"
+                    f"{ANSI_GREEN}[OpsKestrel]{ANSI_RED}[Error] JSONDecodeError: {e} {ANSI_RESET}"
                 )
             response = client.messages.create(
                 model="claude-3-opus-20240229",
@@ -942,7 +942,7 @@ async def call_claude_3_with_ocr(messages, objective, model, scale=1.0):
 
         if config.verbose:
             print(
-                f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_BRIGHT_MAGENTA}[{model}] content: {content} {ANSI_RESET}"
+                f"{ANSI_GREEN}[OpsKestrel]{ANSI_BRIGHT_MAGENTA}[{model}] content: {content} {ANSI_RESET}"
             )
         processed_content = []
 
@@ -997,10 +997,10 @@ async def call_claude_3_with_ocr(messages, objective, model, scale=1.0):
 
     except Exception as e:
         print(
-            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
+            f"{ANSI_GREEN}[OpsKestrel]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
         )
         if config.verbose:
-            print("[Self-Operating Computer][Operate] error", e)
+            print("[OpsKestrel][Operate] error", e)
             traceback.print_exc()
             print("message before convertion ", messages)
 
@@ -1099,10 +1099,10 @@ async def call_deepseek_vl(messages, objective, model, scale=1.0):
     except Exception as e:
         print(f"[call_deepseek_vl] Exception detail: {repr(e)}")
         print(
-            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
+            f"{ANSI_GREEN}[OpsKestrel]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
         )
         if config.verbose:
-            print("[Self-Operating Computer][Operate] error", e)
+            print("[OpsKestrel][Operate] error", e)
             traceback.print_exc()
         content = {}
 
@@ -1192,10 +1192,10 @@ async def call_qwen25_vl(messages, objective, model, scale=1.0):
     except Exception as e:
         print(f"[call_qwen25_vl] Exception detail: {repr(e)}")
         print(
-            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
+            f"{ANSI_GREEN}[OpsKestrel]{ANSI_BRIGHT_MAGENTA}[{model}] That did not work. Trying another method {ANSI_RESET}"
         )
         if config.verbose:
-            print("[Self-Operating Computer][Operate] error", e)
+            print("[OpsKestrel][Operate] error", e)
             traceback.print_exc()
         content = {}
 

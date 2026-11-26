@@ -121,7 +121,7 @@ celerybeat.pid
 
 # Environments
 .env
-.soc-console-token
+.opskestrel-console-token
 .venv
 env/
 venv/

@@ -7,7 +7,7 @@ The deterministic reconciliation core is complete and does not require an API
 key, browser, or vision model:
 
 ```bash
-./venv/bin/soc-agent reconcile \
+./venv/bin/opskestrel reconcile \
   scenarios/invoice_reconciliation/data/input_invoices.csv \
   scenarios/invoice_reconciliation/data/erp_invoices.json
 ```
@@ -20,7 +20,7 @@ to the canonical reconciliation fields.
 Write a machine-readable report and fail CI when differences exist:
 
 ```bash
-./venv/bin/soc-agent reconcile \
+./venv/bin/opskestrel reconcile \
   scenarios/invoice_reconciliation/data/input_invoices.csv \
   scenarios/invoice_reconciliation/data/erp_invoices.json \
   --output reports/invoice-reconciliation.json \
@@ -43,7 +43,7 @@ always sorted deterministically by invoice ID.
 Start the local Mock ERP:
 
 ```bash
-./venv/bin/soc-agent mock-erp --port 8765
+./venv/bin/opskestrel mock-erp --port 8765
 ```
 
 Open `http://127.0.0.1:8765`. The page searches the synthetic ERP JSON and exposes
@@ -54,7 +54,7 @@ The browser adapter collects these fields from the page and feeds the
 deterministic reconciliation core:
 
 ```bash
-./venv/bin/soc-agent erp-search INV-1017 \
+./venv/bin/opskestrel erp-search INV-1017 \
   --screenshot reports/erp-inv-1017.png
 ```
 
@@ -67,13 +67,13 @@ supports login, session expiry, pagination, one-time server errors, slow
 responses, and CSV download. Use `failure-example.json` to exercise retry and
 diagnostics.
 
-Credentials are read from `SOC_ERP_USERNAME` and `SOC_ERP_PASSWORD` when CLI
+Credentials are read from `OPSKESTREL_ERP_USERNAME` and `OPSKESTREL_ERP_PASSWORD` when CLI
 values are omitted. The local demo falls back to `demo` / `demo`.
 
 Run all 20 fixture invoices through the browser and reconciliation engine:
 
 ```bash
-./venv/bin/soc-agent erp-reconcile \
+./venv/bin/opskestrel erp-reconcile \
   scenarios/invoice_reconciliation/data/input_invoices.csv \
   --screenshot-dir reports/invoice-reconciliation/evidence \
   --checkpoint reports/invoice-reconciliation/checkpoint.json \
@@ -94,10 +94,10 @@ invoice, allowing the next run to resume from failed or missing items.
 The complete scenario manifest is `scenario.json`. Validate and run it with:
 
 ```bash
-./venv/bin/soc-agent scenario validate \
+./venv/bin/opskestrel scenario validate \
   scenarios/invoice_reconciliation/scenario.json
 
-./venv/bin/soc-agent scenario run \
+./venv/bin/opskestrel scenario run \
   scenarios/invoice_reconciliation/scenario.json \
   --checkpoint reports/invoice-reconciliation/checkpoint.json \
   --html reports/invoice-reconciliation.html \

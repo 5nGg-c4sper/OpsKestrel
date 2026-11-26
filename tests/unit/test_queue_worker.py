@@ -7,10 +7,10 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from soc_agent.queue_models import QueueJob, QueueState, WorkerState
-from soc_agent.queue_store import SQLiteQueueStore
-from soc_agent.queue_worker import QueueWorker
-from soc_agent.task_models import (
+from opskestrel.queue_models import QueueJob, QueueState, WorkerState
+from opskestrel.queue_store import SQLiteQueueStore
+from opskestrel.queue_worker import QueueWorker
+from opskestrel.task_models import (
     DatasetTargetType,
     TaskResult,
     TaskStatus,

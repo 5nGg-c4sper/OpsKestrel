@@ -7,9 +7,9 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
-from soc_agent.dataset_runner import DatasetRunner
-from soc_agent.datasets import DatasetLoadError, load_dataset
-from soc_agent.task_models import (
+from opskestrel.dataset_runner import DatasetRunner
+from opskestrel.datasets import DatasetLoadError, load_dataset
+from opskestrel.task_models import (
     DatasetTargetType,
     TaskDatasetDefinition,
     TaskResult,

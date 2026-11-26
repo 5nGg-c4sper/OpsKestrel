@@ -6,7 +6,7 @@ import unittest
 from contextlib import contextmanager
 from pathlib import Path
 
-from soc_agent.browser import (
+from opskestrel.browser import (
     BrowserAdapterError,
     ERPSelectors,
     ERPSearchResult,

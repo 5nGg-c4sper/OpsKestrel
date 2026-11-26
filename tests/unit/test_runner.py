@@ -5,10 +5,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from soc_agent.actions.executor import ActionExecutor
-from soc_agent.runner import TaskRunner
-from soc_agent.safety.policy import SafetyPolicy
-from soc_agent.task_models import (
+from opskestrel.actions.executor import ActionExecutor
+from opskestrel.runner import TaskRunner
+from opskestrel.safety.policy import SafetyPolicy
+from opskestrel.task_models import (
     ActionType,
     StepPhase,
     StepStatus,

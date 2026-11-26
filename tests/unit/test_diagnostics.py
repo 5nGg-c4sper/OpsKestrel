@@ -4,13 +4,13 @@ import unittest
 from datetime import datetime, timezone
 from subprocess import CompletedProcess
 
-from soc_agent.diagnostics import (
+from opskestrel.diagnostics import (
     DiagnosticCheck,
     DiagnosticReport,
     DiagnosticStatus,
     DiagnosticsRunner,
 )
-from soc_agent.queue_models import QueueWorkerRecord, WorkerState
+from opskestrel.queue_models import QueueWorkerRecord, WorkerState
 
 
 class FakeQueueStore:

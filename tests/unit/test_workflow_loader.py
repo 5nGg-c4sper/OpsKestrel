@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from soc_agent.workflows import WorkflowLoadError, load_workflow
+from opskestrel.workflows import WorkflowLoadError, load_workflow
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

@@ -14,7 +14,7 @@ from urllib.request import (
     build_opener,
 )
 
-from soc_agent.mock_erp_enterprise import (
+from opskestrel.mock_erp_enterprise import (
     EnterpriseERPConfig,
     create_enterprise_erp_server,
 )

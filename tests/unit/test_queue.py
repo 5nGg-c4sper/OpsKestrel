@@ -8,9 +8,9 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from soc_agent.queue_models import QueueJob, QueueState, WorkerState
-from soc_agent.queue_store import QueueStoreError, SQLiteQueueStore
-from soc_agent.task_models import (
+from opskestrel.queue_models import QueueJob, QueueState, WorkerState
+from opskestrel.queue_store import QueueStoreError, SQLiteQueueStore
+from opskestrel.task_models import (
     ActionType,
     DatasetTargetType,
     ExecutionPermissions,

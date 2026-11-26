@@ -13,7 +13,7 @@
 Run:
 
 ```bash
-cd /Users/mmmz/self-operating-computer
+cd /Users/mmmz/Documents/Codex/OpsKestrel
 ./scripts/bootstrap_macos_demo.sh
 ```
 
@@ -45,7 +45,7 @@ Artifacts are written to `reports/demo-<timestamp>/`:
 ## One-Command Console
 
 ```bash
-./scripts/start_soc_agent.sh
+./scripts/start_opskestrel.sh
 ```
 
 Open `http://127.0.0.1:8766` to view reports, online Workers, and start the
@@ -75,7 +75,7 @@ If an evidence bundle already exists, it is regenerated. Historical runs can be
 selected from the console, multiple differences can be reviewed together, and
 an `admin` can close a completed review.
 
-The launcher writes a random operator token to `.soc-console-token` with
+The launcher writes a random operator token to `.opskestrel-console-token` with
 owner-only permissions. Paste that token into the console before using review
 operations. Do not commit or share the token file. Client-supplied reviewer
 names are ignored; the configured token identity is recorded in the hash-chained
@@ -84,11 +84,11 @@ names are ignored; the configured token identity is recorded in the hash-chained
 ## Health And Release Checks
 
 ```bash
-./venv/bin/soc-agent health --json
-./venv/bin/soc-agent release-check --json
+./venv/bin/opskestrel health --json
+./venv/bin/opskestrel release-check --json
 ./scripts/release_acceptance.sh
 ```
 
 The health endpoint is `http://127.0.0.1:8766/healthz`. Set
-`SOC_ACCEPTANCE_BROWSER=1` when running release acceptance to include the real
+`OPSKESTREL_ACCEPTANCE_BROWSER=1` when running release acceptance to include the real
 Chrome invoice demo.

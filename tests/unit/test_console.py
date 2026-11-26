@@ -1,4 +1,4 @@
-"""Tests for the local SOC Agent operations console."""
+"""Tests for the local OpsKestrel operations console."""
 
 import json
 import sys
@@ -11,8 +11,8 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from soc_agent.console import create_console_server
-from soc_agent.queue_models import QueueWorkerRecord, WorkerState
+from opskestrel.console import create_console_server
+from opskestrel.queue_models import QueueWorkerRecord, WorkerState
 
 
 class FakeQueueStore:
@@ -196,7 +196,7 @@ class ConsoleTests(unittest.TestCase):
         status, payload = self.get_json("/api/overview")
 
         self.assertEqual(response.status, 200)
-        self.assertIn("SOC Agent Console", html)
+        self.assertIn("OpsKestrel Console", html)
         self.assertIn('join("\\n")', html)
         self.assertIn('id="cancel-run"', html)
         self.assertIn('id="bundle-run"', html)
@@ -212,7 +212,7 @@ class ConsoleTests(unittest.TestCase):
 
         self.assertEqual(status, 200)
         self.assertEqual(payload["status"], "ok")
-        self.assertEqual(payload["service"], "soc-agent-console")
+        self.assertEqual(payload["service"], "opskestrel-console")
         self.assertTrue(payload["checks"]["reports_writable"])
         self.assertTrue(
             payload["checks"]["operator_authentication_configured"]

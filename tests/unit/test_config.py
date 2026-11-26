@@ -2,7 +2,7 @@
 
 import unittest
 
-from soc_agent.config import AgentConfig, ConfigError
+from opskestrel.config import AgentConfig, ConfigError
 
 
 class AgentConfigTests(unittest.TestCase):

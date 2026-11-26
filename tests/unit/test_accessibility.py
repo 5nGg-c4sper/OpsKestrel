@@ -4,12 +4,12 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from soc_agent.accessibility import (
+from opskestrel.accessibility import (
     AccessibilityLocator,
     AccessibilityLookupError,
     PyObjCAccessibilityAdapter,
 )
-from soc_agent.task_models import UIElementLocator
+from opskestrel.task_models import UIElementLocator
 
 
 class FakeAccessibilityAdapter:

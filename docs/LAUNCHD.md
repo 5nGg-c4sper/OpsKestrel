@@ -1,6 +1,6 @@
 # macOS launchd Worker
 
-`scripts/worker_launchd.py` installs a long-running SOC Agent queue Worker as
+`scripts/worker_launchd.py` installs a long-running OpsKestrel queue Worker as
 a per-user LaunchAgent. The Worker starts after the user logs in and restarts
 after an abnormal exit.
 
@@ -10,7 +10,7 @@ after an abnormal exit.
 - Keep the Mac unlocked while GUI jobs can run.
 - Grant Accessibility and Screen Recording permission to the process that
   launches the service. Verify the same permission for a normal
-  `soc-agent queue worker` run first.
+  `opskestrel queue worker` run first.
 - Install the project in the active virtual environment and keep `.env` in the
   project root. The plist never contains API keys or database credentials.
 - Use a stable `--worker-id` and capability labels when multiple Macs share a
@@ -24,7 +24,7 @@ Render a plist for inspection without starting a Worker:
 ./venv/bin/python scripts/worker_launchd.py render \
   --worker-id office-mac-1 \
   --label office-mac \
-  --output /private/tmp/soc-agent-worker.plist
+  --output /private/tmp/opskestrel-worker.plist
 ```
 
 The output is an XML plist. Review `ProgramArguments`, `WorkingDirectory`, and
@@ -46,13 +46,13 @@ For a shared PostgreSQL queue:
 ./venv/bin/python scripts/worker_launchd.py install \
   --worker-id office-mac-1 \
   --label office-mac \
-  --queue-db 'postgresql://soc_agent:password@db.example.com/soc_agent'
+  --queue-db 'postgresql://opskestrel:password@db.example.com/opskestrel'
 ```
 
 The default service name is
-`com.soc-agent.worker.<sanitized-worker-id>`. The LaunchAgent plist is stored
+`com.opskestrel.worker.<sanitized-worker-id>`. The LaunchAgent plist is stored
 under `~/Library/LaunchAgents/`; stdout and stderr are written under
-`~/Library/Logs/SOCAgent/`.
+`~/Library/Logs/OpsKestrel/`.
 
 The installer does not enable `--non-interactive` automatically. Add it only
 when the queue contains tasks whose approval steps are safe to accept without
@@ -75,9 +75,9 @@ an operator.
 Check the queue registry and logs after installation:
 
 ```bash
-./venv/bin/soc-agent queue workers
-tail -f ~/Library/Logs/SOCAgent/worker.out.log
-tail -f ~/Library/Logs/SOCAgent/worker.err.log
+./venv/bin/opskestrel queue workers
+tail -f ~/Library/Logs/OpsKestrel/worker.out.log
+tail -f ~/Library/Logs/OpsKestrel/worker.err.log
 ```
 
 The Worker runs inside the `Aqua` login session with `ProcessType=Interactive`.
@@ -118,7 +118,7 @@ After changing permission, restart the service:
   --label office-mac
 ```
 
-`soc-agent doctor` checks the permissions of the process that launches it.
+`opskestrel doctor` checks the permissions of the process that launches it.
 IDE terminals and sandboxed tools can have different macOS privacy identities
 from the LaunchAgent. Use the doctor result for that calling process, and use a
 real permission smoke task to verify the LaunchAgent itself.

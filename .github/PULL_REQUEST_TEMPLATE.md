@@ -24,4 +24,8 @@ Fixes # (issue)
 
 ## Mandatory Tasks
 
-- [ ] Make sure you have self-reviewed the code. A decent size PR without self-review might be rejected. Make sure before submmiting this PR you run tests with evaluate.py
+- [ ] I have self-reviewed the code.
+- [ ] I ran the OpsKestrel unit test suite.
+- [ ] I ran `opskestrel release-check` or explain why it is not applicable.
+- [ ] I included tests for changed behavior.
+- [ ] I did not include credentials, customer data, or local report artifacts.

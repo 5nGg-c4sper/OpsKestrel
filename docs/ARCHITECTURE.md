@@ -1,4 +1,4 @@
-# SOC Agent Architecture
+# OpsKestrel Architecture
 
 ## 执行链路
 
@@ -102,44 +102,44 @@ queue worker
 
 | 模块 | 职责 |
 |---|---|
-| `soc_agent/task_models.py` | 任务、数据源、工作流定义和执行结果的 Pydantic 模型 |
-| `soc_agent/runner.py` | 步骤编排、超时、确认、截图和结果记录 |
-| `soc_agent/actions/executor.py` | 将确定性步骤分发给环境适配器 |
-| `soc_agent/environments/macos.py` | 封装应用、键鼠、截图和等待操作 |
-| `soc_agent/accessibility.py` | 遍历 macOS Accessibility 树并归一化控件坐标 |
-| `soc_agent/providers/qwen.py` | 调用 Qwen 完成截图验证 |
-| `soc_agent/privacy.py` | 在上传和归档前对截图敏感区域进行遮罩 |
-| `soc_agent/safety/policy.py` | 阻止危险快捷键和敏感应用 |
-| `soc_agent/reporting/report.py` | 持久化 JSON 报告、截图和失败诊断日志 |
-| `soc_agent/reporting/dataset_report.py` | 持久化数据集汇总报告 |
-| `soc_agent/reporting/suite_report.py` | 持久化套件汇总报告 |
-| `soc_agent/reporting/workflow_report.py` | 持久化工作流汇总报告 |
-| `soc_agent/suite.py` | 顺序执行多个任务并汇总结果 |
-| `soc_agent/datasets.py` | 加载数据集并解析任务路径 |
-| `soc_agent/data_sources.py` | 将 CSV 行转换为数据集 case 和任务参数 |
-| `soc_agent/dataset_runner.py` | 顺序执行数据集 case、重试和状态聚合 |
-| `soc_agent/workflows.py` | 加载工作流、解析共享参数和子任务路径 |
-| `soc_agent/workflow_runner.py` | 预检参数、顺序执行子任务并汇总工作流结果 |
-| `soc_agent/queue_models.py` | 队列任务、生命周期状态和参数数据模型 |
-| `soc_agent/queue_backend.py` | QueueStore 抽象接口和后端工厂 |
-| `soc_agent/queue_migrations.py` | SQLite 版本化、幂等 schema 迁移 |
-| `soc_agent/postgres_queue_store.py` | PostgreSQL 队列、锁和迁移实现 |
-| `soc_agent/queue_store.py` | SQLite 持久化、优先级、原子领取和 Worker 注册表 |
-| `soc_agent/queue_worker.py` | 领取队列任务、执行并持久化终态 |
-| `soc_agent/console.py` | 本地运行控制台、运行历史和进程组取消 |
-| `soc_agent/evidence_bundle.py` | 运行证据 ZIP、SHA-256 清单和原子归档 |
-| `soc_agent/reviews.py` | 人工复核数据模型、持久化和汇总 |
-| `soc_agent/review_workflow.py` | 将复核结论同步到 JSON、HTML、XLSX 和证据包 |
-| `soc_agent/operators.py` | 本地控制台 Bearer Token 认证和角色阈值 |
-| `soc_agent/release.py` | 离线依赖、场景、对账和打包发布自检 |
-| `soc_agent/cli.py` | 参数解析、依赖装配和 queue CLI |
-| `soc_agent/config.py` | 从环境变量加载并验证运行配置 |
+| `opskestrel/task_models.py` | 任务、数据源、工作流定义和执行结果的 Pydantic 模型 |
+| `opskestrel/runner.py` | 步骤编排、超时、确认、截图和结果记录 |
+| `opskestrel/actions/executor.py` | 将确定性步骤分发给环境适配器 |
+| `opskestrel/environments/macos.py` | 封装应用、键鼠、截图和等待操作 |
+| `opskestrel/accessibility.py` | 遍历 macOS Accessibility 树并归一化控件坐标 |
+| `opskestrel/providers/qwen.py` | 调用 Qwen 完成截图验证 |
+| `opskestrel/privacy.py` | 在上传和归档前对截图敏感区域进行遮罩 |
+| `opskestrel/safety/policy.py` | 阻止危险快捷键和敏感应用 |
+| `opskestrel/reporting/report.py` | 持久化 JSON 报告、截图和失败诊断日志 |
+| `opskestrel/reporting/dataset_report.py` | 持久化数据集汇总报告 |
+| `opskestrel/reporting/suite_report.py` | 持久化套件汇总报告 |
+| `opskestrel/reporting/workflow_report.py` | 持久化工作流汇总报告 |
+| `opskestrel/suite.py` | 顺序执行多个任务并汇总结果 |
+| `opskestrel/datasets.py` | 加载数据集并解析任务路径 |
+| `opskestrel/data_sources.py` | 将 CSV 行转换为数据集 case 和任务参数 |
+| `opskestrel/dataset_runner.py` | 顺序执行数据集 case、重试和状态聚合 |
+| `opskestrel/workflows.py` | 加载工作流、解析共享参数和子任务路径 |
+| `opskestrel/workflow_runner.py` | 预检参数、顺序执行子任务并汇总工作流结果 |
+| `opskestrel/queue_models.py` | 队列任务、生命周期状态和参数数据模型 |
+| `opskestrel/queue_backend.py` | QueueStore 抽象接口和后端工厂 |
+| `opskestrel/queue_migrations.py` | SQLite 版本化、幂等 schema 迁移 |
+| `opskestrel/postgres_queue_store.py` | PostgreSQL 队列、锁和迁移实现 |
+| `opskestrel/queue_store.py` | SQLite 持久化、优先级、原子领取和 Worker 注册表 |
+| `opskestrel/queue_worker.py` | 领取队列任务、执行并持久化终态 |
+| `opskestrel/console.py` | 本地运行控制台、运行历史和进程组取消 |
+| `opskestrel/evidence_bundle.py` | 运行证据 ZIP、SHA-256 清单和原子归档 |
+| `opskestrel/reviews.py` | 人工复核数据模型、持久化和汇总 |
+| `opskestrel/review_workflow.py` | 将复核结论同步到 JSON、HTML、XLSX 和证据包 |
+| `opskestrel/operators.py` | 本地控制台 Bearer Token 认证和角色阈值 |
+| `opskestrel/release.py` | 离线依赖、场景、对账和打包发布自检 |
+| `opskestrel/cli.py` | 参数解析、依赖装配和 queue CLI |
+| `opskestrel/config.py` | 从环境变量加载并验证运行配置 |
 
 ## CI 边界
 
 - Ubuntu 单元测试工作流在每次 push 和 pull request 时运行。
 - 真实 GUI 冒烟工作流只允许 `workflow_dispatch` 手动触发。
-- GUI 工作流固定使用 `self-hosted`、`macOS`、`soc-gui` 标签，并串行执行。
+- GUI 工作流固定使用 `self-hosted`、`macOS`、`opskestrel-gui` 标签，并串行执行。
 - 执行前检查登录态桌面、Accessibility、Screen Recording 和 API Key。
 - GUI 报告默认只保留在 Runner 本机；截图 artifact 上传必须显式选择。
 
@@ -297,7 +297,7 @@ Worker `max_concurrency` 只提供并行槽位，不会绕过 GUI 全局串行�
 
 ## 运行诊断
 
-`soc-agent doctor` 使用只读探针检查 Python、macOS 版本、模型配置、Aqua GUI
+`opskestrel doctor` 使用只读探针检查 Python、macOS 版本、模型配置、Aqua GUI
 会话、Accessibility、Screen Recording、报告目录、QueueStore 和 Worker 心跳。
 权限检查调用 macOS 的进程级 preflight API，不触发桌面操作。指定
 `--worker-id` 时，该 Worker 必须位于在线窗口内；未指定 Worker 时只产生警告。
@@ -316,35 +316,35 @@ Worker `max_concurrency` 只提供并行槽位，不会绕过 GUI 全局串行�
 
 ## 对账核心
 
-`soc_agent.reconciliation` 将业务比较与浏览器或视觉数据采集解耦。输入行按
+`opskestrel.reconciliation` 将业务比较与浏览器或视觉数据采集解耦。输入行按
 `invoice_id` 对齐，金额使用 `Decimal` 和可配置绝对误差，结果稳定排序并分为
 `matched`、`amount_mismatch`、`currency_mismatch`、`status_mismatch`、
 `missing_in_erp`、`duplicate_in_erp` 和 `invalid_input`。
 
-`soc-agent reconcile` 不读取模型凭证、不访问桌面。CSV/JSON 对账结果可输出为
+`opskestrel reconcile` 不读取模型凭证、不访问桌面。CSV/JSON 对账结果可输出为
 文本或 JSON 报告，`--fail-on-differences` 可将任何业务差异转换为 CI 非零退出码。
 后续 Browser Adapter 只负责从 ERP 页面采集结构化字段，不复制金额比较规则。
 预期输入加载器根据文件后缀选择 CSV 或 openpyxl XLSX 解析，并把日期单元格统一为
 ISO 文本，之后进入同一对账与检查点流程。
 
-`soc-agent mock-erp` 使用标准库 HTTP Server 提供本地浏览器夹具。页面通过结构化
+`opskestrel mock-erp` 使用标准库 HTTP Server 提供本地浏览器夹具。页面通过结构化
 `data-testid` 和 `data-field` 暴露搜索框、记录容器和发票字段，并由后端 API 驱动
 重复记录、缺失记录等场景。它不依赖真实账号、外部网络或前端构建工具，可通过
 固定 JSON fixture 在测试和演示中重复启动。
 
 企业模式在兼容基础夹具的基础上增加 Cookie 会话、登录、退出、分页、CSV 下载和
-可控故障。浏览器命令优先使用 `SOC_ERP_USERNAME` / `SOC_ERP_PASSWORD`，显式密码
+可控故障。浏览器命令优先使用 `OPSKESTREL_ERP_USERNAME` / `OPSKESTREL_ERP_PASSWORD`，显式密码
 只用于本地演示。故障配置支持逐票慢响应和一次性 5xx，帮助验证查询重试、错误诊断
 和会话恢复。
 
-`soc_agent.browser` 提供 DOM 优先的 Browser Adapter。`MockERPAdapter` 通过
+`opskestrel.browser` 提供 DOM 优先的 Browser Adapter。`MockERPAdapter` 通过
 Playwright 打开页面、填写搜索框、等待结果状态，并用 `data-field` 一次性读取
 所有结构化字段。缺失记录返回空结果，多条记录保留完整数组供重复检测；截图与
 结构化结果写入同一采集结果。当前使用本机 Chrome/Chromium，不依赖视觉模型。
 选择器由 `ERPSelectors` 数据对象描述，可从 JSON 档案加载并严格拒绝未知字段，
 便于不同 ERP 页面使用独立配置。
 
-`soc_agent.erp_reconciliation` 把 CSV 中唯一发票号逐条交给 Browser Adapter，
+`opskestrel.erp_reconciliation` 把 CSV 中唯一发票号逐条交给 Browser Adapter，
 汇总页面记录后调用确定性对账核心。批量报告同时保存每张发票的查询结果、记录数、
 是否重复、证据截图和采集错误。浏览器只承担数据采集，金额、币种和状态规则仍由
 纯逻辑模块负责，因此可以用 JSON fixture 和真实 Chrome 两条路径得到相同结果。

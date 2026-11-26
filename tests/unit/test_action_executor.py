@@ -2,12 +2,12 @@
 
 import unittest
 
-from soc_agent.actions.executor import (
+from opskestrel.actions.executor import (
     ActionExecutionError,
     ActionExecutor,
     StepOutcome,
 )
-from soc_agent.task_models import TaskStep, UIElementLocator
+from opskestrel.task_models import TaskStep, UIElementLocator
 
 
 class FakeEnvironment:

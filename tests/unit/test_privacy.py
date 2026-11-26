@@ -8,15 +8,15 @@ from pathlib import Path
 from PIL import Image
 from pydantic import ValidationError
 
-from soc_agent.actions.executor import ActionExecutor
-from soc_agent.cli import run_task
-from soc_agent.privacy import (
+from opskestrel.actions.executor import ActionExecutor
+from opskestrel.cli import run_task
+from opskestrel.privacy import (
     ScreenshotRedactionError,
     capture_screenshot,
     redact_image_file,
 )
-from soc_agent.reporting.report import ReportWriter
-from soc_agent.task_models import RedactionRegion, TaskStatus
+from opskestrel.reporting.report import ReportWriter
+from opskestrel.task_models import RedactionRegion, TaskStatus
 
 
 class PixelEnvironment:

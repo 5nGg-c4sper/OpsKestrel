@@ -3,7 +3,7 @@
 import unittest
 from pathlib import Path
 
-from soc_agent.release import run_release_checks
+from opskestrel.release import run_release_checks
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

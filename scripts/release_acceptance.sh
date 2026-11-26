@@ -7,11 +7,11 @@ cd "$project_root"
 
 ./venv/bin/python -W error::ResourceWarning \
   -m unittest discover -s tests/unit -p 'test_*.py'
-./venv/bin/python -m soc_agent release-check
-./venv/bin/python -m soc_agent scenario validate \
+./venv/bin/python -m opskestrel release-check
+./venv/bin/python -m opskestrel scenario validate \
   scenarios/invoice_reconciliation/scenario.json
 
-if [[ "${SOC_ACCEPTANCE_BROWSER:-0}" == "1" ]]; then
+if [[ "${OPSKESTREL_ACCEPTANCE_BROWSER:-0}" == "1" ]]; then
   ./scripts/demo_invoice_reconciliation.sh
 fi
 

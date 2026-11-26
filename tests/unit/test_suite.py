@@ -5,8 +5,8 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from soc_agent.suite import SuiteRunner
-from soc_agent.task_models import TaskResult, TaskStatus
+from opskestrel.suite import SuiteRunner
+from opskestrel.task_models import TaskResult, TaskStatus
 
 
 class SuiteRunnerTests(unittest.TestCase):

@@ -30,13 +30,13 @@ jobs:
 
       - name: Validate invoice scenario
         run: |
-          python -m soc_agent scenario validate \
+          python -m opskestrel scenario validate \
             scenarios/invoice_reconciliation/scenario.json
 
       - name: Run offline reconciliation
         run: |
           mkdir -p reports/ci
-          python -m soc_agent reconcile \
+          python -m opskestrel reconcile \
             scenarios/invoice_reconciliation/data/input_invoices.csv \
             scenarios/invoice_reconciliation/data/erp_invoices.json \
             --config scenarios/invoice_reconciliation/mapping.json \
