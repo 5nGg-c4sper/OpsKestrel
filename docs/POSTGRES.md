@@ -1,0 +1,88 @@
+# PostgreSQL Queue Deployment
+
+PostgreSQL mode is intended for multiple macOS Workers sharing one network
+queue. SQLite remains the default for a single machine.
+
+## Local Integration Environment
+
+Requirements:
+
+- Docker with Compose support
+- Python integration dependencies
+
+Start PostgreSQL:
+
+```bash
+docker compose -f compose.postgres.yml up -d
+```
+
+Install dependencies and run integration tests:
+
+```bash
+./venv/bin/python -m pip install -r requirements-integration.txt
+
+export SOC_TEST_POSTGRES_DSN='postgresql://soc_agent:soc_agent_test@localhost:5432/soc_agent_test'
+./venv/bin/python -m unittest discover -s tests/integration -p 'test_*.py' -v
+```
+
+Stop and remove the temporary database:
+
+```bash
+docker compose -f compose.postgres.yml down -v
+```
+
+The Compose database is test-only and uses ephemeral data.
+
+## Production Setup
+
+Use a dedicated database and a least-privilege role:
+
+```text
+postgresql://soc_agent:password@db.example.com/soc_agent
+```
+
+Recommended controls:
+
+- Require TLS for remote connections.
+- Store the DSN in the Worker environment or secret manager, never in Git.
+- Restrict database access to known Worker hosts.
+- Back up the queue database.
+- Apply migrations from one Worker before starting the rest.
+- Use stable Worker IDs and capability labels for scheduling.
+- Keep non-`parallel_safe` GUI jobs on the default exclusive path.
+
+## Worker Registration
+
+Start each Mac with a stable Worker ID and its capabilities:
+
+```bash
+./venv/bin/soc-agent queue run \
+  --queue-db 'postgresql://soc_agent:password@db.example.com/soc_agent' \
+  --worker-id office-mac-1 \
+  --label office-mac \
+  --label high-memory \
+  --drain
+```
+
+Query online Workers:
+
+```bash
+./venv/bin/soc-agent queue workers \
+  --queue-db 'postgresql://soc_agent:password@db.example.com/soc_agent'
+```
+
+## Scheduling Guarantees
+
+- Pending jobs use `FOR UPDATE SKIP LOCKED` so two Workers cannot claim the
+  same row.
+- Required job labels must be a subset of Worker labels.
+- Non-parallel-safe jobs use `queue_exclusive_locks` to serialize GUI work
+  across all Workers.
+- Explicitly parallel-safe jobs can use additional concurrency slots.
+- Worker ownership is checked for heartbeat and completion.
+- Expired leases are requeued until `--max-attempts` is exhausted.
+
+## Continuous Integration
+
+`.github/workflows/postgres-integration.yml` starts PostgreSQL 16 on GitHub
+Actions and runs the real integration suite on pushes and pull requests.

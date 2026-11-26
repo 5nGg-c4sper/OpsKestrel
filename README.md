@@ -18,6 +18,7 @@ Documentation:
 
 - [Product roadmap](docs/ROADMAP.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [PostgreSQL queue deployment](docs/POSTGRES.md)
 
 Configure the project root `.env` from [.env.example](.env.example).
 

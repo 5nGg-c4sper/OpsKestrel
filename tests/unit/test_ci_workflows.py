@@ -8,6 +8,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 GUI_WORKFLOW = (
     PROJECT_ROOT / ".github" / "workflows" / "macos-gui-smoke.yml"
 )
+POSTGRES_WORKFLOW = (
+    PROJECT_ROOT
+    / ".github"
+    / "workflows"
+    / "postgres-integration.yml"
+)
 
 
 class MacOSGUIWorkflowTests(unittest.TestCase):
@@ -28,6 +34,20 @@ class MacOSGUIWorkflowTests(unittest.TestCase):
             "if: ${{ always() && inputs.upload_reports }}",
             workflow,
         )
+
+
+class PostgreSQLWorkflowTests(unittest.TestCase):
+    def test_postgres_workflow_runs_integration_suite(self):
+        workflow = POSTGRES_WORKFLOW.read_text(encoding="utf-8")
+
+        self.assertIn("image: postgres:16-alpine", workflow)
+        self.assertIn("SOC_TEST_POSTGRES_DSN", workflow)
+        self.assertIn("requirements-integration.txt", workflow)
+        self.assertIn(
+            "python -m unittest discover",
+            workflow,
+        )
+        self.assertIn("-s tests/integration", workflow)
 
 
 if __name__ == "__main__":
