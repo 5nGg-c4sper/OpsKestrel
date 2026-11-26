@@ -86,3 +86,11 @@ Query online Workers:
 
 `.github/workflows/postgres-integration.yml` starts PostgreSQL 16 on GitHub
 Actions and runs the real integration suite on pushes and pull requests.
+
+The integration suite also starts two independent queue-store clients to
+verify:
+
+- parallel-safe jobs are claimed without overlap
+- GUI jobs remain globally serialized through `queue_exclusive_locks`
+- a stale job held by one Worker can be recovered and reclaimed by another
+- Worker registry and current-job ownership remain visible across clients
