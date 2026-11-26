@@ -21,6 +21,14 @@ Documentation:
 - [Promotional and resume notes](docs/PROMO.md)
 - [Product roadmap](docs/ROADMAP.md)
 - [Architecture](docs/ARCHITECTURE.md)
+
+The local operations console can start the built-in invoice demo, upload a
+CSV/XLSX/PDF input, stream run logs, download JSON/HTML/XLSX artifacts, and show
+recent run history:
+
+```bash
+./venv/bin/soc-agent console --port 8766
+```
 - [PostgreSQL queue deployment](docs/POSTGRES.md)
 
 Configure the project root `.env` from [.env.example](.env.example).

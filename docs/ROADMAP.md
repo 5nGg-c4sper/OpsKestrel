@@ -88,6 +88,7 @@ SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优
 - M5 PDF 发票解析、500 条压力数据生成和一键故障恢复演示
 - M5 本地报告/Worker 控制台、macOS 引导脚本和 CI 对账验收
 - 项目总览、五分钟面试脚本、宣传材料、架构图和简历要点
+- 本地控制台上传 CSV/XLSX/PDF、实时日志、运行历史和多格式产物下载
 - `soc-agent dataset` 数据集命令、失败停止/重试策略和诊断输出
 - 基础安全策略
 - GitHub Actions 单元测试配置
@@ -95,7 +96,7 @@ SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优
 
 当前验证结果：
 
-- 441 个单元测试通过
+- 443 个单元测试通过
 - macOS LaunchAgent Worker 已完成真实队列领取、Accessibility 点击、
   键盘输入、截图视觉验证、跨应用 Workflow、报告写入和清理回归
 - LaunchAgent Worker 已验证失败任务连续自动重试 3 次并写回最终失败状态

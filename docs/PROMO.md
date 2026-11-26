@@ -31,7 +31,8 @@ checkpoints, and JSON/HTML/XLSX reports.
 - retry, failure isolation, diagnostics, and checkpoint resume
 - credentials through environment variables
 - JSON, filterable HTML, and multi-sheet XLSX reports
-- local operations console for reports, Workers, and demo launch
+- local operations console for input upload, progress, logs, reports, artifacts,
+  run history, Workers, and one-click demo launch
 - queue, multi-worker, LaunchAgent, and PostgreSQL foundation
 
 ## Interview Description

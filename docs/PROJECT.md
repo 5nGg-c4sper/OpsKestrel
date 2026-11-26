@@ -14,6 +14,7 @@ clicking:
 - every lookup retains evidence and diagnostics
 - failed work can retry, resume, or stop without corrupting other records
 - final output is available as JSON, HTML, and XLSX
+- the local console supports file upload, run status, logs, and artifact download
 
 ## Problem
 

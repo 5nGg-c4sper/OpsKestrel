@@ -57,6 +57,11 @@ class ConsoleTests(unittest.TestCase):
                 "-c",
                 "pass",
             ],
+            upload_command_factory=lambda output_dir, input_path: [
+                sys.executable,
+                "-c",
+                "pass",
+            ],
         )
         self.server.state.overview = lambda: {
             "reports": [
@@ -145,6 +150,42 @@ class ConsoleTests(unittest.TestCase):
             time.sleep(0.01)
         self.assertEqual(status["state"], "finished")
         self.assertEqual(status["exit_code"], 0)
+
+    def test_uploaded_input_starts_run_and_history(self):
+        request = Request(
+            self.base_url + "/api/upload/run?filename=input.csv",
+            data=b"invoice_id,customer_id\nINV-1,CUST-1\n",
+            method="POST",
+        )
+        with urlopen(request, timeout=2) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+
+        self.assertEqual(response.status, 202)
+        self.assertTrue(payload["started"])
+        for _ in range(20):
+            _, status = self.get_json("/api/demo/status")
+            if status["state"] == "finished":
+                break
+            time.sleep(0.01)
+        self.assertEqual(status["kind"], "upload")
+        self.assertEqual(status["source_name"], "input.csv")
+        self.assertTrue(
+            (Path(status["output_dir"]) / "input.csv").is_file()
+        )
+        self.assertTrue(
+            (Path(status["output_dir"]) / "run.json").is_file()
+        )
+        self.assertGreaterEqual(len(status["history"]), 1)
+
+    def test_upload_rejects_unsupported_file_type(self):
+        request = Request(
+            self.base_url + "/api/upload/run?filename=malware.exe",
+            data=b"not-an-invoice",
+            method="POST",
+        )
+        with self.assertRaises(HTTPError) as context:
+            urlopen(request, timeout=2)
+        self.assertEqual(context.exception.code, 400)
 
 
 if __name__ == "__main__":

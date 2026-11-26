@@ -49,4 +49,6 @@ Artifacts are written to `reports/demo-<timestamp>/`:
 ```
 
 Open `http://127.0.0.1:8766` to view reports, online Workers, and start the
-invoice demo.
+invoice demo. The console also accepts CSV, XLSX, XLSM, and text-labeled PDF
+inputs up to 10 MB, shows live log output and run history, and links to the
+generated JSON/HTML/XLSX and checkpoint artifacts.
