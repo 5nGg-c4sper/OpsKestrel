@@ -436,6 +436,23 @@ class CLITests(unittest.TestCase):
         self.assertTrue(args.json)
         self.assertTrue(args.fail_on_differences)
 
+    def test_parser_supports_mock_erp_command(self):
+        args = build_parser().parse_args(
+            [
+                "mock-erp",
+                "--data",
+                "erp.json",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "9000",
+            ]
+        )
+
+        self.assertEqual(args.command, "mock-erp")
+        self.assertEqual(args.data, "erp.json")
+        self.assertEqual(args.port, 9000)
+
     def test_parser_supports_repeated_suite_parameters(self):
         args = build_parser().parse_args(
             [

@@ -306,3 +306,8 @@ Worker `max_concurrency` 只提供并行槽位，不会绕过 GUI 全局串行�
 `soc-agent reconcile` 不读取模型凭证、不访问桌面。CSV/JSON 对账结果可输出为
 文本或 JSON 报告，`--fail-on-differences` 可将任何业务差异转换为 CI 非零退出码。
 后续 Browser Adapter 只负责从 ERP 页面采集结构化字段，不复制金额比较规则。
+
+`soc-agent mock-erp` 使用标准库 HTTP Server 提供本地浏览器夹具。页面通过结构化
+`data-testid` 和 `data-field` 暴露搜索框、记录容器和发票字段，并由后端 API 驱动
+重复记录、缺失记录等场景。它不依赖真实账号、外部网络或前端构建工具，可通过
+固定 JSON fixture 在测试和演示中重复启动。

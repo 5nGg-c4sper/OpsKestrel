@@ -35,5 +35,15 @@ The fixture contains 20 synthetic invoices covering:
 Amount comparisons use `Decimal` and support an absolute tolerance. Results are
 always sorted deterministically by invoice ID.
 
-The next implementation phase will add a local mock ERP and a browser adapter
-that collects these same ERP fields from a web interface.
+Start the local Mock ERP:
+
+```bash
+./venv/bin/soc-agent mock-erp --port 8765
+```
+
+Open `http://127.0.0.1:8765`. The page searches the synthetic ERP JSON and exposes
+stable browser selectors for invoice ID, record count, and the `invoice_id`,
+`customer_id`, `currency`, `amount`, `status`, and `due_date` fields.
+
+The next implementation phase adds a browser adapter that collects these fields
+from the page and feeds the deterministic reconciliation core.

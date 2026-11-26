@@ -17,6 +17,7 @@ from soc_agent.dataset_runner import DatasetRunner
 from soc_agent.datasets import load_dataset
 from soc_agent.diagnostics import DiagnosticsRunner
 from soc_agent.environments.macos import MacOSEnvironment
+from soc_agent.mock_erp import create_mock_erp_server
 from soc_agent.providers.qwen import QwenVisionProvider
 from soc_agent.privacy import capture_screenshot
 from soc_agent.queue_backend import create_queue_store
@@ -413,6 +414,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Return exit code 1 when any difference is found",
     )
+
+    mock_erp_parser = subparsers.add_parser(
+        "mock-erp",
+        help="Serve the local ERP browser fixture",
+    )
+    mock_erp_parser.add_argument(
+        "--data",
+        default=(
+            "scenarios/invoice_reconciliation/data/erp_invoices.json"
+        ),
+        help="ERP invoice JSON fixture",
+    )
+    mock_erp_parser.add_argument("--host", default="127.0.0.1")
+    mock_erp_parser.add_argument("--port", type=int, default=8765)
     return parser
 
 
@@ -630,6 +645,9 @@ def main(
 
     if args.command == "reconcile":
         return run_reconciliation(args)
+
+    if args.command == "mock-erp":
+        return run_mock_erp(args)
 
     load_dotenv()
     if args.command == "doctor":
@@ -873,6 +891,29 @@ def run_reconciliation(args) -> int:
 
     if args.fail_on_differences and not report.summary["all_matched"]:
         return 1
+    return 0
+
+
+def run_mock_erp(args) -> int:
+    try:
+        server = create_mock_erp_server(
+            args.data,
+            host=args.host,
+            port=args.port,
+        )
+    except Exception as error:
+        print(f"Mock ERP failed: {error}")
+        return 1
+
+    host, port = server.server_address[:2]
+    print(f"Mock ERP: http://{host}:{port}")
+    print(f"Invoice data: {Path(args.data).expanduser().resolve()}")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
     return 0
 
 

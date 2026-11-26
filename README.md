@@ -372,6 +372,17 @@ Use `--fail-on-differences` in CI when any mismatch, missing record, duplicate,
 or invalid input should return exit code `1`. Amounts use decimal arithmetic and
 a configurable absolute tolerance.
 
+Start the local Mock ERP browser fixture:
+
+```bash
+./venv/bin/soc-agent mock-erp --port 8765
+```
+
+Open `http://127.0.0.1:8765` and search an invoice such as `INV-1001`. The page
+provides stable `data-testid` selectors and structured field attributes for the
+upcoming browser adapter. It uses only the synthetic JSON fixture and does not
+require credentials or external services.
+
 Manage the persistent execution queue:
 
 ```bash
