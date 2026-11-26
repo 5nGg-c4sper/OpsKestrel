@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Tuple, Union
 from soc_agent.browser import ERPSearchResult
 from soc_agent.reconciliation import (
     ReconciliationReport,
-    load_expected_invoices_csv,
+    load_expected_invoices,
     reconcile_invoices,
 )
 
@@ -197,7 +197,7 @@ def reconcile_expected_csv_with_browser(
     checkpoint_path: Optional[Union[str, Path]] = None,
 ) -> BrowserReconciliationReport:
     source_path = Path(expected_csv).expanduser().resolve()
-    expected_rows = load_expected_invoices_csv(source_path)
+    expected_rows = load_expected_invoices(source_path)
     screenshot_root = (
         Path(screenshot_dir).expanduser().resolve()
         if screenshot_dir is not None

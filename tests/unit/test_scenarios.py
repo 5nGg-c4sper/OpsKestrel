@@ -31,6 +31,23 @@ class ScenarioLoaderTests(unittest.TestCase):
         self.assertEqual(len(scenario.dataset.definition.cases), 3)
         self.assertTrue(scenario.dataset.workflow_path.is_file())
 
+    def test_invoice_browser_scenario_is_valid(self):
+        scenario = load_scenario(
+            PROJECT_ROOT
+            / "scenarios"
+            / "invoice_reconciliation"
+            / "scenario.json"
+        )
+
+        self.assertEqual(
+            scenario.definition.kind,
+            "browser_reconciliation",
+        )
+        self.assertTrue(scenario.expected_input.is_file())
+        self.assertTrue(scenario.erp_fixture.is_file())
+        self.assertTrue(scenario.selector_profile.is_file())
+        self.assertIsNone(scenario.dataset)
+
     def test_scenario_rejects_task_dataset(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

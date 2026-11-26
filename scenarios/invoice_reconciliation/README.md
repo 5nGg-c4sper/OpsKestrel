@@ -12,6 +12,9 @@ key, browser, or vision model:
   scenarios/invoice_reconciliation/data/erp_invoices.json
 ```
 
+Both CSV and XLSX expected-input files are supported. Browser selectors can be
+replaced with `selectors.json` without changing Python code.
+
 Write a machine-readable report and fail CI when differences exist:
 
 ```bash
@@ -77,3 +80,15 @@ Each browser lookup retries twice by default. Failed lookups are isolated so the
 remaining invoices continue, and each failure writes a screenshot plus a
 diagnostics text file. The checkpoint stores successful records after every
 invoice, allowing the next run to resume from failed or missing items.
+
+The complete scenario manifest is `scenario.json`. Validate and run it with:
+
+```bash
+./venv/bin/soc-agent scenario validate \
+  scenarios/invoice_reconciliation/scenario.json
+
+./venv/bin/soc-agent scenario run \
+  scenarios/invoice_reconciliation/scenario.json \
+  --checkpoint reports/invoice-reconciliation/checkpoint.json \
+  --html reports/invoice-reconciliation.html
+```

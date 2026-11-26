@@ -3,6 +3,7 @@
 import os
 import shutil
 import time
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -31,6 +32,43 @@ class ERPSelectors:
     record: str = '[data-testid="invoice-record"]'
     not_found: str = '[data-testid="invoice-not-found"]'
     field: str = "[data-field]"
+
+    @classmethod
+    def from_file(cls, path) -> "ERPSelectors":
+        source_path = Path(path).expanduser().resolve()
+        try:
+            payload = json.loads(
+                source_path.read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError) as error:
+            raise BrowserAdapterError(
+                f"failed to load selector profile {source_path}: {error}"
+            ) from error
+        if not isinstance(payload, dict):
+            raise BrowserAdapterError(
+                "selector profile must be a JSON object"
+            )
+        allowed = {
+            "invoice_input",
+            "search_submit",
+            "record",
+            "not_found",
+            "field",
+        }
+        unknown = sorted(set(payload) - allowed)
+        if unknown:
+            raise BrowserAdapterError(
+                "unknown selector fields: " + ", ".join(unknown)
+            )
+        values = {
+            name: str(value).strip()
+            for name, value in payload.items()
+        }
+        if any(not value for value in values.values()):
+            raise BrowserAdapterError(
+                "selector values must not be empty"
+            )
+        return cls(**values)
 
 
 @dataclass(frozen=True)

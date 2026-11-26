@@ -1,11 +1,13 @@
 """Tests for structured DOM browser adapters."""
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
 
 from soc_agent.browser import (
     BrowserAdapterError,
+    ERPSelectors,
     ERPSearchResult,
     MockERPAdapter,
 )
@@ -211,6 +213,36 @@ class MockERPAdapterTests(unittest.TestCase):
                 "retry_errors": [],
             },
         )
+
+    def test_selector_profile_loads_and_rejects_unknown_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            profile = root / "selectors.json"
+            profile.write_text(
+                json.dumps(
+                    {
+                        "invoice_input": "#invoice",
+                        "search_submit": "#submit",
+                        "record": ".record",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            selectors = ERPSelectors.from_file(profile)
+
+            self.assertEqual(selectors.invoice_input, "#invoice")
+            self.assertEqual(selectors.record, ".record")
+
+            profile.write_text(
+                json.dumps({"unknown": "#value"}),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                BrowserAdapterError,
+                "unknown selector fields",
+            ):
+                ERPSelectors.from_file(profile)
 
 
 if __name__ == "__main__":

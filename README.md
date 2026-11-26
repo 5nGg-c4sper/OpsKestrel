@@ -370,7 +370,7 @@ Run deterministic invoice reconciliation without a model or API key:
 
 Use `--fail-on-differences` in CI when any mismatch, missing record, duplicate,
 or invalid input should return exit code `1`. Amounts use decimal arithmetic and
-a configurable absolute tolerance.
+a configurable absolute tolerance. The expected input may be CSV or XLSX.
 
 Start the local Mock ERP browser fixture:
 
@@ -416,6 +416,20 @@ clickable screenshot evidence.
 `--checkpoint` persists each successful lookup and automatically resumes only
 missing invoices on the next run. The checkpoint is tied to the exact expected
 CSV hash; use `--reset-checkpoint` to start a new collection explicitly.
+`--selector-profile` loads ERP field selectors from a JSON file, so switching
+target systems does not require Python changes.
+
+The packaged browser scenario can also be validated and run directly:
+
+```bash
+./venv/bin/soc-agent scenario validate \
+  scenarios/invoice_reconciliation/scenario.json
+
+./venv/bin/soc-agent scenario run \
+  scenarios/invoice_reconciliation/scenario.json \
+  --checkpoint reports/invoice-reconciliation/checkpoint.json \
+  --html reports/invoice-reconciliation.html
+```
 
 Manage the persistent execution queue:
 

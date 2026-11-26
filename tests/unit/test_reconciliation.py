@@ -1,10 +1,14 @@
 """Tests for deterministic invoice reconciliation."""
 
 import unittest
+import tempfile
 from pathlib import Path
+
+from openpyxl import Workbook
 
 from soc_agent.reconciliation import (
     ReconciliationStatus,
+    load_expected_invoices,
     reconcile_files,
     reconcile_invoices,
 )
@@ -183,6 +187,38 @@ class ReconciliationTests(unittest.TestCase):
             payload["results"][0]["actual"]["amount"],
             "100.00",
         )
+
+    def test_xlsx_expected_invoice_input_is_supported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "invoices.xlsx"
+            workbook = Workbook()
+            sheet = workbook.active
+            sheet.append(
+                [
+                    "invoice_id",
+                    "customer_id",
+                    "currency",
+                    "expected_amount",
+                    "expected_status",
+                    "due_date",
+                ]
+            )
+            sheet.append(
+                [
+                    "INV-XLSX",
+                    "CUST-X",
+                    "CNY",
+                    100.5,
+                    "paid",
+                    "2026-11-20",
+                ]
+            )
+            workbook.save(path)
+
+            rows = load_expected_invoices(path)
+
+        self.assertEqual(rows[0]["invoice_id"], "INV-XLSX")
+        self.assertEqual(rows[0]["expected_amount"], "100.5")
 
 
 if __name__ == "__main__":

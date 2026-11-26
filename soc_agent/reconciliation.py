@@ -3,7 +3,7 @@
 import csv
 import json
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from enum import Enum
 from pathlib import Path
@@ -85,6 +85,67 @@ def load_expected_invoices_csv(path: Union[str, Path]) -> List[Dict[str, str]]:
         return list(csv.DictReader(csv_file))
 
 
+def load_expected_invoices_xlsx(
+    path: Union[str, Path],
+) -> List[Dict[str, Any]]:
+    try:
+        from openpyxl import load_workbook
+    except ImportError as error:
+        raise ReconciliationInputError(
+            "openpyxl is required to read XLSX invoice files"
+        ) from error
+
+    source_path = Path(path).expanduser().resolve()
+    workbook = load_workbook(
+        source_path,
+        read_only=True,
+        data_only=True,
+    )
+    try:
+        sheet = workbook.active
+        rows = sheet.iter_rows(values_only=True)
+        header_row = next(rows, None)
+        if header_row is None:
+            raise ReconciliationInputError(
+                f"XLSX invoice file is empty: {source_path}"
+            )
+        headers = [
+            str(value).strip() if value is not None else ""
+            for value in header_row
+        ]
+        if any(not header for header in headers):
+            raise ReconciliationInputError(
+                "XLSX invoice headers must not be empty"
+            )
+        records = []
+        for row in rows:
+            if row is None or all(value is None for value in row):
+                continue
+            record = {}
+            for header, value in zip(headers, row):
+                if isinstance(value, (date, datetime)):
+                    value = value.isoformat()
+                record[header] = "" if value is None else str(value)
+            records.append(record)
+        return records
+    finally:
+        workbook.close()
+
+
+def load_expected_invoices(
+    path: Union[str, Path],
+) -> List[Dict[str, Any]]:
+    source_path = Path(path).expanduser().resolve()
+    suffix = source_path.suffix.casefold()
+    if suffix in {".xlsx", ".xlsm"}:
+        return load_expected_invoices_xlsx(source_path)
+    if suffix == ".csv":
+        return load_expected_invoices_csv(source_path)
+    raise ReconciliationInputError(
+        f"unsupported expected invoice format: {suffix or '<none>'}"
+    )
+
+
 def load_erp_invoices_json(path: Union[str, Path]) -> List[Dict[str, Any]]:
     source_path = Path(path).expanduser().resolve()
     payload = json.loads(source_path.read_text(encoding="utf-8"))
@@ -103,7 +164,7 @@ def reconcile_files(
     amount_tolerance: Union[str, Decimal] = "0.01",
 ) -> ReconciliationReport:
     return reconcile_invoices(
-        load_expected_invoices_csv(expected_csv),
+        load_expected_invoices(expected_csv),
         load_erp_invoices_json(erp_json),
         amount_tolerance=amount_tolerance,
     )

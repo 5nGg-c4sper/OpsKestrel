@@ -410,6 +410,12 @@ class CLITests(unittest.TestCase):
                 "scenarios/customer_followup/scenario.json",
                 "--non-interactive",
                 "--stop-on-failure",
+                "--checkpoint",
+                "reports/checkpoint.json",
+                "--lookup-attempts",
+                "3",
+                "--html",
+                "reports/report.html",
             ]
         )
 
@@ -417,6 +423,9 @@ class CLITests(unittest.TestCase):
         self.assertEqual(run_args.scenario_command, "run")
         self.assertTrue(run_args.non_interactive)
         self.assertTrue(run_args.stop_on_failure)
+        self.assertEqual(run_args.checkpoint, "reports/checkpoint.json")
+        self.assertEqual(run_args.lookup_attempts, 3)
+        self.assertEqual(run_args.html, "reports/report.html")
 
     def test_parser_supports_reconcile_command(self):
         args = build_parser().parse_args(
@@ -1118,6 +1127,73 @@ class CLITests(unittest.TestCase):
         self.assertIn("Scenario: customer_followup_batch", output.getvalue())
         self.assertIn("Cases: 3", output.getvalue())
         self.assertIn("Validation: PASSED", output.getvalue())
+        load_dotenv.assert_not_called()
+
+    def test_main_validates_browser_scenario_without_api_key(self):
+        output = StringIO()
+
+        with (
+            patch("soc_agent.cli.load_dotenv") as load_dotenv,
+            redirect_stdout(output),
+        ):
+            exit_code = main(
+                [
+                    "scenario",
+                    "validate",
+                    str(
+                        PROJECT_ROOT
+                        / "scenarios"
+                        / "invoice_reconciliation"
+                        / "scenario.json"
+                    ),
+                ]
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn(
+            "Kind: browser_reconciliation",
+            output.getvalue(),
+        )
+        self.assertIn("Expected input:", output.getvalue())
+        load_dotenv.assert_not_called()
+
+    def test_main_routes_browser_scenario_without_api_key(self):
+        output = StringIO()
+        with (
+            patch(
+                "soc_agent.cli.run_erp_reconcile",
+                return_value=0,
+            ) as run_browser,
+            patch("soc_agent.cli.load_dotenv") as load_dotenv,
+            redirect_stdout(output),
+        ):
+            exit_code = main(
+                [
+                    "scenario",
+                    "run",
+                    str(
+                        PROJECT_ROOT
+                        / "scenarios"
+                        / "invoice_reconciliation"
+                        / "scenario.json"
+                    ),
+                    "--checkpoint",
+                    "reports/checkpoint.json",
+                ]
+            )
+
+        self.assertEqual(exit_code, 0)
+        routed_args = run_browser.call_args.args[0]
+        self.assertTrue(
+            routed_args.expected_csv.endswith("input_invoices.csv")
+        )
+        self.assertTrue(
+            routed_args.mock_erp_data.endswith("erp_invoices.json")
+        )
+        self.assertEqual(
+            routed_args.checkpoint,
+            "reports/checkpoint.json",
+        )
         load_dotenv.assert_not_called()
 
     def test_main_runs_reconciliation_without_api_key(self):

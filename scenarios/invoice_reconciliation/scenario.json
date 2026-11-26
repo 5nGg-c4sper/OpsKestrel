@@ -1,0 +1,16 @@
+{
+  "name": "invoice_reconciliation_browser",
+  "description": "通过 Chrome 查询 ERP 发票并生成可审计对账报告",
+  "kind": "browser_reconciliation",
+  "expected_input": "data/input_invoices.csv",
+  "erp_fixture": "data/erp_invoices.json",
+  "selector_profile": "selectors.json",
+  "required_apps": [
+    "Google Chrome"
+  ],
+  "safety_notes": [
+    "示例数据全部为虚构发票",
+    "使用本地 Mock ERP，不连接真实财务系统",
+    "截图和报告可能包含业务敏感信息"
+  ]
+}

@@ -306,6 +306,8 @@ Worker `max_concurrency` 只提供并行槽位，不会绕过 GUI 全局串行�
 `soc-agent reconcile` 不读取模型凭证、不访问桌面。CSV/JSON 对账结果可输出为
 文本或 JSON 报告，`--fail-on-differences` 可将任何业务差异转换为 CI 非零退出码。
 后续 Browser Adapter 只负责从 ERP 页面采集结构化字段，不复制金额比较规则。
+预期输入加载器根据文件后缀选择 CSV 或 openpyxl XLSX 解析，并把日期单元格统一为
+ISO 文本，之后进入同一对账与检查点流程。
 
 `soc-agent mock-erp` 使用标准库 HTTP Server 提供本地浏览器夹具。页面通过结构化
 `data-testid` 和 `data-field` 暴露搜索框、记录容器和发票字段，并由后端 API 驱动
@@ -316,6 +318,8 @@ Worker `max_concurrency` 只提供并行槽位，不会绕过 GUI 全局串行�
 Playwright 打开页面、填写搜索框、等待结果状态，并用 `data-field` 一次性读取
 所有结构化字段。缺失记录返回空结果，多条记录保留完整数组供重复检测；截图与
 结构化结果写入同一采集结果。当前使用本机 Chrome/Chromium，不依赖视觉模型。
+选择器由 `ERPSelectors` 数据对象描述，可从 JSON 档案加载并严格拒绝未知字段，
+便于不同 ERP 页面使用独立配置。
 
 `soc_agent.erp_reconciliation` 把 CSV 中唯一发票号逐条交给 Browser Adapter，
 汇总页面记录后调用确定性对账核心。批量报告同时保存每张发票的查询结果、记录数、
@@ -330,3 +334,7 @@ Browser Adapter 支持有限次数重试和重试间隔。最终失败会为当�
 文本诊断，但不会中止其他发票。ERP 批量检查点使用预期 CSV 的 SHA-256 作为批次
 标识，每张成功发票查询后立即原子写入记录、证据和重试信息。再次执行时只访问尚未
 成功的发票；CSV 发生变化时拒绝复用旧检查点，避免混淆不同批次的数据。
+
+场景清单支持 `workflow_dataset` 和 `browser_reconciliation` 两种类型。浏览器
+场景声明预期输入、ERP fixture 和选择器档案，`scenario validate/run` 会复用同一
+浏览器对账链路，不依赖模型 API Key。

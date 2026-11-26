@@ -6,6 +6,7 @@ import signal
 import sys
 import tempfile
 import threading
+from types import SimpleNamespace
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
@@ -13,6 +14,7 @@ from dotenv import load_dotenv
 
 from soc_agent.actions.executor import ActionExecutor
 from soc_agent.browser import (
+    ERPSelectors,
     MockERPAdapter,
     PlaywrightBrowserSession,
 )
@@ -385,7 +387,7 @@ def build_parser() -> argparse.ArgumentParser:
     scenario_validate.add_argument("scenario_path")
     scenario_run = scenario_commands.add_parser(
         "run",
-        help="Run the dataset contained in a scenario package",
+        help="Run a workflow or browser business scenario",
     )
     scenario_run.add_argument("scenario_path")
     add_execution_options(
@@ -396,6 +398,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--stop-on-failure",
         action="store_true",
         help="Stop after the first unsuccessful case",
+    )
+    scenario_run.add_argument("--base-url", default=None)
+    scenario_run.add_argument("--screenshot-dir", default=None)
+    scenario_run.add_argument("--checkpoint", default=None)
+    scenario_run.add_argument("--reset-checkpoint", action="store_true")
+    scenario_run.add_argument("--lookup-attempts", type=int, default=2)
+    scenario_run.add_argument("--retry-delay", type=float, default=0.5)
+    scenario_run.add_argument("--headed", action="store_true")
+    scenario_run.add_argument("--html", default=None)
+    scenario_run.add_argument("--json", action="store_true")
+    scenario_run.add_argument("--output", default=None)
+    scenario_run.add_argument(
+        "--amount-tolerance",
+        default="0.01",
+    )
+    scenario_run.add_argument(
+        "--fail-on-differences",
+        action="store_true",
     )
 
     reconcile_parser = subparsers.add_parser(
@@ -456,6 +476,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     erp_search_parser.add_argument("--screenshot", default=None)
+    erp_search_parser.add_argument("--selector-profile", default=None)
     erp_search_parser.add_argument("--headed", action="store_true")
     erp_search_parser.add_argument("--json", action="store_true")
 
@@ -484,6 +505,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--amount-tolerance",
         default="0.01",
     )
+    erp_reconcile_parser.add_argument("--selector-profile", default=None)
     erp_reconcile_parser.add_argument("--headed", action="store_true")
     erp_reconcile_parser.add_argument("--json", action="store_true")
     erp_reconcile_parser.add_argument("--output", default=None)
@@ -726,9 +748,20 @@ def main(
         if args.queue_command == "workers":
             return list_queue_workers(args)
 
+    scenario_for_run = None
     if args.command == "scenario":
         if args.scenario_command == "validate":
             return validate_scenario(args)
+        try:
+            scenario_for_run = load_scenario(args.scenario_path)
+        except Exception as error:
+            print(f"Scenario run failed: {error}")
+            return 1
+        if (
+            scenario_for_run.definition.kind
+            == "browser_reconciliation"
+        ):
+            return run_scenario_browser(args, scenario_for_run)
 
     if args.command == "reconcile":
         return run_reconciliation(args)
@@ -812,7 +845,7 @@ def main(
             print_dataset_result(dataset_result)
             return exit_code_for_status(dataset_result.status)
         elif args.command == "scenario":
-            scenario = load_scenario(args.scenario_path)
+            scenario = scenario_for_run
             dataset_result = run_dataset(
                 scenario.dataset.dataset_path,
                 environment,
@@ -928,6 +961,15 @@ def validate_scenario(args) -> int:
     definition = scenario.definition
     print(f"Scenario: {definition.name}")
     print(f"Description: {definition.description}")
+    print(f"Kind: {definition.kind}")
+    if definition.kind == "browser_reconciliation":
+        print(f"Expected input: {scenario.expected_input}")
+        print(f"ERP fixture: {scenario.erp_fixture}")
+        if scenario.selector_profile:
+            print(f"Selector profile: {scenario.selector_profile}")
+        print("Validation: PASSED")
+        return 0
+
     print(f"Dataset: {scenario.dataset.dataset_path}")
     print(f"Workflow: {scenario.dataset.workflow_path}")
     print(f"Cases: {len(scenario.dataset.definition.cases)}")
@@ -935,6 +977,31 @@ def validate_scenario(args) -> int:
         print(f"Apps: {', '.join(definition.required_apps)}")
     print("Validation: PASSED")
     return 0
+
+
+def run_scenario_browser(args, scenario) -> int:
+    browser_args = SimpleNamespace(
+        expected_csv=str(scenario.expected_input),
+        base_url=args.base_url,
+        mock_erp_data=str(scenario.erp_fixture),
+        screenshot_dir=args.screenshot_dir,
+        amount_tolerance=args.amount_tolerance,
+        selector_profile=(
+            str(scenario.selector_profile)
+            if scenario.selector_profile
+            else None
+        ),
+        headed=args.headed,
+        json=args.json,
+        output=args.output,
+        html=args.html,
+        checkpoint=args.checkpoint,
+        reset_checkpoint=args.reset_checkpoint,
+        lookup_attempts=args.lookup_attempts,
+        retry_delay=args.retry_delay,
+        fail_on_differences=args.fail_on_differences,
+    )
+    return run_erp_reconcile(browser_args)
 
 
 def run_reconciliation(args) -> int:
@@ -1033,7 +1100,16 @@ def run_erp_search(args) -> int:
             headless=not args.headed,
         ) as session:
             page = session.new_page()
-            adapter = MockERPAdapter(page, base_url)
+            selectors = (
+                ERPSelectors.from_file(args.selector_profile)
+                if args.selector_profile
+                else None
+            )
+            adapter = MockERPAdapter(
+                page,
+                base_url,
+                selectors=selectors,
+            )
             result = adapter.search(
                 args.invoice_id,
                 screenshot_path=args.screenshot,
@@ -1100,9 +1176,15 @@ def run_erp_reconcile(args) -> int:
             headless=not args.headed,
         ) as session:
             page = session.new_page()
+            selectors = (
+                ERPSelectors.from_file(args.selector_profile)
+                if args.selector_profile
+                else None
+            )
             adapter = MockERPAdapter(
                 page,
                 base_url,
+                selectors=selectors,
                 attempts=args.lookup_attempts,
                 retry_delay_seconds=args.retry_delay,
             )
