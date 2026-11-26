@@ -37,6 +37,7 @@ class ReconciliationHTMLReportWriter:
         cards = self._render_cards(
             summary,
             len(report.collection_errors),
+            len(report.cached_lookups),
         )
         filters = self._render_filters(summary)
         rows = "\n".join(
@@ -67,7 +68,7 @@ class ReconciliationHTMLReportWriter:
     main {{ max-width: 1320px; margin: 36px auto; padding: 0 24px; }}
     h1 {{ margin: 0 0 8px; }}
     .muted {{ color: var(--muted); }}
-    .cards {{ display: grid; grid-template-columns: repeat(4, 1fr);
+    .cards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 12px; margin: 26px 0; }}
     .card {{ background: var(--card); border: 1px solid var(--line);
       border-radius: 12px; padding: 16px; }}
@@ -91,6 +92,8 @@ class ReconciliationHTMLReportWriter:
     .status-missing_in_erp, .status-duplicate_in_erp,
     .status-invalid_input {{ color: var(--amber); }}
     .evidence a {{ color: var(--blue); }}
+    .cache {{ display: inline-block; margin-left: 8px; color: var(--green);
+      font-size: 12px; }}
     .errors {{ margin-top: 24px; padding: 18px; border-radius: 12px;
       background: #fff1f0; border: 1px solid #ffccc7; }}
     .empty {{ padding: 30px; text-align: center; color: var(--muted); }}
@@ -153,7 +156,12 @@ class ReconciliationHTMLReportWriter:
 </html>
 """
 
-    def _render_cards(self, summary, collection_error_count: int) -> str:
+    def _render_cards(
+        self,
+        summary,
+        collection_error_count: int,
+        cached_count: int,
+    ) -> str:
         business_differences = summary["total"] - summary["by_status"][
             ReconciliationStatus.MATCHED.value
         ]
@@ -162,6 +170,7 @@ class ReconciliationHTMLReportWriter:
             ("完全匹配", summary["by_status"]["matched"]),
             ("存在差异", business_differences),
             ("采集错误", collection_error_count),
+            ("缓存命中", cached_count),
         )
         return (
             '<section class="cards">'
@@ -205,6 +214,12 @@ class ReconciliationHTMLReportWriter:
                 f'<a href="{html.escape(relative)}" target="_blank">'
                 "查看截图</a>"
             )
+            if lookup.cached:
+                evidence += '<span class="cache">缓存</span>'
+            if lookup.attempts > 1:
+                evidence += (
+                    f'<span class="cache">重试 {lookup.attempts} 次</span>'
+                )
         searchable = " ".join(
             (
                 result.invoice_id,
@@ -234,7 +249,17 @@ class ReconciliationHTMLReportWriter:
         items = "".join(
             (
                 f"<li>{html.escape(error.invoice_id)}: "
-                f"{html.escape(error.error or '')}</li>"
+                f"{html.escape(error.error or '')}"
+                + (
+                    ' <a href="'
+                    + html.escape(
+                        Path(error.diagnostics_path).resolve().as_uri()
+                    )
+                    + '">诊断日志</a>'
+                    if error.diagnostics_path
+                    else ""
+                )
+                + "</li>"
             )
             for error in report.collection_errors
         )

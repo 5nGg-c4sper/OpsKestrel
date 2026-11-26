@@ -7,6 +7,7 @@ from pathlib import Path
 
 from soc_agent.browser import ERPSearchResult
 from soc_agent.erp_reconciliation import (
+    ReconciliationCheckpointError,
     reconcile_expected_csv_with_browser,
 )
 
@@ -158,6 +159,101 @@ class ERPReconciliationTests(unittest.TestCase):
         self.assertEqual(payload["collection"]["errors"], 0)
         self.assertEqual(payload["reconciliation"]["summary"]["total"], 4)
         self.assertEqual(len(payload["lookups"]), 4)
+
+    def test_checkpoint_reuses_successful_browser_lookups(self):
+        responses = {
+            "INV-1": [self.record("INV-1", "100.00")],
+            "INV-2": [],
+            "INV-3": [],
+            "INV-4": [],
+        }
+        checkpoint = self.root / "checkpoint.json"
+        first_adapter = FakeERPAdapter(responses)
+
+        first = reconcile_expected_csv_with_browser(
+            self.expected_csv,
+            first_adapter,
+            checkpoint_path=checkpoint,
+        )
+        second_adapter = FakeERPAdapter({})
+        second = reconcile_expected_csv_with_browser(
+            self.expected_csv,
+            second_adapter,
+            checkpoint_path=checkpoint,
+        )
+
+        self.assertEqual(len(first_adapter.calls), 4)
+        self.assertEqual(second_adapter.calls, [])
+        self.assertEqual(len(second.cached_lookups), 4)
+        self.assertEqual(
+            first.reconciliation.to_dict(),
+            second.reconciliation.to_dict(),
+        )
+        self.assertEqual(
+            second.to_dict()["collection"]["cached"],
+            4,
+        )
+
+    def test_checkpoint_resumes_only_missing_invoice(self):
+        checkpoint = self.root / "resume.json"
+        first_adapter = FakeERPAdapter(
+            {
+                "INV-1": RuntimeError("browser failed"),
+                "INV-2": [],
+                "INV-3": [],
+                "INV-4": [],
+            }
+        )
+
+        reconcile_expected_csv_with_browser(
+            self.expected_csv,
+            first_adapter,
+            checkpoint_path=checkpoint,
+        )
+        second_adapter = FakeERPAdapter(
+            {"INV-1": [self.record("INV-1", "100.00")]}
+        )
+        resumed = reconcile_expected_csv_with_browser(
+            self.expected_csv,
+            second_adapter,
+            checkpoint_path=checkpoint,
+        )
+
+        self.assertEqual(second_adapter.calls[0][0], "INV-1")
+        self.assertEqual(len(second_adapter.calls), 1)
+        self.assertEqual(len(resumed.cached_lookups), 3)
+        self.assertEqual(resumed.collection_errors, ())
+        self.assertEqual(
+            resumed.reconciliation.summary["by_status"]["matched"],
+            1,
+        )
+
+    def test_checkpoint_rejects_changed_expected_csv(self):
+        checkpoint = self.root / "changed.json"
+        reconcile_expected_csv_with_browser(
+            self.expected_csv,
+            FakeERPAdapter(
+                {
+                    "INV-1": [],
+                    "INV-2": [],
+                    "INV-3": [],
+                    "INV-4": [],
+                }
+            ),
+            checkpoint_path=checkpoint,
+        )
+        self.expected_csv.write_text(
+            self.expected_csv.read_text(encoding="utf-8")
+            + "INV-5,CUST-5,CNY,500.00,paid,2026-11-24\n",
+            encoding="utf-8",
+        )
+
+        with self.assertRaises(ReconciliationCheckpointError):
+            reconcile_expected_csv_with_browser(
+                self.expected_csv,
+                FakeERPAdapter({}),
+                checkpoint_path=checkpoint,
+            )
 
 
 if __name__ == "__main__":

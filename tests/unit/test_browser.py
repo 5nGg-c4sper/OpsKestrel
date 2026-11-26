@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from soc_agent.browser import (
+    BrowserAdapterError,
     ERPSearchResult,
     MockERPAdapter,
 )
@@ -45,6 +46,18 @@ class FakePage:
     def screenshot(self, path, full_page=False):
         Path(path).write_bytes(b"fake-image")
         self.screenshot_path = (path, full_page)
+
+
+class FlakyPage(FakePage):
+    def __init__(self, records, failures):
+        super().__init__(records)
+        self.failures = failures
+
+    def goto(self, url, **kwargs):
+        if self.failures > 0:
+            self.failures -= 1
+            raise RuntimeError("temporary navigation failure")
+        super().goto(url, **kwargs)
 
 
 class MockERPAdapterTests(unittest.TestCase):
@@ -113,6 +126,53 @@ class MockERPAdapterTests(unittest.TestCase):
         self.assertEqual(result.record_count, 2)
         self.assertTrue(result.duplicate)
 
+    def test_search_retries_transient_failure(self):
+        page = FlakyPage(
+            [{"invoice_id": "INV-1", "amount": "100.00"}],
+            failures=1,
+        )
+        sleeps = []
+        adapter = MockERPAdapter(
+            page,
+            "http://localhost",
+            attempts=2,
+            retry_delay_seconds=0.25,
+            sleep_fn=sleeps.append,
+        )
+
+        result = adapter.search("INV-1")
+
+        self.assertEqual(result.attempts, 2)
+        self.assertEqual(len(result.retry_errors), 1)
+        self.assertIn("temporary navigation failure", result.retry_errors[0])
+        self.assertEqual(sleeps, [0.25])
+
+    def test_permanent_failure_writes_diagnostics(self):
+        page = FlakyPage([], failures=2)
+        adapter = MockERPAdapter(
+            page,
+            "http://localhost",
+            attempts=2,
+            retry_delay_seconds=0,
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            screenshot = Path(directory) / "inv-1.png"
+            with self.assertRaises(BrowserAdapterError) as context:
+                adapter.search(
+                    "INV-1",
+                    screenshot_path=str(screenshot),
+                )
+
+            error = context.exception
+            self.assertEqual(error.attempts, 2)
+            self.assertEqual(len(error.failures), 2)
+            self.assertTrue(Path(error.diagnostics_path).is_file())
+            self.assertIn(
+                "temporary navigation failure",
+                Path(error.diagnostics_path).read_text(encoding="utf-8"),
+            )
+
     def test_search_returns_not_found_result(self):
         page = FakePage([])
 
@@ -147,6 +207,8 @@ class MockERPAdapterTests(unittest.TestCase):
                     {"invoice_id": "INV-1", "amount": "10.00"}
                 ],
                 "screenshot_path": None,
+                "attempts": 1,
+                "retry_errors": [],
             },
         )
 

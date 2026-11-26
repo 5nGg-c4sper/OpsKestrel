@@ -58,6 +58,8 @@ class ReconciliationHTMLReportTests(unittest.TestCase):
                         record_count=1,
                         duplicate=False,
                         screenshot_path=str(screenshot),
+                        attempts=2,
+                        cached=True,
                     ),
                     ERPLookupEvidence(
                         invoice_id="INV-2",
@@ -83,6 +85,8 @@ class ReconciliationHTMLReportTests(unittest.TestCase):
         self.assertIn("INV-1", html)
         self.assertIn("amount: 100.00 != 120.00", html)
         self.assertIn("../evidence/inv-1.png", html)
+        self.assertIn("缓存命中", html)
+        self.assertIn("重试 2 次", html)
         self.assertNotIn("<script>bad()</script>", html)
         self.assertIn("&lt;script&gt;bad()&lt;/script&gt;", html)
 

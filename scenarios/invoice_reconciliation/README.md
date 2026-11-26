@@ -63,6 +63,7 @@ Run all 20 fixture invoices through the browser and reconciliation engine:
 ./venv/bin/soc-agent erp-reconcile \
   scenarios/invoice_reconciliation/data/input_invoices.csv \
   --screenshot-dir reports/invoice-reconciliation/evidence \
+  --checkpoint reports/invoice-reconciliation/checkpoint.json \
   --output reports/invoice-reconciliation.json \
   --html reports/invoice-reconciliation.html
 ```
@@ -71,3 +72,8 @@ The real Chrome regression performs 20 ERP lookups, saves 20 screenshots, and
 produces the same seven-category result as the pure JSON reconciliation path.
 The HTML report supports filter buttons, invoice search, and screenshot links
 for each collected invoice.
+
+Each browser lookup retries twice by default. Failed lookups are isolated so the
+remaining invoices continue, and each failure writes a screenshot plus a
+diagnostics text file. The checkpoint stores successful records after every
+invoice, allowing the next run to resume from failed or missing items.

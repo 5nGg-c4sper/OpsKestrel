@@ -482,6 +482,12 @@ class CLITests(unittest.TestCase):
                 "reports/reconcile.json",
                 "--html",
                 "reports/reconcile.html",
+                "--checkpoint",
+                "reports/checkpoint.json",
+                "--lookup-attempts",
+                "3",
+                "--retry-delay",
+                "0.2",
                 "--fail-on-differences",
             ]
         )
@@ -491,6 +497,9 @@ class CLITests(unittest.TestCase):
         self.assertEqual(args.screenshot_dir, "reports/erp")
         self.assertEqual(args.output, "reports/reconcile.json")
         self.assertEqual(args.html, "reports/reconcile.html")
+        self.assertEqual(args.checkpoint, "reports/checkpoint.json")
+        self.assertEqual(args.lookup_attempts, 3)
+        self.assertEqual(args.retry_delay, 0.2)
         self.assertTrue(args.fail_on_differences)
 
     def test_parser_supports_repeated_suite_parameters(self):

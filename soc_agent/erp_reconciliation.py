@@ -1,5 +1,7 @@
 """Batch CSV-to-ERP browser reconciliation orchestration."""
 
+import hashlib
+import json
 import re
 from dataclasses import dataclass
 from decimal import Decimal
@@ -22,6 +24,10 @@ class ERPLookupEvidence:
     duplicate: bool
     screenshot_path: Optional[str]
     error: Optional[str] = None
+    attempts: int = 1
+    retry_errors: Tuple[str, ...] = ()
+    diagnostics_path: Optional[str] = None
+    cached: bool = False
 
     def to_dict(self) -> Dict:
         return {
@@ -31,7 +37,26 @@ class ERPLookupEvidence:
             "duplicate": self.duplicate,
             "screenshot_path": self.screenshot_path,
             "error": self.error,
+            "attempts": self.attempts,
+            "retry_errors": list(self.retry_errors),
+            "diagnostics_path": self.diagnostics_path,
+            "cached": self.cached,
         }
+
+    @classmethod
+    def from_dict(cls, payload: Dict) -> "ERPLookupEvidence":
+        return cls(
+            invoice_id=payload["invoice_id"],
+            found=bool(payload["found"]),
+            record_count=int(payload["record_count"]),
+            duplicate=bool(payload["duplicate"]),
+            screenshot_path=payload.get("screenshot_path"),
+            error=payload.get("error"),
+            attempts=int(payload.get("attempts", 1)),
+            retry_errors=tuple(payload.get("retry_errors", [])),
+            diagnostics_path=payload.get("diagnostics_path"),
+            cached=bool(payload.get("cached", False)),
+        )
 
 
 @dataclass(frozen=True)
@@ -39,6 +64,7 @@ class BrowserReconciliationReport:
     expected_csv: str
     reconciliation: ReconciliationReport
     lookups: Tuple[ERPLookupEvidence, ...]
+    checkpoint_path: Optional[str] = None
 
     @property
     def collection_errors(self) -> Tuple[ERPLookupEvidence, ...]:
@@ -46,12 +72,27 @@ class BrowserReconciliationReport:
             lookup for lookup in self.lookups if lookup.error is not None
         )
 
+    @property
+    def cached_lookups(self) -> Tuple[ERPLookupEvidence, ...]:
+        return tuple(
+            lookup for lookup in self.lookups if lookup.cached
+        )
+
     def to_dict(self) -> Dict:
         return {
             "expected_csv": self.expected_csv,
+            "checkpoint_path": self.checkpoint_path,
             "collection": {
                 "lookups": len(self.lookups),
                 "errors": len(self.collection_errors),
+                "cached": len(self.cached_lookups),
+                "retried": len(
+                    [
+                        lookup
+                        for lookup in self.lookups
+                        if lookup.attempts > 1
+                    ]
+                ),
             },
             "reconciliation": self.reconciliation.to_dict(),
             "lookups": [
@@ -60,11 +101,100 @@ class BrowserReconciliationReport:
         }
 
 
+class ReconciliationCheckpointError(ValueError):
+    """Raised when a reconciliation checkpoint is invalid."""
+
+
+class ReconciliationCheckpoint:
+    def __init__(
+        self,
+        path: Union[str, Path],
+        expected_csv: Union[str, Path],
+    ):
+        self.path = Path(path).expanduser().resolve()
+        self.expected_csv = Path(expected_csv).expanduser().resolve()
+        self.expected_hash = hashlib.sha256(
+            self.expected_csv.read_bytes()
+        ).hexdigest()
+        self.lookups = {}
+        self._load()
+
+    def get(self, invoice_id: str):
+        payload = self.lookups.get(invoice_id.casefold())
+        if payload is None:
+            return None
+        evidence_payload = {
+            **payload["evidence"],
+            "cached": True,
+        }
+        evidence = ERPLookupEvidence.from_dict(
+            evidence_payload
+        )
+        return tuple(payload["records"]), evidence
+
+    def save(
+        self,
+        invoice_id: str,
+        records,
+        evidence: ERPLookupEvidence,
+    ) -> None:
+        self.lookups[invoice_id.casefold()] = {
+            "invoice_id": invoice_id,
+            "records": list(records),
+            "evidence": evidence.to_dict(),
+        }
+        self._write()
+
+    def _load(self) -> None:
+        if not self.path.exists():
+            return
+        try:
+            payload = json.loads(
+                self.path.read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError) as error:
+            raise ReconciliationCheckpointError(
+                f"failed to read checkpoint {self.path}: {error}"
+            ) from error
+        if payload.get("schema_version") != 1:
+            raise ReconciliationCheckpointError(
+                "unsupported reconciliation checkpoint version"
+            )
+        if payload.get("expected_sha256") != self.expected_hash:
+            raise ReconciliationCheckpointError(
+                "checkpoint does not match the current expected CSV"
+            )
+        lookups = payload.get("lookups")
+        if not isinstance(lookups, dict):
+            raise ReconciliationCheckpointError(
+                "checkpoint lookups must be an object"
+            )
+        self.lookups = lookups
+
+    def _write(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "schema_version": 1,
+            "expected_csv": str(self.expected_csv),
+            "expected_sha256": self.expected_hash,
+            "lookups": self.lookups,
+        }
+        temp_path = self.path.with_suffix(
+            self.path.suffix + ".tmp"
+        )
+        temp_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        temp_path.replace(self.path)
+
+
 def reconcile_expected_csv_with_browser(
     expected_csv: Union[str, Path],
     adapter,
     screenshot_dir: Optional[Union[str, Path]] = None,
     amount_tolerance: Union[str, Decimal] = "0.01",
+    checkpoint_path: Optional[Union[str, Path]] = None,
 ) -> BrowserReconciliationReport:
     source_path = Path(expected_csv).expanduser().resolve()
     expected_rows = load_expected_invoices_csv(source_path)
@@ -75,6 +205,11 @@ def reconcile_expected_csv_with_browser(
     )
     if screenshot_root is not None:
         screenshot_root.mkdir(parents=True, exist_ok=True)
+    checkpoint = (
+        ReconciliationCheckpoint(checkpoint_path, source_path)
+        if checkpoint_path is not None
+        else None
+    )
 
     invoice_ids = []
     for row in expected_rows:
@@ -87,6 +222,13 @@ def reconcile_expected_csv_with_browser(
     erp_rows = []
     evidence = []
     for invoice_id in invoice_ids:
+        cached = checkpoint.get(invoice_id) if checkpoint else None
+        if cached is not None:
+            cached_records, cached_evidence = cached
+            erp_rows.extend(cached_records)
+            evidence.append(cached_evidence)
+            continue
+
         screenshot_path = None
         if screenshot_root is not None:
             screenshot_path = str(
@@ -107,12 +249,28 @@ def reconcile_expected_csv_with_browser(
                     duplicate=False,
                     screenshot_path=None,
                     error=str(error),
+                    attempts=int(getattr(error, "attempts", 1)),
+                    retry_errors=tuple(
+                        getattr(error, "failures", ())
+                    ),
+                    diagnostics_path=getattr(
+                        error,
+                        "diagnostics_path",
+                        None,
+                    ),
                 )
             )
             continue
 
         erp_rows.extend(result.records)
-        evidence.append(_evidence_from_result(result))
+        result_evidence = _evidence_from_result(result)
+        evidence.append(result_evidence)
+        if checkpoint is not None:
+            checkpoint.save(
+                invoice_id,
+                result.records,
+                result_evidence,
+            )
 
     reconciliation = reconcile_invoices(
         expected_rows,
@@ -123,6 +281,9 @@ def reconcile_expected_csv_with_browser(
         expected_csv=str(source_path),
         reconciliation=reconciliation,
         lookups=tuple(evidence),
+        checkpoint_path=(
+            str(checkpoint.path) if checkpoint is not None else None
+        ),
     )
 
 
@@ -135,6 +296,8 @@ def _evidence_from_result(
         record_count=result.record_count,
         duplicate=result.duplicate,
         screenshot_path=result.screenshot_path,
+        attempts=result.attempts,
+        retry_errors=result.retry_errors,
     )
 
 

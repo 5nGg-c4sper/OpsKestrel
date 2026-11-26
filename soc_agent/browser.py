@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -9,6 +10,18 @@ from typing import Any, Dict, List, Optional, Tuple
 
 class BrowserAdapterError(RuntimeError):
     """Raised when a browser workflow cannot collect structured data."""
+
+    def __init__(
+        self,
+        message: str,
+        attempts: int = 1,
+        failures: Tuple[str, ...] = (),
+        diagnostics_path: Optional[str] = None,
+    ):
+        super().__init__(message)
+        self.attempts = attempts
+        self.failures = failures
+        self.diagnostics_path = diagnostics_path
 
 
 @dataclass(frozen=True)
@@ -26,6 +39,8 @@ class ERPSearchResult:
     base_url: str
     records: Tuple[Dict[str, Any], ...]
     screenshot_path: Optional[str] = None
+    attempts: int = 1
+    retry_errors: Tuple[str, ...] = ()
 
     @property
     def found(self) -> bool:
@@ -48,6 +63,8 @@ class ERPSearchResult:
             "duplicate": self.duplicate,
             "records": list(self.records),
             "screenshot_path": self.screenshot_path,
+            "attempts": self.attempts,
+            "retry_errors": list(self.retry_errors),
         }
 
 
@@ -60,13 +77,25 @@ class MockERPAdapter:
         base_url: str,
         selectors: Optional[ERPSelectors] = None,
         timeout_ms: int = 10000,
+        attempts: int = 1,
+        retry_delay_seconds: float = 0.5,
+        sleep_fn=None,
     ):
         if timeout_ms <= 0:
             raise ValueError("timeout_ms must be greater than 0")
+        if attempts < 1:
+            raise ValueError("attempts must be at least 1")
+        if retry_delay_seconds < 0:
+            raise ValueError(
+                "retry_delay_seconds must not be negative"
+            )
         self.page = page
         self.base_url = base_url.rstrip("/") + "/"
         self.selectors = selectors or ERPSelectors()
         self.timeout_ms = timeout_ms
+        self.attempts = attempts
+        self.retry_delay_seconds = retry_delay_seconds
+        self._sleep = sleep_fn or time.sleep
 
     def search(
         self,
@@ -77,60 +106,124 @@ class MockERPAdapter:
         if not query:
             raise ValueError("invoice_id must not be empty")
 
-        try:
-            self.page.goto(
-                self.base_url,
-                wait_until="domcontentloaded",
-                timeout=self.timeout_ms,
-            )
-            self.page.fill(
-                self.selectors.invoice_input,
-                query,
-                timeout=self.timeout_ms,
-            )
-            self.page.click(
-                self.selectors.search_submit,
-                timeout=self.timeout_ms,
-            )
-            self.page.wait_for_selector(
-                (
-                    f"{self.selectors.record}, "
-                    f"{self.selectors.not_found}"
-                ),
-                timeout=self.timeout_ms,
-            )
-            records = self.page.locator(
-                self.selectors.record
-            ).evaluate_all(
-                """
-                (elements, fieldSelector) => elements.map((element) => {
-                  const result = {};
-                  element.querySelectorAll(fieldSelector).forEach((field) => {
-                    result[field.dataset.field] = field.textContent.trim();
-                  });
-                  return result;
-                })
-                """,
-                self.selectors.field,
-            )
-        except Exception as error:
-            raise BrowserAdapterError(
-                f"ERP browser search failed for {query}: {error}"
-            ) from error
+        retry_errors = []
+        for attempt in range(1, self.attempts + 1):
+            try:
+                records = self._search_once(query)
+            except Exception as error:
+                retry_errors.append(str(error))
+                if attempt < self.attempts:
+                    self._sleep(self.retry_delay_seconds)
+                continue
 
-        captured_path = None
-        if screenshot_path:
-            path = Path(screenshot_path).expanduser().resolve()
-            path.parent.mkdir(parents=True, exist_ok=True)
-            self.page.screenshot(path=str(path), full_page=True)
-            captured_path = str(path)
+            captured_path = None
+            if screenshot_path:
+                path = Path(screenshot_path).expanduser().resolve()
+                path.parent.mkdir(parents=True, exist_ok=True)
+                self.page.screenshot(path=str(path), full_page=True)
+                captured_path = str(path)
 
-        return ERPSearchResult(
-            invoice_id=query,
-            base_url=self.base_url,
-            records=tuple(records),
-            screenshot_path=captured_path,
+            return ERPSearchResult(
+                invoice_id=query,
+                base_url=self.base_url,
+                records=tuple(records),
+                screenshot_path=captured_path,
+                attempts=attempt,
+                retry_errors=tuple(retry_errors),
+            )
+
+        diagnostics_path = self._capture_failure_diagnostics(
+            query,
+            retry_errors,
+            screenshot_path,
         )
+        raise BrowserAdapterError(
+            (
+                f"ERP browser search failed for {query} after "
+                f"{self.attempts} attempt(s): {retry_errors[-1]}"
+            ),
+            attempts=self.attempts,
+            failures=tuple(retry_errors),
+            diagnostics_path=diagnostics_path,
+        )
+
+    def _search_once(self, query: str):
+        self.page.goto(
+            self.base_url,
+            wait_until="domcontentloaded",
+            timeout=self.timeout_ms,
+        )
+        self.page.fill(
+            self.selectors.invoice_input,
+            query,
+            timeout=self.timeout_ms,
+        )
+        self.page.click(
+            self.selectors.search_submit,
+            timeout=self.timeout_ms,
+        )
+        self.page.wait_for_selector(
+            (
+                f"{self.selectors.record}, "
+                f"{self.selectors.not_found}"
+            ),
+            timeout=self.timeout_ms,
+        )
+        return self.page.locator(
+            self.selectors.record
+        ).evaluate_all(
+            """
+            (elements, fieldSelector) => elements.map((element) => {
+              const result = {};
+              element.querySelectorAll(fieldSelector).forEach((field) => {
+                result[field.dataset.field] = field.textContent.trim();
+              });
+              return result;
+            })
+            """,
+            self.selectors.field,
+        )
+
+    def _capture_failure_diagnostics(
+        self,
+        query: str,
+        failures: List[str],
+        screenshot_path: Optional[str],
+    ) -> Optional[str]:
+        if not screenshot_path:
+            return None
+        base_path = Path(screenshot_path).expanduser().resolve()
+        base_path.parent.mkdir(parents=True, exist_ok=True)
+        failure_screenshot = base_path.with_name(
+            f"{base_path.stem}-failure.png"
+        )
+        diagnostics_path = base_path.with_name(
+            f"{base_path.stem}-diagnostics.txt"
+        )
+        try:
+            self.page.screenshot(
+                path=str(failure_screenshot),
+                full_page=True,
+            )
+        except Exception:
+            pass
+        content = [
+            f"Invoice: {query}",
+            f"URL: {self.base_url}",
+            f"Attempts: {self.attempts}",
+            f"Failure screenshot: {failure_screenshot}",
+            "",
+            "Errors:",
+        ]
+        content.extend(
+            f"[{index}] {failure}"
+            for index, failure in enumerate(failures, start=1)
+        )
+        diagnostics_path.write_text(
+            "\n".join(content) + "\n",
+            encoding="utf-8",
+        )
+        return str(diagnostics_path)
 
 
 class PlaywrightBrowserSession:

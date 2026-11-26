@@ -493,6 +493,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Write a filterable HTML reconciliation report",
     )
     erp_reconcile_parser.add_argument(
+        "--checkpoint",
+        default=None,
+        help="Persist successful ERP lookups for resume",
+    )
+    erp_reconcile_parser.add_argument(
+        "--reset-checkpoint",
+        action="store_true",
+    )
+    erp_reconcile_parser.add_argument(
+        "--lookup-attempts",
+        type=int,
+        default=2,
+    )
+    erp_reconcile_parser.add_argument(
+        "--retry-delay",
+        type=float,
+        default=0.5,
+    )
+    erp_reconcile_parser.add_argument(
         "--fail-on-differences",
         action="store_true",
     )
@@ -1052,6 +1071,17 @@ def run_erp_reconcile(args) -> int:
     thread = None
     base_url = args.base_url
     try:
+        if args.reset_checkpoint:
+            if not args.checkpoint:
+                print(
+                    "ERP reconciliation failed: "
+                    "--reset-checkpoint requires --checkpoint"
+                )
+                return 1
+            checkpoint_path = Path(args.checkpoint).expanduser()
+            if checkpoint_path.exists():
+                checkpoint_path.unlink()
+
         if base_url is None:
             server = create_mock_erp_server(
                 args.mock_erp_data,
@@ -1070,12 +1100,18 @@ def run_erp_reconcile(args) -> int:
             headless=not args.headed,
         ) as session:
             page = session.new_page()
-            adapter = MockERPAdapter(page, base_url)
+            adapter = MockERPAdapter(
+                page,
+                base_url,
+                attempts=args.lookup_attempts,
+                retry_delay_seconds=args.retry_delay,
+            )
             report = reconcile_expected_csv_with_browser(
                 args.expected_csv,
                 adapter,
                 screenshot_dir=args.screenshot_dir,
                 amount_tolerance=args.amount_tolerance,
+                checkpoint_path=args.checkpoint,
             )
             page.close()
     except Exception as error:
@@ -1115,6 +1151,11 @@ def run_erp_reconcile(args) -> int:
             )
         print(f"ERP lookups: {len(report.lookups)}")
         print(f"Collection errors: {len(report.collection_errors)}")
+        print(f"Cached lookups: {len(report.cached_lookups)}")
+        print(
+            "Retried lookups: "
+            f"{sum(1 for lookup in report.lookups if lookup.attempts > 1)}"
+        )
         if args.output:
             print(f"Report: {output_path}")
         if html_path is not None:

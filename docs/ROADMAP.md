@@ -79,6 +79,8 @@ SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优
 - M5 Playwright Browser Adapter、DOM 字段读取、重复/缺失处理和页面截图
 - M5 CSV→浏览器→DOM 对账→逐票截图→批量差异报告端到端编排
 - M5 可筛选 HTML 对账报告、汇总卡片、文本搜索和截图证据链接
+- M5 ERP 查询重试、失败截图/诊断和单票失败隔离
+- M5 CSV 哈希检查点、逐票原子保存和失败项断点续跑
 - `soc-agent dataset` 数据集命令、失败停止/重试策略和诊断输出
 - 基础安全策略
 - GitHub Actions 单元测试配置
@@ -86,7 +88,7 @@ SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优
 
 当前验证结果：
 
-- 411 个单元测试通过
+- 416 个单元测试通过
 - macOS LaunchAgent Worker 已完成真实队列领取、Accessibility 点击、
   键盘输入、截图视觉验证、跨应用 Workflow、报告写入和清理回归
 - LaunchAgent Worker 已验证失败任务连续自动重试 3 次并写回最终失败状态
@@ -97,6 +99,7 @@ SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优
 - Playwright Browser Adapter 已用真实 Chrome 读取重复发票并保存页面截图
 - 20 条 CSV 已完成真实 Chrome→DOM→对账→20 张证据截图端到端回归
 - HTML 对账报告已验证 20 行数据、状态筛选、搜索和 20 个截图链接
+- ERP 批量已用真实 Chrome 验证全量执行后缓存命中 20 条并生成恢复报告
 - 计算器任务连续批量执行成功
 - 两组参数化计算器任务在真实 macOS 上验证成功
 - 双 case 数据集在真实 macOS 上连续执行成功

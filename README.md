@@ -401,6 +401,7 @@ Run the complete CSV-to-ERP reconciliation batch:
 ./venv/bin/soc-agent erp-reconcile \
   scenarios/invoice_reconciliation/data/input_invoices.csv \
   --screenshot-dir reports/invoice-reconciliation/evidence \
+  --checkpoint reports/invoice-reconciliation/checkpoint.json \
   --output reports/invoice-reconciliation.json \
   --html reports/invoice-reconciliation.html
 ```
@@ -410,6 +411,11 @@ the deterministic reconciliation engine. The report includes one lookup per
 invoice, collection errors, screenshots, and the final reconciliation summary.
 The optional HTML report adds summary cards, status filters, text search, and
 clickable screenshot evidence.
+
+`--lookup-attempts` and `--retry-delay` control per-invoice browser retries.
+`--checkpoint` persists each successful lookup and automatically resumes only
+missing invoices on the next run. The checkpoint is tied to the exact expected
+CSV hash; use `--reset-checkpoint` to start a new collection explicitly.
 
 Manage the persistent execution queue:
 
