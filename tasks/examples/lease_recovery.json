@@ -1,0 +1,16 @@
+{
+  "name": "lease_recovery",
+  "description": "等待期间允许 Worker 故障注入并验证租约恢复",
+  "max_steps": 2,
+  "max_duration_seconds": 60,
+  "steps": [
+    {
+      "type": "wait",
+      "seconds": 30
+    },
+    {
+      "type": "done",
+      "summary": "租约恢复任务完成"
+    }
+  ]
+}

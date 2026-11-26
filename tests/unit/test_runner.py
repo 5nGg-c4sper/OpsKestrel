@@ -306,6 +306,18 @@ class TaskRunnerTests(unittest.TestCase):
         self.assertEqual(task.steps[1].element.role, "AXButton")
         self.assertEqual(task.steps[1].element.text, "7")
 
+    def test_lease_recovery_example_is_valid(self):
+        task_path = (
+            PROJECT_ROOT / "tasks" / "examples" / "lease_recovery.json"
+        )
+
+        task = TaskRunner.load_task(task_path)
+
+        self.assertEqual(task.name, "lease_recovery")
+        self.assertEqual(task.steps[0].type, ActionType.WAIT)
+        self.assertEqual(task.steps[0].seconds, 30)
+        self.assertEqual(task.max_duration_seconds, 60)
+
     def test_read_element_stores_output_in_step_result(self):
         task = TaskDefinition.model_validate(
             {

@@ -78,10 +78,11 @@ SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优
 
 当前验证结果：
 
-- 367 个单元测试通过
+- 368 个单元测试通过
 - macOS LaunchAgent Worker 已完成真实队列领取、Accessibility 点击、
   键盘输入、截图视觉验证、跨应用 Workflow、报告写入和清理回归
 - LaunchAgent Worker 已验证失败任务连续自动重试 3 次并写回最终失败状态
+- LaunchAgent Worker 已验证 `SIGKILL` 后自动拉起、恢复过期租约并成功重跑任务
 - 计算器任务连续批量执行成功
 - 两组参数化计算器任务在真实 macOS 上验证成功
 - 双 case 数据集在真实 macOS 上连续执行成功
