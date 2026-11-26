@@ -4,7 +4,7 @@
 
 - macOS with a logged-in graphical session
 - Google Chrome under `/Applications`
-- Python 3.9 or newer
+- Python 3.9 through 3.12
 - Accessibility and Screen Recording permission for the process running the
   browser workflow
 
@@ -42,10 +42,10 @@ Artifacts are written to `reports/demo-<timestamp>/`:
 - filterable HTML
 - Excel workbook
 
-## Console
+## One-Command Console
 
 ```bash
-./venv/bin/soc-agent console --port 8766
+./scripts/start_soc_agent.sh
 ```
 
 Open `http://127.0.0.1:8766` to view reports, online Workers, and start the
@@ -61,8 +61,9 @@ invoice data and screenshots.
 
 ## Human Review
 
-The **人工复核** section lists every non-matching invoice. Select a review
-conclusion, enter the reviewer and optional note, then save:
+The **人工复核** section lists every non-matching invoice. Authenticate with the
+configured operator token, select a review conclusion, add an optional note,
+then save:
 
 - `pending`: not handled yet
 - `confirmed`: the detected difference is real
@@ -70,6 +71,24 @@ conclusion, enter the reviewer and optional note, then save:
 
 Decisions are written to `review.json` and synchronized to
 `reconciliation.json`, `reconciliation.html`, and `reconciliation.xlsx`.
-If an evidence bundle already exists, it is regenerated. After restarting the
-console, the latest reconciliation run with review data is selected
-automatically.
+If an evidence bundle already exists, it is regenerated. Historical runs can be
+selected from the console, multiple differences can be reviewed together, and
+an `admin` can close a completed review.
+
+The launcher writes a random operator token to `.soc-console-token` with
+owner-only permissions. Paste that token into the console before using review
+operations. Do not commit or share the token file. Client-supplied reviewer
+names are ignored; the configured token identity is recorded in the hash-chained
+`review-audit.jsonl`.
+
+## Health And Release Checks
+
+```bash
+./venv/bin/soc-agent health --json
+./venv/bin/soc-agent release-check --json
+./scripts/release_acceptance.sh
+```
+
+The health endpoint is `http://127.0.0.1:8766/healthz`. Set
+`SOC_ACCEPTANCE_BROWSER=1` when running release acceptance to include the real
+Chrome invoice demo.

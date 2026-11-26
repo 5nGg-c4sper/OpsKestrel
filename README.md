@@ -8,7 +8,7 @@
   Using the same inputs and outputs as a human operator, the model views the screen and decides on a series of mouse and keyboard actions to reach an objective. Released Nov 2023, the Self-Operating Computer Framework was one of the first examples of full computer-use. 
 </p>
 
-## SOC Agent: deterministic macOS automation
+## SOC Agent 2.0.0: deterministic macOS automation
 
 This repository also contains a secondary-development runtime named `soc_agent`.
 It executes versioned JSON tasks through deterministic desktop actions and uses a
@@ -21,6 +21,9 @@ Documentation:
 - [Promotional and resume notes](docs/PROMO.md)
 - [Product roadmap](docs/ROADMAP.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [PostgreSQL queue deployment](docs/POSTGRES.md)
+- [Changelog](CHANGELOG.md)
+- [Security policy](SECURITY.md)
 
 The local operations console can start the built-in invoice demo, upload a
 CSV/XLSX/PDF input, stream run logs, download JSON/HTML/XLSX artifacts, and show
@@ -33,6 +36,26 @@ as one auditable ZIP with a SHA-256 file manifest:
 ./venv/bin/soc-agent console --port 8766
 ```
 
+For the interview-ready setup, use the one-command launcher. It creates a local
+operator token once, stores it with owner-only permissions, and starts the
+console with `admin` role by default:
+
+```bash
+./scripts/start_soc_agent.sh
+```
+
+Enter the token from `.soc-console-token` in the console to unlock review
+operations. The token file is ignored by Git. The launcher honors
+`SOC_CONSOLE_HOST`, `SOC_CONSOLE_PORT`, `SOC_REPORTS_DIR`, `SOC_QUEUE_DB`,
+`SOC_OPERATOR_NAME`, and `SOC_OPERATOR_ROLE`.
+
+Check a running console from another shell:
+
+```bash
+./venv/bin/soc-agent health
+./venv/bin/soc-agent release-check
+```
+
 The same archive can be created from the command line:
 
 ```bash
@@ -42,13 +65,21 @@ The same archive can be created from the command line:
 Evidence packages can contain invoice data and screenshots. Review them before
 sharing outside the operator's machine.
 
-The console also provides a human review workflow for reconciliation
-differences. Each difference can be marked `pending`, `confirmed`, or
-`false_positive`, with a reviewer name and note. Decisions are stored in
-`review.json`; JSON, HTML, XLSX, and an existing evidence bundle are refreshed
-so the deterministic algorithm result and the operator decision remain
-separately auditable. The reviewer name is self-declared and is not an
-authentication claim.
+The console also provides an authenticated human review workflow for
+reconciliation differences. Each difference can be marked `pending`,
+`confirmed`, or `false_positive`; reviewers can select historical runs, batch
+update multiple differences, and close a fully reviewed run. Decisions are
+stored in `review.json`; immutable append-only events are hash-chained in
+`review-audit.jsonl`. JSON, HTML, XLSX, and an existing evidence bundle are
+refreshed so the deterministic algorithm result and the operator decision remain
+separately auditable. The configured console token identifies the reviewer;
+client-supplied reviewer names are ignored.
+
+Roles are enforced server-side:
+
+- `viewer`: read review state and audit history
+- `reviewer`: save individual or batch decisions
+- `admin`: reviewer permissions plus closing a completed review run
 
 ![SOC Agent Console](docs/assets/console.png)
 
@@ -61,9 +92,9 @@ The invoice reconciliation report combines deterministic result classification,
 business filters, retry/cache state, and screenshot evidence:
 
 ![Invoice Reconciliation Report](docs/assets/reconciliation-report.png)
-- [PostgreSQL queue deployment](docs/POSTGRES.md)
 
 Configure the project root `.env` from [.env.example](.env.example).
+Python 3.9 through 3.12 is supported.
 
 Run one task:
 

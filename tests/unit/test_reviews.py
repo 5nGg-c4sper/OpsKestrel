@@ -10,6 +10,8 @@ from soc_agent.reconciliation import (
     ReconciliationStatus,
 )
 from soc_agent.reviews import (
+    ReviewAuditError,
+    ReviewAuditLog,
     ReviewError,
     ReviewRecord,
     ReviewStatus,
@@ -119,6 +121,33 @@ class ReviewTests(unittest.TestCase):
                 ReviewStatus.CONFIRMED,
                 " ",
             )
+
+    def test_audit_log_detects_modified_event(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "review-audit.jsonl"
+            audit = ReviewAuditLog(path)
+            audit.append(
+                "INV-2",
+                None,
+                ReviewRecord(
+                    "INV-2",
+                    ReviewStatus.CONFIRMED,
+                    "operator-a",
+                    "original",
+                ),
+            )
+            lines = path.read_text(encoding="utf-8").splitlines()
+            lines[0] = lines[0].replace("original", "tampered")
+            path.write_text(
+                "\n".join(lines) + "\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ReviewAuditError,
+                "hash mismatch",
+            ):
+                ReviewAuditLog(path)
 
 
 if __name__ == "__main__":

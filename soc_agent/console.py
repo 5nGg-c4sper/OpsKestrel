@@ -17,12 +17,21 @@ from urllib.parse import unquote, urlparse
 from soc_agent.evidence_bundle import (
     create_evidence_bundle as archive_evidence_bundle,
 )
+from soc_agent.operators import (
+    OperatorAuthenticator,
+    OperatorError,
+    OperatorRole,
+)
 from soc_agent.queue_backend import create_queue_store
 from soc_agent.review_workflow import (
+    close_review as close_run_review,
+    list_review_runs,
     review_state as load_review_state,
     save_review as persist_review,
+    save_review_batch as persist_review_batch,
 )
-from soc_agent.reviews import ReviewError
+from soc_agent.reviews import ReviewAuditError, ReviewError
+from soc_agent import __version__
 
 
 class ConsoleState:
@@ -34,6 +43,9 @@ class ConsoleState:
         command_factory=None,
         upload_command_factory=None,
         max_upload_bytes=10 * 1024 * 1024,
+        operator_name="local-operator",
+        operator_token="",
+        operator_role="reviewer",
     ):
         self.project_root = Path(project_root).expanduser().resolve()
         self.reports_dir = Path(reports_dir).expanduser().resolve()
@@ -43,6 +55,11 @@ class ConsoleState:
             upload_command_factory or self._default_upload_command
         )
         self.max_upload_bytes = max_upload_bytes
+        self.operators = OperatorAuthenticator(
+            operator_name,
+            operator_token,
+            operator_role,
+        )
         self._process = None
         self._log_file = None
         self._output_dir = None
@@ -121,6 +138,35 @@ class ConsoleState:
             "worker_error": worker_error,
             "demo": self.demo_status(),
             "history": self.history(),
+        }
+
+    def health(self):
+        reports_writable = False
+        try:
+            self.reports_dir.mkdir(parents=True, exist_ok=True)
+            probe = self.reports_dir / ".soc-health-probe"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink()
+            reports_writable = True
+        except OSError:
+            reports_writable = False
+        active = (
+            self._process is not None
+            and self._process.poll() is None
+        )
+        healthy = reports_writable
+        return {
+            "status": "ok" if healthy else "failed",
+            "service": "soc-agent-console",
+            "version": __version__,
+            "time": datetime.now(timezone.utc).isoformat(),
+            "checks": {
+                "reports_writable": reports_writable,
+                "operator_authentication_configured": (
+                    self.operators.enabled
+                ),
+                "run_active": active,
+            },
         }
 
     def start_invoice_demo(self):
@@ -224,7 +270,23 @@ class ConsoleState:
                 + path.relative_to(self.reports_dir).as_posix(),
             }
 
-    def review_state(self, run_ref=None):
+    def operator_session(self, authorization):
+        identity = self.operators.require(
+            authorization,
+            OperatorRole.VIEWER,
+        )
+        return {
+            "authenticated": True,
+            "operator": identity.name,
+            "role": identity.role.value,
+        }
+
+    def review_runs(self, authorization):
+        self.operators.require(authorization, OperatorRole.VIEWER)
+        return list_review_runs(self.reports_dir)
+
+    def review_state(self, authorization, run_ref=None):
+        self.operators.require(authorization, OperatorRole.VIEWER)
         with self._lock:
             run_dir = self._review_run_dir(run_ref)
             if run_dir is None:
@@ -238,7 +300,11 @@ class ConsoleState:
             ).as_posix()
             return payload
 
-    def save_review(self, payload):
+    def save_review(self, payload, authorization):
+        identity = self.operators.require(
+            authorization,
+            OperatorRole.REVIEWER,
+        )
         with self._lock:
             if self._process is not None and self._process.poll() is None:
                 return {
@@ -255,8 +321,73 @@ class ConsoleState:
                 run_dir,
                 invoice_id=str(payload.get("invoice_id", "")),
                 status=str(payload.get("status", "")),
-                reviewer=str(payload.get("reviewer", "")),
+                reviewer=identity.name,
                 note=str(payload.get("note", "")),
+                reviewer_role=identity.role,
+            )
+            state["run"] = run_dir.relative_to(
+                self.reports_dir
+            ).as_posix()
+            return state
+
+    def save_review_batch(self, payload, authorization):
+        identity = self.operators.require(
+            authorization,
+            OperatorRole.REVIEWER,
+        )
+        invoice_ids = payload.get("invoice_ids")
+        if not isinstance(invoice_ids, list):
+            return {
+                "available": False,
+                "error": "invoice_ids must be a list",
+            }
+        with self._lock:
+            if self._process is not None and self._process.poll() is None:
+                return {
+                    "available": False,
+                    "error": "run must finish before review",
+                }
+            run_dir = self._review_run_dir(payload.get("run"))
+            if run_dir is None:
+                return {
+                    "available": False,
+                    "error": "no reconciliation run available",
+                }
+            state = persist_review_batch(
+                run_dir,
+                invoice_ids=invoice_ids,
+                status=str(payload.get("status", "")),
+                reviewer=identity.name,
+                note=str(payload.get("note", "")),
+                reviewer_role=identity.role,
+            )
+            state["run"] = run_dir.relative_to(
+                self.reports_dir
+            ).as_posix()
+            return state
+
+    def close_review(self, payload, authorization):
+        identity = self.operators.require(
+            authorization,
+            OperatorRole.ADMIN,
+        )
+        with self._lock:
+            if self._process is not None and self._process.poll() is None:
+                return {
+                    "available": False,
+                    "error": "run must finish before review",
+                }
+            run_dir = self._review_run_dir(payload.get("run"))
+            if run_dir is None:
+                return {
+                    "available": False,
+                    "error": "no reconciliation run available",
+                }
+            state = close_run_review(
+                run_dir,
+                reviewer=identity.name,
+                note=str(payload.get("note", "")),
+                reviewer_role=identity.role,
             )
             state["run"] = run_dir.relative_to(
                 self.reports_dir
@@ -500,6 +631,8 @@ class ConsoleState:
             "reconciliation.xlsx",
             "checkpoint.json",
             "review.json",
+            "review-audit.jsonl",
+            "review-close.json",
             "run.log",
             "run.json",
             "evidence-bundle.zip",
@@ -537,16 +670,78 @@ class ConsoleServer(ThreadingHTTPServer):
 class ConsoleHandler(BaseHTTPRequestHandler):
     server: ConsoleServer
 
+    def _authorization(self):
+        return self.headers.get("Authorization", "")
+
+    def _operator_error_status(self, error):
+        message = str(error).casefold()
+        if "not configured" in message:
+            return HTTPStatus.SERVICE_UNAVAILABLE
+        if "role is required" in message:
+            return HTTPStatus.FORBIDDEN
+        return HTTPStatus.UNAUTHORIZED
+
+    def _read_json_body(self, max_bytes=16 * 1024):
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            length = 0
+        if length <= 0 or length > max_bytes:
+            raise ValueError("invalid JSON payload size")
+        payload = json.loads(
+            self.rfile.read(length).decode("utf-8")
+        )
+        if not isinstance(payload, dict):
+            raise ValueError("JSON payload must be an object")
+        return payload
+
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/":
             self._send_html(_console_html())
+            return
+        if parsed.path in {"/healthz", "/readyz"}:
+            payload = self.server.state.health()
+            self._send_json(
+                payload,
+                status=(
+                    HTTPStatus.OK
+                    if payload["status"] == "ok"
+                    else HTTPStatus.SERVICE_UNAVAILABLE
+                ),
+            )
             return
         if parsed.path == "/api/overview":
             self._send_json(self.server.state.overview())
             return
         if parsed.path == "/api/demo/status":
             self._send_json(self.server.state.demo_status())
+            return
+        if parsed.path == "/api/session":
+            try:
+                payload = self.server.state.operator_session(
+                    self._authorization()
+                )
+            except OperatorError as error:
+                self._send_json(
+                    {"authenticated": False, "error": str(error)},
+                    status=self._operator_error_status(error),
+                )
+                return
+            self._send_json(payload)
+            return
+        if parsed.path == "/api/review/runs":
+            try:
+                payload = self.server.state.review_runs(
+                    self._authorization()
+                )
+            except OperatorError as error:
+                self._send_json(
+                    {"available": False, "error": str(error)},
+                    status=self._operator_error_status(error),
+                )
+                return
+            self._send_json(payload)
             return
         if parsed.path == "/api/review/state":
             run_ref = None
@@ -555,8 +750,17 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                     run_ref = unquote(part[len("run="):])
                     break
             try:
-                payload = self.server.state.review_state(run_ref)
-            except ReviewError as error:
+                payload = self.server.state.review_state(
+                    self._authorization(),
+                    run_ref,
+                )
+            except OperatorError as error:
+                self._send_json(
+                    {"available": False, "error": str(error)},
+                    status=self._operator_error_status(error),
+                )
+                return
+            except (ReviewError, ReviewAuditError) as error:
                 self._send_json(
                     {"available": False, "error": str(error)},
                     status=HTTPStatus.BAD_REQUEST,
@@ -629,23 +833,18 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 ),
             )
             return
-        if parsed.path == "/api/review":
+        review_actions = {
+            "/api/review": self.server.state.save_review,
+            "/api/review/batch": self.server.state.save_review_batch,
+            "/api/review/close": self.server.state.close_review,
+        }
+        if parsed.path in review_actions:
             try:
-                length = int(self.headers.get("Content-Length", "0"))
-            except ValueError:
-                length = 0
-            if length <= 0 or length > 16 * 1024:
-                self._send_json(
-                    {"available": False, "error": "invalid review payload"},
-                    status=HTTPStatus.BAD_REQUEST,
+                payload = self._read_json_body(
+                    64 * 1024
+                    if parsed.path == "/api/review/batch"
+                    else 16 * 1024
                 )
-                return
-            try:
-                payload = json.loads(
-                    self.rfile.read(length).decode("utf-8")
-                )
-                if not isinstance(payload, dict):
-                    raise ValueError("review payload must be an object")
             except (ValueError, UnicodeDecodeError) as error:
                 self._send_json(
                     {"available": False, "error": str(error)},
@@ -653,8 +852,17 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 )
                 return
             try:
-                result = self.server.state.save_review(payload)
-            except ReviewError as error:
+                result = review_actions[parsed.path](
+                    payload,
+                    self._authorization(),
+                )
+            except OperatorError as error:
+                self._send_json(
+                    {"available": False, "error": str(error)},
+                    status=self._operator_error_status(error),
+                )
+                return
+            except (ReviewError, ReviewAuditError) as error:
                 self._send_json(
                     {"available": False, "error": str(error)},
                     status=HTTPStatus.BAD_REQUEST,
@@ -760,6 +968,9 @@ def create_console_server(
     command_factory=None,
     upload_command_factory=None,
     max_upload_bytes=10 * 1024 * 1024,
+    operator_name="local-operator",
+    operator_token="",
+    operator_role="reviewer",
 ):
     state = ConsoleState(
         project_root,
@@ -768,6 +979,9 @@ def create_console_server(
         command_factory=command_factory,
         upload_command_factory=upload_command_factory,
         max_upload_bytes=max_upload_bytes,
+        operator_name=operator_name,
+        operator_token=operator_token,
+        operator_role=operator_role,
     )
     return ConsoleServer((host, port), state)
 
@@ -796,7 +1010,7 @@ def _console_html() -> str:
     .status-failed { color:#c53727; font-weight:600; }
     pre { background:#111820; color:#d9e6ef; padding:14px;
       border-radius:10px; max-height:240px; overflow:auto; }
-    #reviewer { min-width:220px; }
+    #operator-token, #review-run, #batch-note { min-width:220px; }
     #review-body select, #review-body input { min-width:0; width:100%;
       padding:7px 8px; border:1px solid #d9e0e6; border-radius:7px; }
     #review-summary { margin-bottom:10px; }
@@ -826,17 +1040,38 @@ def _console_html() -> str:
     </section>
     <section>
       <h2>人工复核</h2>
+      <div class="bar">
+        <input id="operator-token" type="password"
+          placeholder="操作员访问令牌">
+        <button id="connect-review">连接</button>
+        <span id="review-session" class="muted">未认证</span>
+      </div>
+      <div class="bar">
+        <select id="review-run"></select>
+        <button id="refresh-review-runs">刷新运行</button>
+      </div>
       <div id="review-summary" class="muted">No reconciliation run.</div>
       <div class="bar">
-        <input id="reviewer" placeholder="复核人">
+        <select id="batch-status">
+          <option value="confirmed">已确认</option>
+          <option value="false_positive">误报</option>
+          <option value="pending">待处理</option>
+        </select>
+        <input id="batch-note" placeholder="批量备注">
+        <button id="batch-review">保存选中项</button>
+        <button id="close-review" style="background:#16834b"
+          disabled>关闭复核</button>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>发票号</th><th>算法结果</th><th>复核结论</th>
-          <th>备注</th><th>更新时间</th><th>操作</th></tr></thead>
+          <thead><tr><th><input id="review-check-all" type="checkbox"></th>
+          <th>发票号</th><th>算法结果</th><th>复核结论</th>
+          <th>备注</th><th>复核人/时间</th><th>操作</th></tr></thead>
           <tbody id="review-body"></tbody>
         </table>
       </div>
+      <h3>复核审计</h3>
+      <div id="audit-events" class="muted">No audit events.</div>
     </section>
     <section>
       <h2>运行历史</h2>
@@ -868,48 +1103,124 @@ def _console_html() -> str:
       false_positive: "误报"
     };
     let activeReviewRun = null;
+    let reviewToken = sessionStorage.getItem("soc-review-token") || "";
+    document.getElementById("operator-token").value = reviewToken;
+    function authHeaders(extra) {
+      return Object.assign(
+        {"Authorization": "Bearer " + reviewToken},
+        extra || {}
+      );
+    }
     function reviewOptions(selected) {
       return Object.entries(reviewLabels).map(([value, label]) =>
         `<option value="${value}" ${value === selected ? "selected" : ""}>` +
         `${label}</option>`
       ).join("");
     }
+    async function connectReview() {
+      reviewToken = document.getElementById("operator-token").value.trim();
+      const response = await fetch("/api/session", {
+        headers: authHeaders()
+      });
+      const payload = await response.json();
+      const session = document.getElementById("review-session");
+      if (!response.ok) {
+        session.textContent = payload.error || "认证失败";
+        return false;
+      }
+      sessionStorage.setItem("soc-review-token", reviewToken);
+      session.textContent =
+        `${payload.operator} · ${payload.role}`;
+      await refreshReviewRuns();
+      return true;
+    }
+    async function refreshReviewRuns() {
+      const select = document.getElementById("review-run");
+      const response = await fetch("/api/review/runs", {
+        headers: authHeaders()
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        document.getElementById("review-summary").textContent =
+          payload.error || "无法读取运行列表";
+        select.innerHTML = "";
+        return;
+      }
+      const runs = payload.runs || [];
+      select.innerHTML = runs.length
+        ? runs.map(item => {
+            const summary = item.review_summary || {};
+            return `<option value="${escapeHtml(item.run)}"
+              ${item.run === activeReviewRun ? "selected" : ""}>
+              ${escapeHtml(item.run)} · ` +
+              `${item.closed ? "已关闭" : "待处理 " + (summary.pending || 0)}
+            </option>`;
+          }).join("")
+        : '<option value="">没有可复核运行</option>';
+      if (!runs.length) return;
+      activeReviewRun = select.value || runs[0].run;
+      await refreshReviews();
+    }
     async function refreshReviews() {
-      const response = await fetch("/api/review/state");
+      if (!reviewToken || !activeReviewRun) return;
+      const response = await fetch(
+        "/api/review/state?run=" + encodeURIComponent(activeReviewRun),
+        {headers: authHeaders()}
+      );
       const payload = await response.json();
       const summary = document.getElementById("review-summary");
       const body = document.getElementById("review-body");
+      const audit = document.getElementById("audit-events");
       if (!response.ok) {
-        activeReviewRun = null;
         summary.textContent =
           payload.error || "No reconciliation run available.";
         body.innerHTML = "";
+        audit.textContent = "";
         return;
       }
       activeReviewRun = payload.run;
       const counts = payload.review_summary || {};
+      const closure = payload.closure;
       summary.textContent =
         `${payload.run} · 待处理 ${counts.pending || 0} · ` +
-        `已确认 ${counts.confirmed || 0} · 误报 ${counts.false_positive || 0}`;
+        `已确认 ${counts.confirmed || 0} · 误报 ${counts.false_positive || 0}` +
+        (closure ? ` · 已由 ${closure.closed_by} 关闭` : "");
       if (!(payload.results || []).length) {
         body.innerHTML =
-          '<tr><td colspan="6" class="muted">没有需要复核的差异</td></tr>';
-        return;
+          '<tr><td colspan="7" class="muted">没有需要复核的差异</td></tr>';
+      } else {
+        body.innerHTML = payload.results.map((item) => {
+          const review = item.review || {};
+          return `<tr data-invoice="${escapeHtml(item.invoice_id)}">
+            <td><input class="review-check" type="checkbox"></td>
+            <td><strong>${escapeHtml(item.invoice_id)}</strong></td>
+            <td>${escapeHtml(item.status)}</td>
+            <td><select class="review-status" ${closure ? "disabled" : ""}>
+              ${reviewOptions(review.status || "pending")}
+            </select></td>
+            <td><input class="review-note" ${closure ? "disabled" : ""}
+              value="${escapeHtml(review.note || "")}"></td>
+            <td>${escapeHtml(review.reviewer || "-")}<br>
+              ${escapeHtml(review.updated_at || "-")}</td>
+            <td>${closure ? "已关闭" :
+              '<button class="save-review">保存</button>'}</td>
+          </tr>`;
+        }).join("");
       }
-      body.innerHTML = payload.results.map((item) => {
-        const review = item.review || {};
-        return `<tr data-invoice="${escapeHtml(item.invoice_id)}">
-          <td><strong>${escapeHtml(item.invoice_id)}</strong></td>
-          <td>${escapeHtml(item.status)}</td>
-          <td><select class="review-status">
-            ${reviewOptions(review.status || "pending")}
-          </select></td>
-          <td><input class="review-note"
-            value="${escapeHtml(review.note || "")}"></td>
-          <td>${escapeHtml(review.updated_at || "-")}</td>
-          <td><button class="save-review">保存</button></td>
-        </tr>`;
-      }).join("");
+      document.getElementById("close-review").disabled =
+        !!closure || !payload.can_close;
+      const events = payload.audit_events || [];
+      audit.innerHTML = events.length
+        ? events.slice().reverse().map(event =>
+            `<div>#${event.sequence} ${escapeHtml(event.timestamp)}
+             ${escapeHtml(event.invoice_id)}
+             ${escapeHtml(event.previous_status || "-")} →
+             ${escapeHtml(event.new_status)}
+             · ${escapeHtml(event.reviewer)}
+             (${escapeHtml(event.reviewer_role)})
+             ${escapeHtml(event.note || "")}</div>`
+          ).join("")
+        : "No audit events.";
     }
     async function refresh() {
       const response = await fetch("/api/overview");
@@ -1005,24 +1316,37 @@ def _console_html() -> str:
         refresh();
       }
     );
+    document.getElementById("connect-review").addEventListener(
+      "click", connectReview
+    );
+    document.getElementById("refresh-review-runs").addEventListener(
+      "click", refreshReviewRuns
+    );
+    document.getElementById("review-run").addEventListener(
+      "change", async (event) => {
+        activeReviewRun = event.target.value;
+        await refreshReviews();
+      }
+    );
+    document.getElementById("review-check-all").addEventListener(
+      "change", (event) => {
+        document.querySelectorAll(".review-check").forEach((checkbox) => {
+          checkbox.checked = event.target.checked;
+        });
+      }
+    );
     document.getElementById("review-body").addEventListener(
       "click", async (event) => {
         const button = event.target.closest(".save-review");
         if (!button || !activeReviewRun) return;
         const row = button.closest("tr");
-        const reviewer = document.getElementById("reviewer").value.trim();
-        if (!reviewer) {
-          alert("请填写复核人");
-          return;
-        }
         const response = await fetch("/api/review", {
           method:"POST",
-          headers:{"Content-Type":"application/json"},
+          headers:authHeaders({"Content-Type":"application/json"}),
           body:JSON.stringify({
             run: activeReviewRun,
             invoice_id: row.dataset.invoice,
             status: row.querySelector(".review-status").value,
-            reviewer: reviewer,
             note: row.querySelector(".review-note").value
           })
         });
@@ -1031,14 +1355,71 @@ def _console_html() -> str:
           alert(payload.error || "复核保存失败");
           return;
         }
-        await refreshReviews();
+        await refreshReviewRuns();
+      }
+    );
+    document.getElementById("batch-review").addEventListener(
+      "click", async () => {
+        if (!activeReviewRun) return;
+        const invoiceIds = Array.from(
+          document.querySelectorAll(".review-check:checked")
+        ).map((checkbox) => checkbox.closest("tr").dataset.invoice);
+        if (!invoiceIds.length) {
+          alert("请选择至少一条差异");
+          return;
+        }
+        const response = await fetch("/api/review/batch", {
+          method:"POST",
+          headers:authHeaders({"Content-Type":"application/json"}),
+          body:JSON.stringify({
+            run: activeReviewRun,
+            invoice_ids: invoiceIds,
+            status: document.getElementById("batch-status").value,
+            note: document.getElementById("batch-note").value
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          alert(payload.error || "批量复核失败");
+          return;
+        }
+        document.getElementById("review-check-all").checked = false;
+        await refreshReviewRuns();
+      }
+    );
+    document.getElementById("close-review").addEventListener(
+      "click", async () => {
+        if (!activeReviewRun) return;
+        const note = prompt("关闭复核说明（可留空）", "");
+        if (note === null) return;
+        const response = await fetch("/api/review/close", {
+          method:"POST",
+          headers:authHeaders({"Content-Type":"application/json"}),
+          body:JSON.stringify({
+            run: activeReviewRun,
+            note: note
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          alert(payload.error || "关闭复核失败");
+          return;
+        }
+        await refreshReviewRuns();
         await refresh();
       }
     );
     refresh();
-    refreshReviews();
+    if (reviewToken) {
+      connectReview();
+    } else {
+      document.getElementById("review-summary").textContent =
+        "请输入服务端配置的操作员访问令牌。";
+    }
     setInterval(refresh, 5000);
-    setInterval(refreshReviews, 10000);
+    setInterval(() => {
+      if (reviewToken) refreshReviews();
+    }, 10000);
   </script>
 </body>
 </html>

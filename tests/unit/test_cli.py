@@ -8,6 +8,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from soc_agent.actions.executor import ActionExecutor
@@ -20,6 +21,7 @@ from soc_agent.cli import (
     parse_parameter_overrides,
     print_result,
     run_dataset,
+    run_healthcheck,
     run_task,
     run_suite,
     run_workflow,
@@ -499,6 +501,12 @@ class CLITests(unittest.TestCase):
                 "custom.db",
                 "--port",
                 "9001",
+                "--operator-name",
+                "operator-a",
+                "--operator-token",
+                "secret-token",
+                "--operator-role",
+                "admin",
             ]
         )
 
@@ -506,6 +514,9 @@ class CLITests(unittest.TestCase):
         self.assertEqual(args.reports_dir, "custom-reports")
         self.assertEqual(args.queue_db, "custom.db")
         self.assertEqual(args.port, 9001)
+        self.assertEqual(args.operator_name, "operator-a")
+        self.assertEqual(args.operator_token, "secret-token")
+        self.assertEqual(args.operator_role, "admin")
 
     def test_parser_supports_evidence_bundle_command(self):
         args = build_parser().parse_args(
@@ -520,6 +531,43 @@ class CLITests(unittest.TestCase):
         self.assertEqual(args.command, "bundle")
         self.assertEqual(args.run_dir, "reports/run-001")
         self.assertEqual(args.output, "archive.zip")
+
+    def test_parser_supports_health_command(self):
+        args = build_parser().parse_args(
+            [
+                "health",
+                "--url",
+                "http://127.0.0.1:9000/healthz",
+                "--timeout",
+                "2",
+                "--json",
+            ]
+        )
+
+        self.assertEqual(args.command, "health")
+        self.assertEqual(
+            args.url,
+            "http://127.0.0.1:9000/healthz",
+        )
+        self.assertEqual(args.timeout, 2)
+        self.assertTrue(args.json)
+
+    def test_healthcheck_reads_console_response(self):
+        args = SimpleNamespace(
+            url="http://127.0.0.1:8766/healthz",
+            timeout=2,
+            json=True,
+        )
+        output = StringIO()
+        with patch("soc_agent.cli.urlopen") as mocked_urlopen:
+            mocked_urlopen.return_value.__enter__.return_value.read.return_value = (
+                b'{"status":"ok","version":"2.0.0","checks":{}}'
+            )
+            with redirect_stdout(output):
+                exit_code = run_healthcheck(args)
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn('"status": "ok"', output.getvalue())
 
     def test_main_creates_evidence_bundle(self):
         run_dir = self.root / "run-001"

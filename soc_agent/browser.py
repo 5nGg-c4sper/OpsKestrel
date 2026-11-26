@@ -440,6 +440,10 @@ class PlaywrightBrowserSession:
             self._browser = self._playwright.chromium.launch(
                 headless=self.headless,
                 executable_path=self.executable_path,
+                args=[
+                    "--disable-crash-reporter",
+                    "--disable-crashpad",
+                ],
             )
         except Exception:
             self._playwright.stop()

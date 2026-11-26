@@ -86,4 +86,6 @@ class MockERPServerTests(unittest.TestCase):
                 timeout=2,
             )
 
-        self.assertEqual(context.exception.code, 404)
+        error = context.exception
+        self.assertEqual(error.code, 404)
+        error.close()

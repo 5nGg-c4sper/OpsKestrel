@@ -20,10 +20,16 @@ class ReconciliationHTMLReportWriter:
         report: BrowserReconciliationReport,
         output_path,
         reviews=None,
+        closure=None,
     ) -> Path:
         path = Path(output_path).expanduser().resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
-        content = self.render(report, path.parent, reviews=reviews)
+        content = self.render(
+            report,
+            path.parent,
+            reviews=reviews,
+            closure=closure,
+        )
         temp_path = path.with_suffix(path.suffix + ".tmp")
         temp_path.write_text(content, encoding="utf-8")
         temp_path.replace(path)
@@ -34,6 +40,7 @@ class ReconciliationHTMLReportWriter:
         report: BrowserReconciliationReport,
         output_dir,
         reviews=None,
+        closure=None,
     ) -> str:
         reviews = reviews or {}
         summary = report.reconciliation.summary
@@ -113,6 +120,8 @@ class ReconciliationHTMLReportWriter:
     .review-false_positive {{ color: var(--green); }}
     .review-meta {{ display: block; margin-top: 4px; color: var(--muted);
       font-size: 12px; }}
+    .closure {{ margin: 18px 0; padding: 16px; border-radius: 12px;
+      background: #ebf8f0; border: 1px solid #b7e4c8; }}
     .errors {{ margin-top: 24px; padding: 18px; border-radius: 12px;
       background: #fff1f0; border: 1px solid #ffccc7; }}
     .empty {{ padding: 30px; text-align: center; color: var(--muted); }}
@@ -126,6 +135,7 @@ class ReconciliationHTMLReportWriter:
   <main>
     <h1>ERP 发票对账报告</h1>
     <div class="muted">Expected CSV: {html.escape(report.expected_csv)}</div>
+    {_render_closure(closure)}
     {cards}
     {filters}
     <div class="toolbar">
@@ -333,3 +343,19 @@ def _review_label(status: ReviewStatus) -> str:
         ReviewStatus.CONFIRMED: "已确认",
         ReviewStatus.FALSE_POSITIVE: "误报",
     }[status]
+
+
+def _render_closure(closure) -> str:
+    if not closure:
+        return ""
+    note = (
+        f"<div>说明：{html.escape(closure.get('note', ''))}</div>"
+        if closure.get("note")
+        else ""
+    )
+    return (
+        '<section class="closure"><strong>复核已关闭</strong>'
+        f"<div>操作员：{html.escape(closure.get('closed_by', ''))} · "
+        f"{html.escape(closure.get('closed_at', ''))}</div>"
+        f"{note}</section>"
+    )

@@ -15,6 +15,10 @@ clicking:
 - failed work can retry, resume, or stop without corrupting other records
 - final output is available as JSON, HTML, and XLSX
 - the local console supports file upload, run status, logs, and artifact download
+- operator tokens and roles protect review actions
+- review decisions have a hash-chained append-only audit history
+- completed runs can be closed with a content-integrity fingerprint
+- deterministic reports can be packaged with SHA-256 evidence manifests
 
 ## Problem
 

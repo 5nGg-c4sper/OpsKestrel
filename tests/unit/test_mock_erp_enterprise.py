@@ -106,13 +106,17 @@ class EnterpriseMockERPTests(unittest.TestCase):
                 method="POST",
                 payload={"username": "demo", "password": "bad"},
             )
-        self.assertEqual(context.exception.code, 401)
+        error = context.exception
+        self.assertEqual(error.code, 401)
+        error.close()
 
         self.login()
         self.request_json("/api/logout", method="POST")
         with self.assertRaises(HTTPError) as context:
             self.request_json("/api/invoices")
-        self.assertEqual(context.exception.code, 401)
+        error = context.exception
+        self.assertEqual(error.code, 401)
+        error.close()
 
     def test_pagination_and_csv_export(self):
         self.start_server()
@@ -154,7 +158,9 @@ class EnterpriseMockERPTests(unittest.TestCase):
             self.request_json(
                 "/api/invoices?invoice_id=INV-1001"
             )
-        self.assertEqual(context.exception.code, 503)
+        error = context.exception
+        self.assertEqual(error.code, 503)
+        error.close()
 
         status, payload = self.request_json(
             "/api/invoices?invoice_id=INV-1001"
@@ -186,7 +192,9 @@ class EnterpriseMockERPTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as context:
             self.request_json("/api/invoices")
 
-        self.assertEqual(context.exception.code, 401)
+        error = context.exception
+        self.assertEqual(error.code, 401)
+        error.close()
 
     def test_failure_config_validation(self):
         with tempfile.TemporaryDirectory() as directory:

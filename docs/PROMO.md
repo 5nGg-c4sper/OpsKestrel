@@ -33,6 +33,8 @@ checkpoints, and JSON/HTML/XLSX reports.
 - JSON, filterable HTML, and multi-sheet XLSX reports
 - local operations console for input upload, progress, logs, reports, artifacts,
   run history, Workers, and one-click demo launch
+- authenticated reviewer roles, batch review, and hash-chained audit events
+- SHA-256 evidence bundles and integrity-bound review closure
 - queue, multi-worker, LaunchAgent, and PostgreSQL foundation
 
 ## Interview Description

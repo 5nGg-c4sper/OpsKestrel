@@ -16,7 +16,27 @@ if [[ ! -x "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ]]; th
 fi
 
 if [[ ! -x "venv/bin/python" ]]; then
-  python3 -m venv venv
+  python_bin="${SOC_PYTHON:-}"
+  if [[ -z "$python_bin" ]]; then
+    for candidate in python3.12 python3.11 python3.10 python3.9; do
+      if command -v "$candidate" >/dev/null 2>&1; then
+        python_bin="$candidate"
+        break
+      fi
+    done
+  fi
+  if [[ -z "$python_bin" ]]; then
+    printf 'Python 3.9 through 3.12 is required.\n' >&2
+    exit 1
+  fi
+  "$python_bin" -c \
+    'import sys; raise SystemExit(0 if (3, 9) <= sys.version_info[:2] < (3, 13) else 1)' \
+    || {
+      printf 'Unsupported Python: %s (need 3.9 through 3.12).\n' \
+        "$("$python_bin" --version 2>&1)" >&2
+      exit 1
+    }
+  "$python_bin" -m venv venv
 fi
 
 ./venv/bin/python -m pip install --upgrade pip

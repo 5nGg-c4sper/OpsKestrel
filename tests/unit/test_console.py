@@ -62,6 +62,9 @@ class ConsoleTests(unittest.TestCase):
                 "-c",
                 "pass",
             ],
+            operator_name="operator-a",
+            operator_token="test-token",
+            operator_role="admin",
         )
         self.server.state.overview = lambda: {
             "reports": [
@@ -99,8 +102,32 @@ class ConsoleTests(unittest.TestCase):
         self.server.server_close()
         self.thread.join(timeout=2)
 
-    def get_json(self, path):
-        with urlopen(self.base_url + path, timeout=2) as response:
+    def get_json(self, path, headers=None):
+        request = Request(
+            self.base_url + path,
+            headers=headers or {},
+            method="GET",
+        )
+        with urlopen(request, timeout=2) as response:
+            return response.status, json.loads(
+                response.read().decode("utf-8")
+            )
+
+    @property
+    def auth_headers(self):
+        return {"Authorization": "Bearer test-token"}
+
+    def post_json(self, path, payload, authenticated=True):
+        headers = {"Content-Type": "application/json"}
+        if authenticated:
+            headers.update(self.auth_headers)
+        request = Request(
+            self.base_url + path,
+            data=json.dumps(payload).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        with urlopen(request, timeout=3) as response:
             return response.status, json.loads(
                 response.read().decode("utf-8")
             )
@@ -173,9 +200,23 @@ class ConsoleTests(unittest.TestCase):
         self.assertIn('join("\\n")', html)
         self.assertIn('id="cancel-run"', html)
         self.assertIn('id="bundle-run"', html)
+        self.assertIn('id="operator-token"', html)
+        self.assertIn('id="batch-review"', html)
+        self.assertIn('id="close-review"', html)
         self.assertEqual(status, 200)
         self.assertEqual(payload["reports"][0]["status"], "passed")
         self.assertEqual(len(payload["workers"]), 1)
+
+    def test_health_endpoint_reports_runtime_checks(self):
+        status, payload = self.get_json("/healthz")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["service"], "soc-agent-console")
+        self.assertTrue(payload["checks"]["reports_writable"])
+        self.assertTrue(
+            payload["checks"]["operator_authentication_configured"]
+        )
 
     def test_report_file_is_served_and_traversal_is_rejected(self):
         with urlopen(
@@ -191,7 +232,9 @@ class ConsoleTests(unittest.TestCase):
         )
         with self.assertRaises(HTTPError) as context:
             urlopen(request, timeout=2)
-        self.assertEqual(context.exception.code, 404)
+        error = context.exception
+        self.assertEqual(error.code, 404)
+        error.close()
 
     def test_demo_can_start_and_finish(self):
         request = Request(
@@ -276,7 +319,9 @@ class ConsoleTests(unittest.TestCase):
         )
         with self.assertRaises(HTTPError) as context:
             urlopen(request, timeout=2)
-        self.assertEqual(context.exception.code, 409)
+        error = context.exception
+        self.assertEqual(error.code, 409)
+        error.close()
 
         request = Request(
             self.base_url + "/api/demo/cancel",
@@ -308,7 +353,9 @@ class ConsoleTests(unittest.TestCase):
         )
         with self.assertRaises(HTTPError) as context:
             urlopen(request, timeout=2)
-        self.assertEqual(context.exception.code, 409)
+        error = context.exception
+        self.assertEqual(error.code, 409)
+        error.close()
 
     def test_upload_rejects_unsupported_file_type(self):
         request = Request(
@@ -318,11 +365,16 @@ class ConsoleTests(unittest.TestCase):
         )
         with self.assertRaises(HTTPError) as context:
             urlopen(request, timeout=2)
-        self.assertEqual(context.exception.code, 400)
+        error = context.exception
+        self.assertEqual(error.code, 400)
+        error.close()
 
     def test_review_api_persists_operator_decision(self):
         run_dir = self.write_reconciliation_run()
-        status, state = self.get_json("/api/review/state")
+        status, state = self.get_json(
+            "/api/review/state",
+            headers=self.auth_headers,
+        )
 
         self.assertEqual(status, 200)
         self.assertEqual(state["run"], "console-review-001")
@@ -335,11 +387,13 @@ class ConsoleTests(unittest.TestCase):
                     "run": state["run"],
                     "invoice_id": "INV-1",
                     "status": "confirmed",
-                    "reviewer": "operator-a",
                     "note": "已核对 ERP 页面",
                 }
             ).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers={
+                **self.auth_headers,
+                "Content-Type": "application/json",
+            },
             method="POST",
         )
         with urlopen(request, timeout=2) as response:
@@ -357,8 +411,16 @@ class ConsoleTests(unittest.TestCase):
             report["reconciliation"]["results"][0]["review"]["status"],
             "confirmed",
         )
+        self.assertEqual(
+            report["reconciliation"]["results"][0]["review"]["reviewer"],
+            "operator-a",
+        )
+        audit_lines = (
+            run_dir / "review-audit.jsonl"
+        ).read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(audit_lines), 1)
 
-    def test_review_api_rejects_blank_reviewer(self):
+    def test_review_api_requires_authentication(self):
         run_dir = self.write_reconciliation_run()
         request = Request(
             self.base_url + "/api/review",
@@ -367,7 +429,6 @@ class ConsoleTests(unittest.TestCase):
                     "run": run_dir.name,
                     "invoice_id": "INV-1",
                     "status": "confirmed",
-                    "reviewer": "",
                 }
             ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
@@ -376,7 +437,49 @@ class ConsoleTests(unittest.TestCase):
 
         with self.assertRaises(HTTPError) as context:
             urlopen(request, timeout=2)
-        self.assertEqual(context.exception.code, 400)
+        error = context.exception
+        self.assertEqual(error.code, 401)
+        error.close()
+
+    def test_batch_review_and_close_api(self):
+        run_dir = self.write_reconciliation_run()
+
+        status, reviewed = self.post_json(
+            "/api/review/batch",
+            {
+                "run": run_dir.name,
+                "invoice_ids": ["INV-1"],
+                "status": "false_positive",
+                "note": "批量核对完成",
+            },
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(
+            reviewed["review_summary"]["false_positive"],
+            1,
+        )
+        self.assertTrue(reviewed["can_close"])
+
+        status, closed = self.post_json(
+            "/api/review/close",
+            {
+                "run": run_dir.name,
+                "note": "本轮对账完成",
+            },
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(closed["closure"]["status"], "closed")
+        self.assertTrue(
+            (run_dir / "review-close.json").is_file()
+        )
+        self.assertEqual(
+            len(
+                (run_dir / "review-audit.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ),
+            1,
+        )
 
 
 if __name__ == "__main__":

@@ -1,5 +1,7 @@
 from setuptools import setup, find_packages
 
+from soc_agent import __version__
+
 # Read the contents of your requirements.txt file
 with open("requirements.txt") as f:
     required = f.read().splitlines()
@@ -10,8 +12,10 @@ with open("README.md", "r", encoding="utf-8") as readme_file:
 
 setup(
     name="self-operating-computer",
-    version="1.5.8",
+    version=__version__,
     packages=find_packages(),
+    python_requires=">=3.9,<3.13",
+    include_package_data=True,
     install_requires=required,  # Add dependencies here
     entry_points={
         "console_scripts": [

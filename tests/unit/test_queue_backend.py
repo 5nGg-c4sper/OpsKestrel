@@ -3,6 +3,7 @@
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -82,7 +83,7 @@ class QueueBackendTests(unittest.TestCase):
         database_path = self.root / "queue.db"
         SQLiteQueueStore(database_path)
 
-        with sqlite3.connect(database_path) as connection:
+        with closing(sqlite3.connect(database_path)) as connection:
             first = connection.execute(
                 """
                 SELECT migration_id
@@ -91,7 +92,7 @@ class QueueBackendTests(unittest.TestCase):
                 """
             ).fetchall()
         SQLiteQueueStore(database_path)
-        with sqlite3.connect(database_path) as connection:
+        with closing(sqlite3.connect(database_path)) as connection:
             second = connection.execute(
                 """
                 SELECT migration_id

@@ -130,6 +130,8 @@ queue worker
 | `soc_agent/evidence_bundle.py` | 运行证据 ZIP、SHA-256 清单和原子归档 |
 | `soc_agent/reviews.py` | 人工复核数据模型、持久化和汇总 |
 | `soc_agent/review_workflow.py` | 将复核结论同步到 JSON、HTML、XLSX 和证据包 |
+| `soc_agent/operators.py` | 本地控制台 Bearer Token 认证和角色阈值 |
+| `soc_agent/release.py` | 离线依赖、场景、对账和打包发布自检 |
 | `soc_agent/cli.py` | 参数解析、依赖装配和 queue CLI |
 | `soc_agent/config.py` | 从环境变量加载并验证运行配置 |
 
@@ -262,6 +264,18 @@ worker 所有权，旧 Worker 无法覆盖已经被恢复或重新领取的任�
 
 `queue worker` 为长驻模式：队列为空时不退出，而是以 IDLE 状态持续心跳和轮询。
 收到 SIGINT/SIGTERM 后不再领取新任务，等待当前执行批次完成后注销退出。
+
+## 人工复核与关闭
+
+控制台复核 API 只接受服务端配置的 Bearer Token 和 `viewer`、`reviewer`、
+`admin` 角色。客户端提交的复核人字段不会被信任，实际身份来自服务端配置。
+每次复核会同时更新当前状态 `review.json` 和追加式审计链
+`review-audit.jsonl`；审计事件包含前序哈希和事件哈希，读取时会校验哈希链
+以及当前复核状态是否与最后事件一致。
+
+复核运行可从历史列表中选择，并支持一次提交多条发票。全部差异处理完成后，
+`admin` 可以关闭复核。关闭文件 `review-close.json` 保存操作员、时间、汇总和
+对账内容哈希；关闭后复核写入被拒绝，修改原始对账内容会触发完整性错误。
 
 CLI、QueueWorker 只依赖 `QueueStore` 抽象接口，具体实例由
 `create_queue_store()` 根据路径或 URL 创建。SQLite schema 由

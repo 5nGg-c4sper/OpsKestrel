@@ -21,6 +21,7 @@ class ReconciliationXLSXWriter:
         report: BrowserReconciliationReport,
         output_path,
         reviews=None,
+        closure=None,
     ) -> Path:
         path = Path(output_path).expanduser().resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -31,7 +32,7 @@ class ReconciliationXLSXWriter:
         collection_sheet = workbook.create_sheet("Collection")
         reviews = reviews or {}
 
-        self._write_summary(summary_sheet, report, reviews)
+        self._write_summary(summary_sheet, report, reviews, closure)
         self._write_results(results_sheet, report, reviews)
         self._write_collection(collection_sheet, report)
 
@@ -41,7 +42,7 @@ class ReconciliationXLSXWriter:
         temp_path.replace(path)
         return path
 
-    def _write_summary(self, sheet, report, reviews):
+    def _write_summary(self, sheet, report, reviews, closure):
         summary = report.reconciliation.summary
         review_summary = build_review_summary(
             report.reconciliation,
@@ -67,6 +68,24 @@ class ReconciliationXLSXWriter:
                 "yes" if review_summary["all_reviewed"] else "no",
             ),
             ("All matched", "yes" if summary["all_matched"] else "no"),
+            (
+                "Review status",
+                closure["status"] if closure else "open",
+            ),
+            (
+                "Closed by",
+                _excel_safe(
+                    closure.get("closed_by", "") if closure else ""
+                ),
+            ),
+            (
+                "Closed at",
+                closure.get("closed_at", "") if closure else "",
+            ),
+            (
+                "Close note",
+                _excel_safe(closure.get("note", "") if closure else ""),
+            ),
         ]
         for row in rows:
             sheet.append(row)

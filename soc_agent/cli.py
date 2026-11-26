@@ -10,6 +10,8 @@ import threading
 from types import SimpleNamespace
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
+from urllib.error import HTTPError, URLError
+from urllib.request import urlopen
 
 from dotenv import load_dotenv
 
@@ -43,6 +45,7 @@ from soc_agent.reconciliation import (
     ReconciliationStatus,
     reconcile_files,
 )
+from soc_agent.release import run_release_checks
 from soc_agent.reconciliation_config import ReconciliationConfig
 from soc_agent.reporting.dataset_report import DatasetReportWriter
 from soc_agent.reporting.report import ReportWriter
@@ -590,17 +593,51 @@ def build_parser() -> argparse.ArgumentParser:
     bundle_parser.add_argument("run_dir")
     bundle_parser.add_argument("--output", default=None)
 
+    health_parser = subparsers.add_parser(
+        "health",
+        help="Check a running SOC Agent console",
+    )
+    health_parser.add_argument(
+        "--url",
+        default=os.getenv(
+            "SOC_HEALTH_URL",
+            "http://127.0.0.1:8766/healthz",
+        ),
+    )
+    health_parser.add_argument("--timeout", type=float, default=5.0)
+    health_parser.add_argument("--json", action="store_true")
+
+    release_parser = subparsers.add_parser(
+        "release-check",
+        help="Run offline release-readiness checks",
+    )
+    release_parser.add_argument("--json", action="store_true")
+
     console_parser = subparsers.add_parser(
         "console",
         help="Serve the local SOC Agent operations console",
     )
-    console_parser.add_argument("--reports-dir", default="reports")
+    console_parser.add_argument("--reports-dir", default=None)
     console_parser.add_argument(
         "--queue-db",
-        default="reports/queue.db",
+        default=None,
     )
-    console_parser.add_argument("--host", default="127.0.0.1")
-    console_parser.add_argument("--port", type=int, default=8766)
+    console_parser.add_argument("--host", default=None)
+    console_parser.add_argument("--port", type=int, default=None)
+    console_parser.add_argument(
+        "--operator-name",
+        default=None,
+    )
+    console_parser.add_argument(
+        "--operator-token",
+        default=None,
+        help="Prefer the SOC_OPERATOR_TOKEN environment variable",
+    )
+    console_parser.add_argument(
+        "--operator-role",
+        choices=("viewer", "reviewer", "admin"),
+        default=None,
+    )
     return parser
 
 
@@ -841,6 +878,12 @@ def main(
 
     if args.command == "bundle":
         return run_bundle(args)
+
+    if args.command == "health":
+        return run_healthcheck(args)
+
+    if args.command == "release-check":
+        return run_release_check(args)
 
     if args.command == "console":
         return run_console(args)
@@ -1237,15 +1280,117 @@ def run_bundle(args) -> int:
     return 0
 
 
+def run_healthcheck(args) -> int:
+    try:
+        with urlopen(args.url, timeout=args.timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        try:
+            payload = json.loads(error.read().decode("utf-8"))
+        except (ValueError, OSError):
+            payload = {"status": "failed", "error": str(error)}
+        if args.json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            print(f"SOC Agent health: FAILED ({error.code})")
+        return 1
+    except (URLError, OSError, ValueError) as error:
+        if args.json:
+            print(
+                json.dumps(
+                    {"status": "failed", "error": str(error)},
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        else:
+            print(f"SOC Agent health: FAILED ({error})")
+        return 1
+    healthy = payload.get("status") == "ok"
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(
+            "SOC Agent health: "
+            f"{'PASSED' if healthy else 'FAILED'}"
+        )
+        print(f"Version: {payload.get('version', 'unknown')}")
+        for name, value in payload.get("checks", {}).items():
+            print(f"{name}: {'yes' if value else 'no'}")
+    return 0 if healthy else 1
+
+
+def run_release_check(args) -> int:
+    payload = run_release_checks()
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(f"SOC Agent release check: v{payload['version']}")
+        for check in payload["checks"]:
+            print(
+                f"[{check['status'].upper()}] "
+                f"{check['name']}: {check['detail']}"
+            )
+        summary = payload["summary"]
+        print(
+            f"Result: {'READY' if payload['ready'] else 'NOT READY'} "
+            f"({summary['passed']} passed, "
+            f"{summary['warnings']} warnings, "
+            f"{summary['failed']} failed)"
+        )
+    return 0 if payload["ready"] else 1
+
+
 def run_console(args) -> int:
+    load_dotenv()
+    reports_dir = args.reports_dir or os.getenv(
+        "SOC_REPORTS_DIR",
+        "reports",
+    )
+    queue_db = args.queue_db or os.getenv(
+        "SOC_QUEUE_DB",
+        str(Path(reports_dir) / "queue.db"),
+    )
+    host = args.host or os.getenv("SOC_CONSOLE_HOST", "127.0.0.1")
+    try:
+        port = int(
+            args.port
+            if args.port is not None
+            else os.getenv("SOC_CONSOLE_PORT", "8766")
+        )
+    except ValueError:
+        print("Console failed: SOC_CONSOLE_PORT must be an integer")
+        return 1
+    operator_name = args.operator_name or os.getenv(
+        "SOC_OPERATOR_NAME",
+        "local-operator",
+    )
+    operator_token = (
+        args.operator_token
+        if args.operator_token is not None
+        else os.getenv("SOC_OPERATOR_TOKEN", "")
+    )
+    operator_role = args.operator_role or os.getenv(
+        "SOC_OPERATOR_ROLE",
+        "reviewer",
+    )
     try:
         server = create_console_server(
             project_root=Path(__file__).resolve().parents[1],
-            reports_dir=args.reports_dir,
-            queue_db=args.queue_db,
-            host=args.host,
-            port=args.port,
+            reports_dir=reports_dir,
+            queue_db=queue_db,
+            host=host,
+            port=port,
+            operator_name=operator_name,
+            operator_token=operator_token,
+            operator_role=operator_role,
         )
+    except OSError as error:
+        print(
+            f"Console failed to bind {host}:{port}: {error}. "
+            "Choose another port with --port or SOC_CONSOLE_PORT."
+        )
+        return 1
     except Exception as error:
         print(f"Console failed: {error}")
         return 1

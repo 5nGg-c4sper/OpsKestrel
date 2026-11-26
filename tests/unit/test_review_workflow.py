@@ -24,7 +24,13 @@ from soc_agent.reporting.reconciliation_report import (
 from soc_agent.reporting.reconciliation_xlsx import (
     ReconciliationXLSXWriter,
 )
-from soc_agent.review_workflow import review_state, save_review
+from soc_agent.review_workflow import (
+    close_review,
+    list_review_runs,
+    review_state,
+    save_review,
+    save_review_batch,
+)
 from soc_agent.reviews import ReviewError, ReviewStatus
 
 
@@ -109,6 +115,11 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.assertEqual(reviewed["review"]["status"], "confirmed")
         self.assertEqual(report["review_summary"]["confirmed"], 1)
         self.assertTrue((self.run_dir / "review.json").is_file())
+        audit_lines = (
+            self.run_dir / "review-audit.jsonl"
+        ).read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(audit_lines), 1)
+        self.assertIn('"reviewer_role": "reviewer"', audit_lines[0])
         self.assertIn(
             "已确认",
             (self.run_dir / "reconciliation.html").read_text(
@@ -160,6 +171,86 @@ class ReviewWorkflowTests(unittest.TestCase):
             state["results"][0]["review"]["status"],
             "pending",
         )
+
+    def test_review_store_tampering_is_detected(self):
+        save_review(
+            self.run_dir,
+            "INV-2",
+            ReviewStatus.CONFIRMED,
+            "operator-a",
+            "original",
+        )
+        path = self.run_dir / "review.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["reviews"]["inv-2"]["note"] = "tampered"
+        path.write_text(
+            json.dumps(payload),
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(ReviewError, "audit mismatch"):
+            review_state(self.run_dir)
+
+    def test_batch_review_can_be_closed_and_then_becomes_immutable(self):
+        state = save_review_batch(
+            self.run_dir,
+            ["INV-2"],
+            ReviewStatus.CONFIRMED,
+            "admin-a",
+            "批量确认",
+            reviewer_role="admin",
+        )
+
+        self.assertEqual(state["review_summary"]["pending"], 0)
+        self.assertTrue(state["can_close"])
+        closed = close_review(
+            self.run_dir,
+            "admin-a",
+            "本批差异处理完成",
+            reviewer_role="admin",
+        )
+        self.assertEqual(closed["closure"]["status"], "closed")
+        self.assertFalse(closed["can_close"])
+        self.assertTrue(
+            (self.run_dir / "review-close.json").is_file()
+        )
+        report = json.loads(
+            (self.run_dir / "reconciliation.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(
+            report["review_closure"]["closed_by"],
+            "admin-a",
+        )
+        self.assertIn(
+            "复核已关闭",
+            (self.run_dir / "reconciliation.html").read_text(
+                encoding="utf-8"
+            ),
+        )
+        workbook = load_workbook(self.run_dir / "reconciliation.xlsx")
+        try:
+            summary = {
+                row[0].value: row[1].value
+                for row in workbook["Summary"].iter_rows(min_row=2)
+            }
+            self.assertEqual(summary["Review status"], "closed")
+            self.assertEqual(summary["Closed by"], "admin-a")
+        finally:
+            workbook.close()
+        runs = list_review_runs(self.run_dir.parent)
+        self.assertTrue(runs["available"])
+        self.assertTrue(runs["runs"][0]["closed"])
+
+        with self.assertRaisesRegex(ReviewError, "closed"):
+            save_review(
+                self.run_dir,
+                "INV-2",
+                ReviewStatus.FALSE_POSITIVE,
+                "admin-a",
+                reviewer_role="admin",
+            )
 
 
 if __name__ == "__main__":
