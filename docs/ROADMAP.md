@@ -62,6 +62,7 @@ SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优
 - M3 QueueStore 后端接口、工厂和版本化 SQLite 迁移
 - M3 PostgreSQL QueueStore、SKIP LOCKED 领取和跨机器独占 GUI 锁
 - PostgreSQL 临时测试环境、真实集成测试和 GitHub CI
+- macOS Accessibility 控件定位模型、查找器和 click_element 动作
 - `soc-agent dataset` 数据集命令、失败停止/重试策略和诊断输出
 - 基础安全策略
 - GitHub Actions 单元测试配置
@@ -69,7 +70,7 @@ SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优
 
 当前验证结果：
 
-- 314 个单元测试通过
+- 324 个单元测试通过
 - 计算器任务连续批量执行成功
 - 两组参数化计算器任务在真实 macOS 上验证成功
 - 双 case 数据集在真实 macOS 上连续执行成功

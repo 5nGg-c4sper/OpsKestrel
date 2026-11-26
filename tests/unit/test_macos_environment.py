@@ -4,7 +4,9 @@ import unittest
 import tempfile
 from pathlib import Path
 
+from soc_agent.accessibility import UIElementMatch
 from soc_agent.environments.macos import MacOSEnvironment
+from soc_agent.task_models import UIElementLocator
 
 
 class FakeSystem:
@@ -32,17 +34,37 @@ class FakeSystem:
         self.calls.append(("mouse", click_detail))
 
 
+class FakeAccessibilityLocator:
+    def __init__(self):
+        self.calls = []
+
+    def find(self, app_name, locator):
+        self.calls.append((app_name, locator))
+        return UIElementMatch(
+            role="AXButton",
+            title="7",
+            description=None,
+            value="7",
+            x=0.1,
+            y=0.2,
+            width=0.05,
+            height=0.1,
+        )
+
+
 class MacOSEnvironmentTests(unittest.TestCase):
     def setUp(self):
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary_directory.cleanup)
         self.system = FakeSystem()
+        self.accessibility = FakeAccessibilityLocator()
         self.screenshot_calls = []
         self.sleep_calls = []
 
         self.environment = MacOSEnvironment(
             system=self.system,
             screenshot_capture=self.fake_screenshot,
+            accessibility_locator=self.accessibility,
             scale=0.5,
             sleep_fn=self.sleep_calls.append,
         )
@@ -93,6 +115,20 @@ class MacOSEnvironmentTests(unittest.TestCase):
         self.assertEqual(
             self.system.calls,
             [("mouse", {"x": 0.4, "y": 0.7})],
+        )
+
+    def test_click_element_uses_normalized_center(self):
+        locator = UIElementLocator(role="AXButton", title="7")
+
+        self.environment.click_element("计算器", locator)
+
+        self.assertEqual(
+            self.accessibility.calls,
+            [("计算器", locator)],
+        )
+        self.assertEqual(
+            self.system.calls,
+            [("mouse", {"x": 0.125, "y": 0.25})],
         )
 
     def test_wait(self):

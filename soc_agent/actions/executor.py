@@ -61,6 +61,11 @@ class ActionExecutor:
             self._settle()
             return StepOutcome.CONTINUE
 
+        if step.type == ActionType.CLICK_ELEMENT:
+            self.environment.click_element(step.app, step.element)
+            self._settle()
+            return StepOutcome.CONTINUE
+
         if step.type == ActionType.WAIT:
             self.environment.wait(step.seconds)
             return StepOutcome.CONTINUE

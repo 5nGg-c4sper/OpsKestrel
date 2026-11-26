@@ -1,0 +1,34 @@
+{
+  "name": "accessibility_click",
+  "description": "使用 Accessibility 控件定位点击计算器数字 7",
+  "max_steps": 5,
+  "max_duration_seconds": 30,
+  "steps": [
+    {
+      "type": "open_app",
+      "app": "计算器"
+    },
+    {
+      "type": "click_element",
+      "app": "计算器",
+      "element": {
+        "role": "AXButton",
+        "title": "7"
+      }
+    },
+    {
+      "type": "verify_vision",
+      "prompt": "计算器是否显示数字 7？只返回 true 或 false。"
+    },
+    {
+      "type": "done",
+      "summary": "Accessibility 控件点击完成"
+    }
+  ],
+  "cleanup_steps": [
+    {
+      "type": "press",
+      "keys": ["command", "w"]
+    }
+  ]
+}

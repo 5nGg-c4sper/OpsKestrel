@@ -408,6 +408,7 @@ def terminal_confirmation_handler(step, input_fn=input, output=None) -> bool:
         "y",
         "prompt",
         "summary",
+        "element",
     ):
         value = getattr(step, field_name)
         if value is not None:

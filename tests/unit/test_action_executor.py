@@ -7,7 +7,7 @@ from soc_agent.actions.executor import (
     ActionExecutor,
     StepOutcome,
 )
-from soc_agent.task_models import TaskStep
+from soc_agent.task_models import TaskStep, UIElementLocator
 
 
 class FakeEnvironment:
@@ -33,6 +33,9 @@ class FakeEnvironment:
 
     def click(self, x, y):
         self.calls.append(("click", x, y))
+
+    def click_element(self, app, element):
+        self.calls.append(("click_element", app, element))
 
     def wait(self, seconds):
         self.calls.append(("wait", seconds))
@@ -124,6 +127,26 @@ class ActionExecutorTests(unittest.TestCase):
         self.assertEqual(
             self.environment.calls,
             [("click", 0.4, 0.7), ("wait", 0.6)],
+        )
+
+    def test_click_element(self):
+        locator = UIElementLocator(role="AXButton", title="7")
+
+        result = self.executor.execute(
+            TaskStep(
+                type="click_element",
+                app="计算器",
+                element=locator,
+            )
+        )
+
+        self.assertEqual(result, StepOutcome.CONTINUE)
+        self.assertEqual(
+            self.environment.calls,
+            [
+                ("click_element", "计算器", locator),
+                ("wait", 0.6),
+            ],
         )
 
     def test_wait(self):

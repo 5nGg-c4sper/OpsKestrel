@@ -95,6 +95,7 @@ QueueWorker
 | `soc_agent/runner.py` | 步骤编排、超时、确认、截图和结果记录 |
 | `soc_agent/actions/executor.py` | 将确定性步骤分发给环境适配器 |
 | `soc_agent/environments/macos.py` | 封装应用、键鼠、截图和等待操作 |
+| `soc_agent/accessibility.py` | 遍历 macOS Accessibility 树并归一化控件坐标 |
 | `soc_agent/providers/qwen.py` | 调用 Qwen 完成截图验证 |
 | `soc_agent/privacy.py` | 在上传和归档前对截图敏感区域进行遮罩 |
 | `soc_agent/safety/policy.py` | 阻止危险快捷键和敏感应用 |
@@ -134,6 +135,7 @@ QueueWorker
 - `write`：输入文本
 - `press`：发送按键或组合键
 - `click`：使用 `0-1` 归一化坐标点击
+- `click_element`：按 macOS Accessibility 控件属性定位并点击中心
 - `wait`：等待指定时间
 - `verify_vision`：截图并请求 Qwen 判断
 - `done`：标记任务完成
@@ -153,6 +155,8 @@ QueueWorker
 任务可通过归一化 `redaction_regions` 指定敏感区域。截图先写入同目录临时文件，
 完成黑色遮罩后才替换最终文件；遮罩失败会删除临时原图，避免未脱敏截图上传给
 视觉模型或进入报告 artifact。
+`click_element` 在点击前查找 role、title、description 和 value 匹配的控件，
+使用控件 frame 中心计算归一化坐标，避免窗口移动后固定坐标失效。
 
 ## 数据与隐私
 

@@ -273,6 +273,24 @@ class TaskRunnerTests(unittest.TestCase):
         )
         self.assertEqual(task.steps[6].app, "计算器")
 
+    def test_accessibility_click_example_is_valid(self):
+        task_path = (
+            PROJECT_ROOT
+            / "tasks"
+            / "examples"
+            / "accessibility_click.json"
+        )
+
+        task = TaskRunner.load_task(task_path)
+
+        self.assertEqual(task.name, "accessibility_click")
+        self.assertEqual(
+            task.steps[1].type,
+            ActionType.CLICK_ELEMENT,
+        )
+        self.assertEqual(task.steps[1].element.role, "AXButton")
+        self.assertEqual(task.steps[1].element.title, "7")
+
     def test_conditional_step_skip_task_is_valid(self):
         task_path = (
             PROJECT_ROOT

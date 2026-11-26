@@ -69,6 +69,24 @@ continues to the next step; rejection cancels the task. `--non-interactive`
 treats approval checkpoints as rejected. Reports store `approval_prompt` and
 `approval_result` on the step.
 
+Use macOS Accessibility controls instead of raw coordinates:
+
+```json
+{
+  "type": "click_element",
+  "app": "计算器",
+  "element": {
+    "role": "AXButton",
+    "title": "7",
+    "match_index": 0
+  }
+}
+```
+
+Locators support `role`, `title`, `description`, `value`, and `match_index`.
+The matching control frame is converted into the same normalized coordinate
+space used by ordinary clicks.
+
 Sensitive screen regions can be blacked out before any screenshot is uploaded
 to the vision model or copied into report artifacts:
 
@@ -354,6 +372,12 @@ Run the safe cross-application activation example:
 
 ```bash
 ./venv/bin/soc-agent run tasks/examples/multi_app_activate.json
+```
+
+Run the Accessibility-based click example:
+
+```bash
+./venv/bin/soc-agent run tasks/examples/accessibility_click.json
 ```
 
 `open_app` starts or opens an application. `activate_app` explicitly brings an

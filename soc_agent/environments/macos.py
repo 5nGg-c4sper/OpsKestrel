@@ -12,6 +12,7 @@ class MacOSEnvironment:
         self,
         system=None,
         screenshot_capture: Optional[Callable] = None,
+        accessibility_locator=None,
         scale: float = 0.5,
         sleep_fn: Optional[Callable[[float], None]] = None,
     ):
@@ -22,6 +23,7 @@ class MacOSEnvironment:
         self.scale = scale
         self._system = system
         self._screenshot_capture = screenshot_capture
+        self._accessibility_locator = accessibility_locator
         self._sleep = sleep_fn or time.sleep
 
     def _get_system(self):
@@ -37,6 +39,18 @@ class MacOSEnvironment:
 
             self._screenshot_capture = capture_screen_with_cursor
         return self._screenshot_capture
+
+    def _get_accessibility_locator(self):
+        if self._accessibility_locator is None:
+            from soc_agent.accessibility import (
+                AccessibilityLocator,
+                PyObjCAccessibilityAdapter,
+            )
+
+            self._accessibility_locator = AccessibilityLocator(
+                PyObjCAccessibilityAdapter()
+            )
+        return self._accessibility_locator
 
     def open_app(self, app_name: str) -> None:
         if not app_name or not app_name.strip():
@@ -76,6 +90,17 @@ class MacOSEnvironment:
         if not 0 <= x <= 1 or not 0 <= y <= 1:
             raise ValueError("click coordinates must be between 0 and 1")
         self._get_system().mouse({"x": x, "y": y})
+
+    def click_element(self, app_name: str, locator) -> None:
+        if not app_name or not app_name.strip():
+            raise ValueError("app_name must not be empty")
+        if locator is None:
+            raise ValueError("locator must not be None")
+        match = self._get_accessibility_locator().find(
+            app_name,
+            locator,
+        )
+        self.click(match.center_x, match.center_y)
 
     def wait(self, seconds: float) -> None:
         seconds = float(seconds)
