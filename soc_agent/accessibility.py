@@ -119,20 +119,20 @@ class PyObjCAccessibilityAdapter:
     def __init__(self):
         try:
             import ApplicationServices
-            from AppKit import NSRunningApplication
+            from AppKit import NSWorkspace
         except ImportError as error:
             raise AccessibilityLookupError(
                 "macOS accessibility support requires PyObjC"
             ) from error
 
         self._ax = ApplicationServices
-        self._running_application = NSRunningApplication
+        self._workspace = NSWorkspace.sharedWorkspace()
 
     def root_for_app(self, app_name: str):
         normalized = app_name.strip().casefold()
         applications = [
             app
-            for app in self._running_application.runningApplications()
+            for app in self._workspace.runningApplications()
             if (
                 (app.localizedName() or "").strip().casefold()
                 == normalized
