@@ -58,3 +58,18 @@ cancellation remain available. After a run finishes, **生成证据包** creates
 `evidence-bundle.zip` with every report, screenshot, checkpoint, and log plus a
 SHA-256 manifest. Review the archive before sharing it because it can contain
 invoice data and screenshots.
+
+## Human Review
+
+The **人工复核** section lists every non-matching invoice. Select a review
+conclusion, enter the reviewer and optional note, then save:
+
+- `pending`: not handled yet
+- `confirmed`: the detected difference is real
+- `false_positive`: the difference is not actionable
+
+Decisions are written to `review.json` and synchronized to
+`reconciliation.json`, `reconciliation.html`, and `reconciliation.xlsx`.
+If an evidence bundle already exists, it is regenerated. After restarting the
+console, the latest reconciliation run with review data is selected
+automatically.

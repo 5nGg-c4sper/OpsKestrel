@@ -45,6 +45,17 @@ class ReconciliationResult:
             "error": self.error,
         }
 
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]):
+        return cls(
+            invoice_id=str(payload["invoice_id"]),
+            status=ReconciliationStatus(str(payload["status"])),
+            expected=payload.get("expected"),
+            actual=payload.get("actual"),
+            differences=tuple(payload.get("differences") or ()),
+            error=payload.get("error"),
+        )
+
 
 @dataclass(frozen=True)
 class ReconciliationReport:
@@ -75,6 +86,15 @@ class ReconciliationReport:
             "summary": self.summary,
             "results": [result.to_dict() for result in self.results],
         }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]):
+        return cls(
+            tuple(
+                ReconciliationResult.from_dict(result)
+                for result in payload.get("results", ())
+            )
+        )
 
 
 def load_expected_invoices_csv(path: Union[str, Path]) -> List[Dict[str, str]]:

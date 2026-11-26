@@ -56,6 +56,7 @@ Show:
 - amount and status mismatch filters
 - invoice search
 - screenshot evidence
+- operator review status, reviewer, and note
 - cache and retry indicators
 
 Say:

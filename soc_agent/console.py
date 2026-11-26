@@ -18,6 +18,11 @@ from soc_agent.evidence_bundle import (
     create_evidence_bundle as archive_evidence_bundle,
 )
 from soc_agent.queue_backend import create_queue_store
+from soc_agent.review_workflow import (
+    review_state as load_review_state,
+    save_review as persist_review,
+)
+from soc_agent.reviews import ReviewError
 
 
 class ConsoleState:
@@ -189,6 +194,7 @@ class ConsoleState:
                 pass
 
             exit_code = process.poll()
+            self._close_log_file()
             self._run_meta["state"] = "cancelled"
             self._run_meta["exit_code"] = exit_code
             self._run_meta["finished_at"] = datetime.now(
@@ -218,6 +224,69 @@ class ConsoleState:
                 + path.relative_to(self.reports_dir).as_posix(),
             }
 
+    def review_state(self, run_ref=None):
+        with self._lock:
+            run_dir = self._review_run_dir(run_ref)
+            if run_dir is None:
+                return {
+                    "available": False,
+                    "error": "no reconciliation run available",
+                }
+            payload = load_review_state(run_dir)
+            payload["run"] = run_dir.relative_to(
+                self.reports_dir
+            ).as_posix()
+            return payload
+
+    def save_review(self, payload):
+        with self._lock:
+            if self._process is not None and self._process.poll() is None:
+                return {
+                    "available": False,
+                    "error": "run must finish before review",
+                }
+            run_dir = self._review_run_dir(payload.get("run"))
+            if run_dir is None:
+                return {
+                    "available": False,
+                    "error": "no reconciliation run available",
+                }
+            state = persist_review(
+                run_dir,
+                invoice_id=str(payload.get("invoice_id", "")),
+                status=str(payload.get("status", "")),
+                reviewer=str(payload.get("reviewer", "")),
+                note=str(payload.get("note", "")),
+            )
+            state["run"] = run_dir.relative_to(
+                self.reports_dir
+            ).as_posix()
+            return state
+
+    def _review_run_dir(self, run_ref=None):
+        if run_ref:
+            candidate = (
+                self.reports_dir / unquote(str(run_ref))
+            ).resolve()
+            try:
+                candidate.relative_to(self.reports_dir)
+            except ValueError:
+                return None
+            if (candidate / "reconciliation.json").is_file():
+                return candidate
+            return None
+        if (
+            self._output_dir is not None
+            and (self._output_dir / "reconciliation.json").is_file()
+        ):
+            return self._output_dir
+        candidates = sorted(
+            self.reports_dir.glob("*/reconciliation.json"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        return candidates[0].parent if candidates else None
+
     def _start_run(
         self,
         kind,
@@ -227,8 +296,7 @@ class ConsoleState:
     ):
         if self._process is not None and self._process.poll() is None:
             return {"started": False, "error": "a run is already active"}
-        if self._log_file is not None:
-            self._log_file.close()
+        self._close_log_file()
         if output_dir is None:
             timestamp = datetime.now(timezone.utc).strftime(
                 "%Y%m%d-%H%M%S-%f"
@@ -271,6 +339,8 @@ class ConsoleState:
         if self._process is None:
             return {"state": "idle", "history": self.history()}
         exit_code = self._process.poll()
+        if exit_code is not None:
+            self._close_log_file()
         if exit_code is None:
             state = "running"
         elif self._run_meta.get("cancel_requested"):
@@ -400,6 +470,11 @@ class ConsoleState:
         )
         temp_path.replace(path)
 
+    def _close_log_file(self):
+        if self._log_file is not None:
+            self._log_file.close()
+            self._log_file = None
+
     def _read_log_tail(self, lines=60):
         if self._output_dir is None:
             return []
@@ -424,6 +499,7 @@ class ConsoleState:
             "reconciliation.html",
             "reconciliation.xlsx",
             "checkpoint.json",
+            "review.json",
             "run.log",
             "run.json",
             "evidence-bundle.zip",
@@ -471,6 +547,35 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/demo/status":
             self._send_json(self.server.state.demo_status())
+            return
+        if parsed.path == "/api/review/state":
+            run_ref = None
+            for part in parsed.query.split("&"):
+                if part.startswith("run="):
+                    run_ref = unquote(part[len("run="):])
+                    break
+            try:
+                payload = self.server.state.review_state(run_ref)
+            except ReviewError as error:
+                self._send_json(
+                    {"available": False, "error": str(error)},
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+                return
+            except Exception as error:
+                self._send_json(
+                    {"available": False, "error": str(error)},
+                    status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                )
+                return
+            self._send_json(
+                payload,
+                status=(
+                    HTTPStatus.OK
+                    if payload.get("available")
+                    else HTTPStatus.CONFLICT
+                ),
+            )
             return
         if parsed.path.startswith("/files/"):
             path = self.server.state.resolve_file(
@@ -520,6 +625,52 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 status=(
                     HTTPStatus.OK
                     if payload.get("created")
+                    else HTTPStatus.CONFLICT
+                ),
+            )
+            return
+        if parsed.path == "/api/review":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                length = 0
+            if length <= 0 or length > 16 * 1024:
+                self._send_json(
+                    {"available": False, "error": "invalid review payload"},
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+                return
+            try:
+                payload = json.loads(
+                    self.rfile.read(length).decode("utf-8")
+                )
+                if not isinstance(payload, dict):
+                    raise ValueError("review payload must be an object")
+            except (ValueError, UnicodeDecodeError) as error:
+                self._send_json(
+                    {"available": False, "error": str(error)},
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+                return
+            try:
+                result = self.server.state.save_review(payload)
+            except ReviewError as error:
+                self._send_json(
+                    {"available": False, "error": str(error)},
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+                return
+            except Exception as error:
+                self._send_json(
+                    {"available": False, "error": str(error)},
+                    status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                )
+                return
+            self._send_json(
+                result,
+                status=(
+                    HTTPStatus.OK
+                    if result.get("available")
                     else HTTPStatus.CONFLICT
                 ),
             )
@@ -645,6 +796,10 @@ def _console_html() -> str:
     .status-failed { color:#c53727; font-weight:600; }
     pre { background:#111820; color:#d9e6ef; padding:14px;
       border-radius:10px; max-height:240px; overflow:auto; }
+    #reviewer { min-width:220px; }
+    #review-body select, #review-body input { min-width:0; width:100%;
+      padding:7px 8px; border:1px solid #d9e0e6; border-radius:7px; }
+    #review-summary { margin-bottom:10px; }
   </style>
 </head>
 <body>
@@ -670,6 +825,20 @@ def _console_html() -> str:
       <div id="workers" class="muted">Loading...</div>
     </section>
     <section>
+      <h2>人工复核</h2>
+      <div id="review-summary" class="muted">No reconciliation run.</div>
+      <div class="bar">
+        <input id="reviewer" placeholder="复核人">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>发票号</th><th>算法结果</th><th>复核结论</th>
+          <th>备注</th><th>更新时间</th><th>操作</th></tr></thead>
+          <tbody id="review-body"></tbody>
+        </table>
+      </div>
+    </section>
+    <section>
       <h2>运行历史</h2>
       <div id="history" class="muted">No runs yet.</div>
     </section>
@@ -692,6 +861,55 @@ def _console_html() -> str:
       return (artifacts || []).map(item =>
         `<a href="${item.url}" target="_blank">${escapeHtml(item.name)}</a>`
       ).join(" · ");
+    }
+    const reviewLabels = {
+      pending: "待处理",
+      confirmed: "已确认",
+      false_positive: "误报"
+    };
+    let activeReviewRun = null;
+    function reviewOptions(selected) {
+      return Object.entries(reviewLabels).map(([value, label]) =>
+        `<option value="${value}" ${value === selected ? "selected" : ""}>` +
+        `${label}</option>`
+      ).join("");
+    }
+    async function refreshReviews() {
+      const response = await fetch("/api/review/state");
+      const payload = await response.json();
+      const summary = document.getElementById("review-summary");
+      const body = document.getElementById("review-body");
+      if (!response.ok) {
+        activeReviewRun = null;
+        summary.textContent =
+          payload.error || "No reconciliation run available.";
+        body.innerHTML = "";
+        return;
+      }
+      activeReviewRun = payload.run;
+      const counts = payload.review_summary || {};
+      summary.textContent =
+        `${payload.run} · 待处理 ${counts.pending || 0} · ` +
+        `已确认 ${counts.confirmed || 0} · 误报 ${counts.false_positive || 0}`;
+      if (!(payload.results || []).length) {
+        body.innerHTML =
+          '<tr><td colspan="6" class="muted">没有需要复核的差异</td></tr>';
+        return;
+      }
+      body.innerHTML = payload.results.map((item) => {
+        const review = item.review || {};
+        return `<tr data-invoice="${escapeHtml(item.invoice_id)}">
+          <td><strong>${escapeHtml(item.invoice_id)}</strong></td>
+          <td>${escapeHtml(item.status)}</td>
+          <td><select class="review-status">
+            ${reviewOptions(review.status || "pending")}
+          </select></td>
+          <td><input class="review-note"
+            value="${escapeHtml(review.note || "")}"></td>
+          <td>${escapeHtml(review.updated_at || "-")}</td>
+          <td><button class="save-review">保存</button></td>
+        </tr>`;
+      }).join("");
     }
     async function refresh() {
       const response = await fetch("/api/overview");
@@ -787,8 +1005,40 @@ def _console_html() -> str:
         refresh();
       }
     );
+    document.getElementById("review-body").addEventListener(
+      "click", async (event) => {
+        const button = event.target.closest(".save-review");
+        if (!button || !activeReviewRun) return;
+        const row = button.closest("tr");
+        const reviewer = document.getElementById("reviewer").value.trim();
+        if (!reviewer) {
+          alert("请填写复核人");
+          return;
+        }
+        const response = await fetch("/api/review", {
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({
+            run: activeReviewRun,
+            invoice_id: row.dataset.invoice,
+            status: row.querySelector(".review-status").value,
+            reviewer: reviewer,
+            note: row.querySelector(".review-note").value
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          alert(payload.error || "复核保存失败");
+          return;
+        }
+        await refreshReviews();
+        await refresh();
+      }
+    );
     refresh();
+    refreshReviews();
     setInterval(refresh, 5000);
+    setInterval(refreshReviews, 10000);
   </script>
 </body>
 </html>

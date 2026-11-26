@@ -18,6 +18,7 @@ from soc_agent.reconciliation import (
 from soc_agent.reporting.reconciliation_xlsx import (
     ReconciliationXLSXWriter,
 )
+from soc_agent.reviews import ReviewRecord, ReviewStatus
 
 
 class ReconciliationXLSXTests(unittest.TestCase):
@@ -61,7 +62,18 @@ class ReconciliationXLSXTests(unittest.TestCase):
             )
             output = root / "report.xlsx"
 
-            path = ReconciliationXLSXWriter().write(report, output)
+            path = ReconciliationXLSXWriter().write(
+                report,
+                output,
+                reviews={
+                    "inv-1": ReviewRecord(
+                        "INV-1",
+                        ReviewStatus.CONFIRMED,
+                        "+operator",
+                        "=SUM(1,2)",
+                    )
+                },
+            )
             workbook = load_workbook(path)
             try:
                 self.assertEqual(
@@ -76,6 +88,9 @@ class ReconciliationXLSXTests(unittest.TestCase):
                 self.assertEqual(results["A2"].value, "INV-1")
                 self.assertEqual(results["B2"].value, "amount_mismatch")
                 self.assertTrue(results["L2"].hyperlink)
+                self.assertEqual(results["N2"].value, "confirmed")
+                self.assertEqual(results["O2"].value, "'+operator")
+                self.assertEqual(results["P2"].value, "'=SUM(1,2)")
                 self.assertEqual(collection["E2"].value, 2)
                 self.assertEqual(collection["F2"].value, "yes")
             finally:

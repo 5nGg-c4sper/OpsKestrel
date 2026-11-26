@@ -128,6 +128,8 @@ queue worker
 | `soc_agent/queue_worker.py` | 领取队列任务、执行并持久化终态 |
 | `soc_agent/console.py` | 本地运行控制台、运行历史和进程组取消 |
 | `soc_agent/evidence_bundle.py` | 运行证据 ZIP、SHA-256 清单和原子归档 |
+| `soc_agent/reviews.py` | 人工复核数据模型、持久化和汇总 |
+| `soc_agent/review_workflow.py` | 将复核结论同步到 JSON、HTML、XLSX 和证据包 |
 | `soc_agent/cli.py` | 参数解析、依赖装配和 queue CLI |
 | `soc_agent/config.py` | 从环境变量加载并验证运行配置 |
 

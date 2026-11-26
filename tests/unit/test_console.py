@@ -105,6 +105,64 @@ class ConsoleTests(unittest.TestCase):
                 response.read().decode("utf-8")
             )
 
+    def write_reconciliation_run(self):
+        run_dir = self.reports / "console-review-001"
+        run_dir.mkdir()
+        payload = {
+            "expected_csv": "/tmp/expected.csv",
+            "checkpoint_path": None,
+            "collection": {
+                "lookups": 1,
+                "errors": 0,
+                "cached": 0,
+                "retried": 0,
+            },
+            "reconciliation": {
+                "summary": {
+                    "total": 1,
+                    "by_status": {
+                        "matched": 0,
+                        "amount_mismatch": 1,
+                        "currency_mismatch": 0,
+                        "status_mismatch": 0,
+                        "missing_in_erp": 0,
+                        "duplicate_in_erp": 0,
+                        "invalid_input": 0,
+                    },
+                    "all_matched": False,
+                },
+                "results": [
+                    {
+                        "invoice_id": "INV-1",
+                        "status": "amount_mismatch",
+                        "expected": {"amount": "100.00"},
+                        "actual": {"amount": "120.00"},
+                        "differences": ["amount mismatch"],
+                        "error": None,
+                    }
+                ],
+            },
+            "lookups": [
+                {
+                    "invoice_id": "INV-1",
+                    "found": True,
+                    "record_count": 1,
+                    "duplicate": False,
+                    "screenshot_path": None,
+                    "error": None,
+                    "attempts": 1,
+                    "retry_errors": [],
+                    "diagnostics_path": None,
+                    "cached": False,
+                }
+            ],
+        }
+        (run_dir / "reconciliation.json").write_text(
+            json.dumps(payload),
+            encoding="utf-8",
+        )
+        return run_dir
+
     def test_console_html_and_overview(self):
         with urlopen(self.base_url + "/", timeout=2) as response:
             html = response.read().decode("utf-8")
@@ -258,6 +316,64 @@ class ConsoleTests(unittest.TestCase):
             data=b"not-an-invoice",
             method="POST",
         )
+        with self.assertRaises(HTTPError) as context:
+            urlopen(request, timeout=2)
+        self.assertEqual(context.exception.code, 400)
+
+    def test_review_api_persists_operator_decision(self):
+        run_dir = self.write_reconciliation_run()
+        status, state = self.get_json("/api/review/state")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(state["run"], "console-review-001")
+        self.assertEqual(state["review_summary"]["pending"], 1)
+
+        request = Request(
+            self.base_url + "/api/review",
+            data=json.dumps(
+                {
+                    "run": state["run"],
+                    "invoice_id": "INV-1",
+                    "status": "confirmed",
+                    "reviewer": "operator-a",
+                    "note": "已核对 ERP 页面",
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urlopen(request, timeout=2) as response:
+            reviewed = json.loads(response.read().decode("utf-8"))
+
+        self.assertEqual(response.status, 200)
+        self.assertEqual(reviewed["review_summary"]["confirmed"], 1)
+        self.assertTrue((run_dir / "review.json").is_file())
+        report = json.loads(
+            (run_dir / "reconciliation.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(
+            report["reconciliation"]["results"][0]["review"]["status"],
+            "confirmed",
+        )
+
+    def test_review_api_rejects_blank_reviewer(self):
+        run_dir = self.write_reconciliation_run()
+        request = Request(
+            self.base_url + "/api/review",
+            data=json.dumps(
+                {
+                    "run": run_dir.name,
+                    "invoice_id": "INV-1",
+                    "status": "confirmed",
+                    "reviewer": "",
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
         with self.assertRaises(HTTPError) as context:
             urlopen(request, timeout=2)
         self.assertEqual(context.exception.code, 400)

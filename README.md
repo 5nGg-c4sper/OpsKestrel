@@ -42,6 +42,14 @@ The same archive can be created from the command line:
 Evidence packages can contain invoice data and screenshots. Review them before
 sharing outside the operator's machine.
 
+The console also provides a human review workflow for reconciliation
+differences. Each difference can be marked `pending`, `confirmed`, or
+`false_positive`, with a reviewer name and note. Decisions are stored in
+`review.json`; JSON, HTML, XLSX, and an existing evidence bundle are refreshed
+so the deterministic algorithm result and the operator decision remain
+separately auditable. The reviewer name is self-declared and is not an
+authentication claim.
+
 ![SOC Agent Console](docs/assets/console.png)
 
 The enterprise Mock ERP provides a real login page, session expiry, pagination,

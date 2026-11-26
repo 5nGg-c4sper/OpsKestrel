@@ -101,6 +101,20 @@ class BrowserReconciliationReport:
             ],
         }
 
+    @classmethod
+    def from_dict(cls, payload: Dict) -> "BrowserReconciliationReport":
+        return cls(
+            expected_csv=str(payload["expected_csv"]),
+            reconciliation=ReconciliationReport.from_dict(
+                payload["reconciliation"]
+            ),
+            lookups=tuple(
+                ERPLookupEvidence.from_dict(lookup)
+                for lookup in payload.get("lookups", ())
+            ),
+            checkpoint_path=payload.get("checkpoint_path"),
+        )
+
 
 class ReconciliationCheckpointError(ValueError):
     """Raised when a reconciliation checkpoint is invalid."""

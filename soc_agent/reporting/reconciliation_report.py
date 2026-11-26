@@ -6,6 +6,10 @@ from pathlib import Path
 
 from soc_agent.erp_reconciliation import BrowserReconciliationReport
 from soc_agent.reconciliation import ReconciliationStatus
+from soc_agent.reviews import (
+    ReviewStatus,
+    build_review_summary,
+)
 
 
 class ReconciliationHTMLReportWriter:
@@ -15,10 +19,11 @@ class ReconciliationHTMLReportWriter:
         self,
         report: BrowserReconciliationReport,
         output_path,
+        reviews=None,
     ) -> Path:
         path = Path(output_path).expanduser().resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
-        content = self.render(report, path.parent)
+        content = self.render(report, path.parent, reviews=reviews)
         temp_path = path.with_suffix(path.suffix + ".tmp")
         temp_path.write_text(content, encoding="utf-8")
         temp_path.replace(path)
@@ -28,8 +33,14 @@ class ReconciliationHTMLReportWriter:
         self,
         report: BrowserReconciliationReport,
         output_dir,
+        reviews=None,
     ) -> str:
+        reviews = reviews or {}
         summary = report.reconciliation.summary
+        review_summary = build_review_summary(
+            report.reconciliation,
+            reviews,
+        )
         lookup_by_id = {
             lookup.invoice_id.casefold(): lookup
             for lookup in report.lookups
@@ -38,6 +49,7 @@ class ReconciliationHTMLReportWriter:
             summary,
             len(report.collection_errors),
             len(report.cached_lookups),
+            review_summary,
         )
         filters = self._render_filters(summary)
         rows = "\n".join(
@@ -45,6 +57,7 @@ class ReconciliationHTMLReportWriter:
                 result,
                 lookup_by_id,
                 Path(output_dir),
+                reviews.get(result.invoice_id.casefold()),
             )
             for result in report.reconciliation.results
         )
@@ -94,6 +107,12 @@ class ReconciliationHTMLReportWriter:
     .evidence a {{ color: var(--blue); }}
     .cache {{ display: inline-block; margin-left: 8px; color: var(--green);
       font-size: 12px; }}
+    .review-status {{ font-weight: 650; }}
+    .review-pending {{ color: var(--amber); }}
+    .review-confirmed {{ color: var(--red); }}
+    .review-false_positive {{ color: var(--green); }}
+    .review-meta {{ display: block; margin-top: 4px; color: var(--muted);
+      font-size: 12px; }}
     .errors {{ margin-top: 24px; padding: 18px; border-radius: 12px;
       background: #fff1f0; border: 1px solid #ffccc7; }}
     .empty {{ padding: 30px; text-align: center; color: var(--muted); }}
@@ -118,10 +137,11 @@ class ReconciliationHTMLReportWriter:
           <tr>
             <th>发票号</th><th>结果</th><th>预期金额</th>
             <th>ERP 金额</th><th>说明</th><th>证据</th>
+            <th>复核状态</th><th>复核说明</th>
           </tr>
         </thead>
         <tbody id="result-body">
-          {rows or '<tr><td colspan="6" class="empty">没有记录</td></tr>'}
+          {rows or '<tr><td colspan="8" class="empty">没有记录</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -161,6 +181,7 @@ class ReconciliationHTMLReportWriter:
         summary,
         collection_error_count: int,
         cached_count: int,
+        review_summary,
     ) -> str:
         business_differences = summary["total"] - summary["by_status"][
             ReconciliationStatus.MATCHED.value
@@ -171,6 +192,9 @@ class ReconciliationHTMLReportWriter:
             ("存在差异", business_differences),
             ("采集错误", collection_error_count),
             ("缓存命中", cached_count),
+            ("差异待复核", review_summary["pending"]),
+            ("差异已确认", review_summary["confirmed"]),
+            ("差异误报", review_summary["false_positive"]),
         )
         return (
             '<section class="cards">'
@@ -201,6 +225,7 @@ class ReconciliationHTMLReportWriter:
         result,
         lookup_by_id,
         output_dir: Path,
+        review,
     ) -> str:
         expected_amount = _amount(result.expected)
         actual_amount = _amount(result.actual)
@@ -227,8 +252,30 @@ class ReconciliationHTMLReportWriter:
                 detail,
                 expected_amount,
                 actual_amount,
+                review.status.value if review else ReviewStatus.PENDING.value,
+                review.note if review else "",
+                review.reviewer if review else "",
             )
         ).casefold()
+        review_status = (
+            review.status
+            if review is not None
+            else ReviewStatus.PENDING
+        )
+        if review is None:
+            review_detail = '<span class="muted">尚未复核</span>'
+        else:
+            review_detail = (
+                f'<span class="review-status review-{review_status.value}">'
+                f"{_review_label(review_status)}</span>"
+                f'<span class="review-meta">{html.escape(review.reviewer)} · '
+                f"{review.updated_at.date().isoformat()}</span>"
+            )
+        review_note = (
+            html.escape(review.note)
+            if review is not None and review.note
+            else "-"
+        )
         return f"""
           <tr data-status="{result.status.value}"
               data-search="{html.escape(searchable)}">
@@ -240,6 +287,8 @@ class ReconciliationHTMLReportWriter:
             <td>{html.escape(actual_amount)}</td>
             <td>{html.escape(detail)}</td>
             <td class="evidence">{evidence}</td>
+            <td>{review_detail}</td>
+            <td>{review_note}</td>
           </tr>
         """
 
@@ -276,3 +325,11 @@ def _amount(record) -> str:
         return "-"
     value = record.get("amount")
     return str(value) if value is not None else "-"
+
+
+def _review_label(status: ReviewStatus) -> str:
+    return {
+        ReviewStatus.PENDING: "待处理",
+        ReviewStatus.CONFIRMED: "已确认",
+        ReviewStatus.FALSE_POSITIVE: "误报",
+    }[status]

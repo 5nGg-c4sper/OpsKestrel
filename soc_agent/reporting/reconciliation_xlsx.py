@@ -7,6 +7,8 @@ from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from soc_agent.erp_reconciliation import BrowserReconciliationReport
+from soc_agent.reconciliation import ReconciliationStatus
+from soc_agent.reviews import ReviewStatus, build_review_summary
 
 
 HEADER_FILL = PatternFill("solid", fgColor="DCE6F1")
@@ -18,6 +20,7 @@ class ReconciliationXLSXWriter:
         self,
         report: BrowserReconciliationReport,
         output_path,
+        reviews=None,
     ) -> Path:
         path = Path(output_path).expanduser().resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -26,9 +29,10 @@ class ReconciliationXLSXWriter:
         summary_sheet.title = "Summary"
         results_sheet = workbook.create_sheet("Results")
         collection_sheet = workbook.create_sheet("Collection")
+        reviews = reviews or {}
 
-        self._write_summary(summary_sheet, report)
-        self._write_results(results_sheet, report)
+        self._write_summary(summary_sheet, report, reviews)
+        self._write_results(results_sheet, report, reviews)
         self._write_collection(collection_sheet, report)
 
         temp_path = path.with_suffix(path.suffix + ".tmp")
@@ -37,8 +41,12 @@ class ReconciliationXLSXWriter:
         temp_path.replace(path)
         return path
 
-    def _write_summary(self, sheet, report):
+    def _write_summary(self, sheet, report, reviews):
         summary = report.reconciliation.summary
+        review_summary = build_review_summary(
+            report.reconciliation,
+            reviews,
+        )
         rows = [
             ("Metric", "Value"),
             ("Total invoices", summary["total"]),
@@ -51,6 +59,13 @@ class ReconciliationXLSXWriter:
             ("Invalid input", summary["by_status"]["invalid_input"]),
             ("Collection errors", len(report.collection_errors)),
             ("Cached lookups", len(report.cached_lookups)),
+            ("Differences pending review", review_summary["pending"]),
+            ("Differences confirmed", review_summary["confirmed"]),
+            ("Differences false positive", review_summary["false_positive"]),
+            (
+                "All differences reviewed",
+                "yes" if review_summary["all_reviewed"] else "no",
+            ),
             ("All matched", "yes" if summary["all_matched"] else "no"),
         ]
         for row in rows:
@@ -60,7 +75,7 @@ class ReconciliationXLSXWriter:
         sheet.column_dimensions["B"].width = 18
         sheet.freeze_panes = "A2"
 
-    def _write_results(self, sheet, report):
+    def _write_results(self, sheet, report, reviews):
         sheet.append(
             [
                 "Invoice ID",
@@ -76,6 +91,10 @@ class ReconciliationXLSXWriter:
                 "Cached",
                 "Screenshot",
                 "Diagnostics",
+                "Review Status",
+                "Reviewer",
+                "Review Note",
+                "Reviewed At",
             ]
         )
         lookups = {
@@ -94,6 +113,13 @@ class ReconciliationXLSXWriter:
                 else {}
             )
             lookup = lookups.get(result.invoice_id.casefold())
+            review = reviews.get(result.invoice_id.casefold())
+            if result.status == ReconciliationStatus.MATCHED:
+                review_status = ""
+            elif review is None:
+                review_status = ReviewStatus.PENDING.value
+            else:
+                review_status = review.status.value
             detail = (
                 result.error
                 or "; ".join(result.differences)
@@ -126,6 +152,14 @@ class ReconciliationXLSXWriter:
                         if lookup and lookup.diagnostics_path
                         else ""
                     ),
+                    review_status,
+                    _excel_safe(review.reviewer if review else ""),
+                    _excel_safe(review.note if review else ""),
+                    (
+                        review.updated_at.isoformat()
+                        if review is not None
+                        else ""
+                    ),
                 ]
             )
         self._format_header(sheet)
@@ -137,6 +171,10 @@ class ReconciliationXLSXWriter:
             "I": 42,
             "L": 36,
             "M": 36,
+            "N": 24,
+            "O": 24,
+            "P": 42,
+            "Q": 26,
         }
         for column, width in widths.items():
             sheet.column_dimensions[column].width = width
@@ -195,3 +233,9 @@ class ReconciliationXLSXWriter:
         for cell in sheet[1]:
             cell.fill = HEADER_FILL
             cell.font = HEADER_FONT
+
+
+def _excel_safe(value):
+    if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
+        return "'" + value
+    return value
