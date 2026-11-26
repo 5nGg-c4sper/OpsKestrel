@@ -160,6 +160,34 @@ class AccessibilityLocatorTests(unittest.TestCase):
 
         self.assertEqual(children, ["window", "menu"])
 
+    def test_pyobjc_pair_parser_accepts_version_specific_shapes(self):
+        adapter = PyObjCAccessibilityAdapter
+
+        self.assertEqual(
+            adapter._pair_values((10, 20), "x", "y"),
+            (10.0, 20.0),
+        )
+        self.assertEqual(
+            adapter._pair_values(((10, 20),), "x", "y"),
+            (10.0, 20.0),
+        )
+        self.assertEqual(
+            adapter._pair_values(
+                (True, (10, 20)),
+                "x",
+                "y",
+            ),
+            (10.0, 20.0),
+        )
+        self.assertEqual(
+            adapter._pair_values(
+                SimpleNamespace(x=10, y=20),
+                "x",
+                "y",
+            ),
+            (10.0, 20.0),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

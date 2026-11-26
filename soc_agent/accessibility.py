@@ -257,11 +257,51 @@ class PyObjCAccessibilityAdapter:
             self._ax.kAXValueCGSizeType,
             None,
         )
+        point_x, point_y = self._pair_values(point, "x", "y")
+        width, height = self._pair_values(
+            dimensions,
+            "width",
+            "height",
+        )
         return (
-            float(point.x),
-            float(point.y),
-            float(dimensions.width),
-            float(dimensions.height),
+            point_x,
+            point_y,
+            width,
+            height,
+        )
+
+    @classmethod
+    def _pair_values(cls, value, first, second):
+        if hasattr(value, first) and hasattr(value, second):
+            return (
+                float(getattr(value, first)),
+                float(getattr(value, second)),
+            )
+        if isinstance(value, (tuple, list)):
+            if len(value) == 1:
+                return cls._pair_values(value[0], first, second)
+            if len(value) >= 2:
+                if (
+                    isinstance(value[0], (tuple, list))
+                    and len(value[0]) >= 2
+                ):
+                    return cls._pair_values(
+                        value[0],
+                        first,
+                        second,
+                    )
+                if (
+                    len(value) == 2
+                    and isinstance(value[1], (tuple, list))
+                ):
+                    return cls._pair_values(
+                        value[1],
+                        first,
+                        second,
+                    )
+                return float(value[0]), float(value[1])
+        raise AccessibilityLookupError(
+            f"invalid AX value for {first}/{second}: {value!r}"
         )
 
     def _copy_attribute(self, element, attribute):
