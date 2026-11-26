@@ -6,12 +6,12 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from soc_agent.reporting.dataset_report import DatasetReportWriter
-from soc_agent.reporting.report import ReportWriter
-from soc_agent.reporting.suite_report import SuiteReportWriter
-from soc_agent.reporting.workflow_report import WorkflowReportWriter
-from soc_agent.suite import SuiteResult
-from soc_agent.task_models import (
+from opskestrel.reporting.dataset_report import DatasetReportWriter
+from opskestrel.reporting.report import ReportWriter
+from opskestrel.reporting.suite_report import SuiteReportWriter
+from opskestrel.reporting.workflow_report import WorkflowReportWriter
+from opskestrel.suite import SuiteResult
+from opskestrel.task_models import (
     ActionType,
     StepPhase,
     StepResult,

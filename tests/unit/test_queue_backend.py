@@ -7,17 +7,17 @@ from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
-from soc_agent.queue_backend import (
+from opskestrel.queue_backend import (
     QueueStore,
     QueueStoreBackendError,
     create_queue_store,
 )
-from soc_agent.postgres_queue_store import (
+from opskestrel.postgres_queue_store import (
     POSTGRES_CLAIM_SQL,
     POSTGRES_MIGRATIONS,
 )
-from soc_agent.queue_store import SQLiteQueueStore
-from soc_agent.task_models import DatasetTargetType
+from opskestrel.queue_store import SQLiteQueueStore
+from opskestrel.task_models import DatasetTargetType
 
 
 class QueueBackendTests(unittest.TestCase):
@@ -59,7 +59,7 @@ class QueueBackendTests(unittest.TestCase):
     def test_postgres_url_selects_postgres_backend(self):
         sentinel = object()
         with patch(
-            "soc_agent.postgres_queue_store.PostgreSQLQueueStore",
+            "opskestrel.postgres_queue_store.PostgreSQLQueueStore",
             return_value=sentinel,
         ) as backend:
             store = create_queue_store(

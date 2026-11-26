@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 class EntryPointTests(unittest.TestCase):
     def test_python_module_help_runs_without_desktop_access(self):
         result = subprocess.run(
-            [sys.executable, "-m", "soc_agent", "--help"],
+            [sys.executable, "-m", "opskestrel", "--help"],
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
@@ -22,11 +22,11 @@ class EntryPointTests(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("usage: soc-agent", result.stdout)
+        self.assertIn("usage: opskestrel", result.stdout)
         self.assertIn("run", result.stdout)
         self.assertIn("suite", result.stdout)
 
-    def test_setup_preserves_operate_and_adds_soc_agent(self):
+    def test_setup_preserves_operate_and_adds_opskestrel(self):
         setup_tree = ast.parse(
             (PROJECT_ROOT / "setup.py").read_text(encoding="utf-8")
         )
@@ -52,7 +52,7 @@ class EntryPointTests(unittest.TestCase):
         ]
 
         self.assertIn("operate=operate.main:main_entry", console_scripts)
-        self.assertIn("soc-agent=soc_agent.cli:main", console_scripts)
+        self.assertIn("opskestrel=opskestrel.cli:main", console_scripts)
 
 
 if __name__ == "__main__":

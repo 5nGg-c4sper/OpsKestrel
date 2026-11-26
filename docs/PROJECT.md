@@ -1,8 +1,8 @@
-# SOC Agent Project Overview
+# OpsKestrel Project Overview
 
 ## Positioning
 
-SOC Agent is a macOS business automation platform for workflows that span
+OpsKestrel is a macOS business automation platform for workflows that span
 desktop applications, browser-based ERPs, and local business files. Its first
 reference product is deterministic invoice reconciliation.
 

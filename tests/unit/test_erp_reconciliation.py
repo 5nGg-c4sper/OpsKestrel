@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from soc_agent.browser import ERPSearchResult
-from soc_agent.erp_reconciliation import (
+from opskestrel.browser import ERPSearchResult
+from opskestrel.erp_reconciliation import (
     ReconciliationCheckpointError,
     reconcile_expected_csv_with_browser,
 )

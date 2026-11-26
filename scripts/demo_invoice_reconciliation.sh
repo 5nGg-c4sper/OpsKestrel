@@ -9,7 +9,7 @@ timestamp="$(date '+%Y%m%d-%H%M%S')"
 output_dir="reports/demo-$timestamp"
 mkdir -p "$output_dir"
 
-./venv/bin/python ./venv/bin/soc-agent scenario run \
+./venv/bin/python ./venv/bin/opskestrel scenario run \
   scenarios/invoice_reconciliation/scenario.json \
   --non-interactive \
   --reset-checkpoint \

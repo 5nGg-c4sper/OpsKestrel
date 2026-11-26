@@ -4,7 +4,7 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from soc_agent.task_models import (
+from opskestrel.task_models import (
     RuntimeVariableRecord,
     StepPhase,
     TaskDefinition,
@@ -12,8 +12,8 @@ from soc_agent.task_models import (
     TaskStatus,
     WorkflowDefinition,
 )
-from soc_agent.workflow_runner import WorkflowRunner, WorkflowRunnerError
-from soc_agent.workflows import LoadedWorkflow
+from opskestrel.workflow_runner import WorkflowRunner, WorkflowRunnerError
+from opskestrel.workflows import LoadedWorkflow
 
 
 class WorkflowRunnerTests(unittest.TestCase):

@@ -4,9 +4,9 @@ import unittest
 import tempfile
 from pathlib import Path
 
-from soc_agent.accessibility import UIElementMatch
-from soc_agent.environments.macos import MacOSEnvironment
-from soc_agent.task_models import UIElementLocator
+from opskestrel.accessibility import UIElementMatch
+from opskestrel.environments.macos import MacOSEnvironment
+from opskestrel.task_models import UIElementLocator
 
 
 class FakeSystem:
@@ -154,7 +154,7 @@ class MacOSEnvironmentTests(unittest.TestCase):
 
     def test_screenshot(self):
         expected_path = (
-            Path(self.temporary_directory.name) / "soc-test.png"
+            Path(self.temporary_directory.name) / "opskestrel-test.png"
         )
         path = self.environment.screenshot(expected_path)
         self.assertEqual(path, expected_path)

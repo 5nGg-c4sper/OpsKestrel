@@ -40,7 +40,7 @@ MAX_RUNTIME_SECONDS = 120
 
 def finish_run(message):
     """Show a terminal completion signal and bring Terminal to the front."""
-    print(f"\n{ANSI_BLUE}[Self-Operating Computer]{ANSI_RESET} {message}\n")
+    print(f"\n{ANSI_BLUE}[OpsKestrel]{ANSI_RESET} {message}\n")
     sys.stdout.write("\a")
     sys.stdout.flush()
 
@@ -54,13 +54,13 @@ def finish_run(message):
             stderr=subprocess.DEVNULL,
         )
     except Exception as e:
-        print("[Self-Operating Computer] Could not activate Terminal:", e)
+        print("[OpsKestrel] Could not activate Terminal:", e)
 
     try:
         notification_script = (
             "on run argv\n"
             'display notification (item 1 of argv) '
-            'with title "Self-Operating Computer"\n'
+            'with title "OpsKestrel"\n'
             "end run"
         )
         subprocess.Popen(
@@ -69,12 +69,12 @@ def finish_run(message):
             stderr=subprocess.DEVNULL,
         )
     except Exception as e:
-        print("[Self-Operating Computer] Could not send notification:", e)
+        print("[OpsKestrel] Could not send notification:", e)
 
 
 def main(model, terminal_prompt, voice_mode=False, verbose_mode=False):
     """
-    Main function for the Self-Operating Computer.
+    Main function for the OpsKestrel.
 
     Parameters:
     - model: The model used for generating responses.
@@ -109,7 +109,7 @@ def main(model, terminal_prompt, voice_mode=False, verbose_mode=False):
     # Skip message dialog if prompt was given directly
     if not terminal_prompt:
         message_dialog(
-            title="Self-Operating Computer",
+            title="OpsKestrel",
             text="An experimental framework to enable multimodal models to operate computers",
             style=style,
         ).run()
@@ -127,7 +127,7 @@ def main(model, terminal_prompt, voice_mode=False, verbose_mode=False):
         objective = terminal_prompt
     elif voice_mode:
         print(
-            f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_RESET} Listening for your command... (speak now)"
+            f"{ANSI_GREEN}[OpsKestrel]{ANSI_RESET} Listening for your command... (speak now)"
         )
         try:
             objective = mic.listen()
@@ -136,7 +136,7 @@ def main(model, terminal_prompt, voice_mode=False, verbose_mode=False):
             return  # Exit if voice input fails
     else:
         print(
-            f"[{ANSI_GREEN}Self-Operating Computer {ANSI_RESET}|{ANSI_BRIGHT_MAGENTA} {model}{ANSI_RESET}]\n{USER_QUESTION}"
+            f"[{ANSI_GREEN}OpsKestrel {ANSI_RESET}|{ANSI_BRIGHT_MAGENTA} {model}{ANSI_RESET}]\n{USER_QUESTION}"
         )
         print(f"{ANSI_YELLOW}[User]{ANSI_RESET}")
         objective = prompt(style=style)
@@ -156,7 +156,7 @@ def main(model, terminal_prompt, voice_mode=False, verbose_mode=False):
         elapsed_seconds = time.monotonic() - start_time
         if elapsed_seconds >= MAX_RUNTIME_SECONDS:
             print(
-                f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_RED}"
+                f"{ANSI_GREEN}[OpsKestrel]{ANSI_RED}"
                 f"[Error] Task timed out after {MAX_RUNTIME_SECONDS} seconds."
                 f"{ANSI_RESET}"
             )
@@ -200,7 +200,7 @@ def main(model, terminal_prompt, voice_mode=False, verbose_mode=False):
 
             if repeated_action_count == 1:
                 print(
-                    f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_YELLOW}"
+                    f"{ANSI_GREEN}[OpsKestrel]{ANSI_YELLOW}"
                     "[Warning] Repeated action skipped; requesting an alternative approach."
                     f"{ANSI_RESET}"
                 )
@@ -219,7 +219,7 @@ def main(model, terminal_prompt, voice_mode=False, verbose_mode=False):
 
             if repeated_action_count >= 2:
                 print(
-                    f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_RED}"
+                    f"{ANSI_GREEN}[OpsKestrel]{ANSI_RED}"
                     "[Error] Repeated action detected; stopping to avoid an action loop."
                     f"{ANSI_RESET}"
                 )
@@ -235,7 +235,7 @@ def main(model, terminal_prompt, voice_mode=False, verbose_mode=False):
             loop_count += 1
             if loop_count >= MAX_LOOPS:
                 print(
-                    f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_RED}"
+                    f"{ANSI_GREEN}[OpsKestrel]{ANSI_RED}"
                     f"[Error] Maximum loop count ({MAX_LOOPS}) reached."
                     f"{ANSI_RESET}"
                 )
@@ -243,13 +243,13 @@ def main(model, terminal_prompt, voice_mode=False, verbose_mode=False):
                 break
         except ModelNotRecognizedException as e:
             print(
-                f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_RED}[Error] -> {e} {ANSI_RESET}"
+                f"{ANSI_GREEN}[OpsKestrel]{ANSI_RED}[Error] -> {e} {ANSI_RESET}"
             )
             finish_run("Task stopped because the model was not recognized.")
             break
         except Exception as e:
             print(
-                f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_RED}[Error] -> {e} {ANSI_RESET}"
+                f"{ANSI_GREEN}[OpsKestrel]{ANSI_RED}[Error] -> {e} {ANSI_RESET}"
             )
             finish_run("Task stopped because of an error.")
             break
@@ -280,7 +280,7 @@ def operate(operations, model, objective=""):
             )
             if command_suffix and "q" in lowered_keys:
                 print(
-                    f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_YELLOW}"
+                    f"{ANSI_GREEN}[OpsKestrel]{ANSI_YELLOW}"
                     "[Warning] Blocked Command+Q to protect the running agent."
                     f"{ANSI_RESET}"
                 )
@@ -291,7 +291,7 @@ def operate(operations, model, objective=""):
                 and not requests_close
             ):
                 print(
-                    f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_YELLOW}"
+                    f"{ANSI_GREEN}[OpsKestrel]{ANSI_YELLOW}"
                     "[Warning] Blocked an app-close shortcut not requested by the objective."
                     f"{ANSI_RESET}"
                 )
@@ -319,7 +319,7 @@ def operate(operations, model, objective=""):
             summary = operation.get("summary")
 
             print(
-                f"[{ANSI_GREEN}Self-Operating Computer {ANSI_RESET}|{ANSI_BRIGHT_MAGENTA} {model}{ANSI_RESET}]"
+                f"[{ANSI_GREEN}OpsKestrel {ANSI_RESET}|{ANSI_BRIGHT_MAGENTA} {model}{ANSI_RESET}]"
             )
             print(f"{ANSI_BLUE}Objective Complete: {ANSI_RESET}{summary}\n")
             finish_run("Task completed.")
@@ -327,10 +327,10 @@ def operate(operations, model, objective=""):
 
         else:
             print(
-                f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_RED}[Error] unknown operation response :({ANSI_RESET}"
+                f"{ANSI_GREEN}[OpsKestrel]{ANSI_RED}[Error] unknown operation response :({ANSI_RESET}"
             )
             print(
-                f"{ANSI_GREEN}[Self-Operating Computer]{ANSI_RED}[Error] AI response {ANSI_RESET}{operation}"
+                f"{ANSI_GREEN}[OpsKestrel]{ANSI_RED}[Error] AI response {ANSI_RESET}{operation}"
             )
             finish_run(
                 "Task stopped because the model returned an unknown operation."
@@ -338,7 +338,7 @@ def operate(operations, model, objective=""):
             return True
 
         print(
-            f"[{ANSI_GREEN}Self-Operating Computer {ANSI_RESET}|{ANSI_BRIGHT_MAGENTA} {model}{ANSI_RESET}]"
+            f"[{ANSI_GREEN}OpsKestrel {ANSI_RESET}|{ANSI_BRIGHT_MAGENTA} {model}{ANSI_RESET}]"
         )
         print(f"{operate_thought}")
         print(f"{ANSI_BLUE}Action: {ANSI_RESET}{operate_type} {operate_detail}\n")

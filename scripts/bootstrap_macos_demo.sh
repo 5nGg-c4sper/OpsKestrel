@@ -16,7 +16,7 @@ if [[ ! -x "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ]]; th
 fi
 
 if [[ ! -x "venv/bin/python" ]]; then
-  python_bin="${SOC_PYTHON:-}"
+  python_bin="${OPSKESTREL_PYTHON:-}"
   if [[ -z "$python_bin" ]]; then
     for candidate in python3.12 python3.11 python3.10 python3.9; do
       if command -v "$candidate" >/dev/null 2>&1; then
@@ -47,7 +47,7 @@ if [[ ! -f ".env" ]]; then
   printf 'Created .env from .env.example. Fill model credentials before GUI runs.\n'
 fi
 
-./venv/bin/python ./venv/bin/soc-agent scenario validate \
+./venv/bin/python ./venv/bin/opskestrel scenario validate \
   scenarios/invoice_reconciliation/scenario.json
 
 printf '\nDemo is ready. Run:\n'

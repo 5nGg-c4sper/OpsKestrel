@@ -24,7 +24,7 @@ class MacOSGUIWorkflowTests(unittest.TestCase):
         self.assertNotIn("  push:", workflow)
         self.assertNotIn("  pull_request:", workflow)
         self.assertIn(
-            "runs-on: [self-hosted, macOS, soc-gui]",
+            "runs-on: [self-hosted, macOS, opskestrel-gui]",
             workflow,
         )
         self.assertIn("TASK_PATH: ${{ inputs.task }}", workflow)
@@ -41,7 +41,7 @@ class PostgreSQLWorkflowTests(unittest.TestCase):
         workflow = POSTGRES_WORKFLOW.read_text(encoding="utf-8")
 
         self.assertIn("image: postgres:16-alpine", workflow)
-        self.assertIn("SOC_TEST_POSTGRES_DSN", workflow)
+        self.assertIn("OPSKESTREL_TEST_POSTGRES_DSN", workflow)
         self.assertIn("requirements-integration.txt", workflow)
         self.assertIn(
             "python -m unittest discover",

@@ -1,22 +1,24 @@
-
-<h1 align="center">Self-Operating Computer Framework</h1>
+<h1 align="center">OpsKestrel</h1>
 
 <p align="center">
-  <strong>A framework to enable multimodal models to operate a computer.</strong>
+  <strong>Evidence-first operations automation for macOS and browser workflows.</strong>
 </p>
+
 <p align="center">
-  Using the same inputs and outputs as a human operator, the model views the screen and decides on a series of mouse and keyboard actions to reach an objective. Released Nov 2023, the Self-Operating Computer Framework was one of the first examples of full computer-use. 
+  OpsKestrel combines deterministic desktop actions, browser DOM adapters,
+  business rules, human review, and auditable evidence. Version 2.1 introduces
+  the OpsKestrel product identity after the 2.0 reference implementation.
 </p>
 
-## SOC Agent 2.0.0: deterministic macOS automation
-
-This repository also contains a secondary-development runtime named `soc_agent`.
-It executes versioned JSON tasks through deterministic desktop actions and uses a
-vision model only for screenshot verification.
+OpsKestrel executes versioned JSON tasks through deterministic desktop actions
+and uses a vision model only for screenshot verification. Its first reference
+product is invoice reconciliation, while the underlying platform targets
+repeatable cross-system operations.
 
 Documentation:
 
 - [Project overview and interview walkthrough](docs/PROJECT.md)
+- [Product positioning and differentiation](docs/POSITIONING.md)
 - [Five-minute interview demo](docs/INTERVIEW_DEMO.md)
 - [Promotional and resume notes](docs/PROMO.md)
 - [Product roadmap](docs/ROADMAP.md)
@@ -33,7 +35,7 @@ logs and artifacts produced before cancellation. Completed runs can be packaged
 as one auditable ZIP with a SHA-256 file manifest:
 
 ```bash
-./venv/bin/soc-agent console --port 8766
+./venv/bin/opskestrel console --port 8766
 ```
 
 For the interview-ready setup, use the one-command launcher. It creates a local
@@ -41,25 +43,25 @@ operator token once, stores it with owner-only permissions, and starts the
 console with `admin` role by default:
 
 ```bash
-./scripts/start_soc_agent.sh
+./scripts/start_opskestrel.sh
 ```
 
-Enter the token from `.soc-console-token` in the console to unlock review
+Enter the token from `.opskestrel-console-token` in the console to unlock review
 operations. The token file is ignored by Git. The launcher honors
-`SOC_CONSOLE_HOST`, `SOC_CONSOLE_PORT`, `SOC_REPORTS_DIR`, `SOC_QUEUE_DB`,
-`SOC_OPERATOR_NAME`, and `SOC_OPERATOR_ROLE`.
+`OPSKESTREL_CONSOLE_HOST`, `OPSKESTREL_CONSOLE_PORT`, `OPSKESTREL_REPORTS_DIR`, `OPSKESTREL_QUEUE_DB`,
+`OPSKESTREL_OPERATOR_NAME`, and `OPSKESTREL_OPERATOR_ROLE`.
 
 Check a running console from another shell:
 
 ```bash
-./venv/bin/soc-agent health
-./venv/bin/soc-agent release-check
+./venv/bin/opskestrel health
+./venv/bin/opskestrel release-check
 ```
 
 The same archive can be created from the command line:
 
 ```bash
-./venv/bin/soc-agent bundle reports/demo-20261126-120000
+./venv/bin/opskestrel bundle reports/demo-20261126-120000
 ```
 
 Evidence packages can contain invoice data and screenshots. Review them before
@@ -81,17 +83,11 @@ Roles are enforced server-side:
 - `reviewer`: save individual or batch decisions
 - `admin`: reviewer permissions plus closing a completed review run
 
-![SOC Agent Console](docs/assets/console.png)
-
 The enterprise Mock ERP provides a real login page, session expiry, pagination,
 controlled failures, and CSV export without external services:
 
-![Enterprise Mock ERP Login](docs/assets/erp-login.png)
-
 The invoice reconciliation report combines deterministic result classification,
 business filters, retry/cache state, and screenshot evidence:
-
-![Invoice Reconciliation Report](docs/assets/reconciliation-report.png)
 
 Configure the project root `.env` from [.env.example](.env.example).
 Python 3.9 through 3.12 is supported.
@@ -99,13 +95,13 @@ Python 3.9 through 3.12 is supported.
 Run one task:
 
 ```bash
-./venv/bin/soc-agent run tasks/calculator_17x23.json
+./venv/bin/opskestrel run tasks/calculator_17x23.json
 ```
 
 Run the parameterized calculator task:
 
 ```bash
-./venv/bin/soc-agent run tasks/calculator_parameterized.json \
+./venv/bin/opskestrel run tasks/calculator_parameterized.json \
   --param right=23
 ```
 
@@ -116,7 +112,7 @@ Run the parameterized calculator task:
 Override several string parameters by repeating `--param`:
 
 ```bash
-./venv/bin/soc-agent run tasks/calculator_parameterized.json \
+./venv/bin/opskestrel run tasks/calculator_parameterized.json \
   --param left=3 \
   --param right=4 \
   --param expected_result=12
@@ -214,7 +210,7 @@ Value conditions support `equals`, `not_equals`, `contains`,
 Runtime outputs also flow across child tasks in one workflow:
 
 ```bash
-./venv/bin/soc-agent workflow workflows/runtime_variable.json
+./venv/bin/opskestrel workflow workflows/runtime_variable.json
 ```
 
 The first task reads the calculator display; the second task writes that value
@@ -244,13 +240,13 @@ it is exposed to another component.
 Run all JSON tasks in a directory:
 
 ```bash
-./venv/bin/soc-agent suite tasks/
+./venv/bin/opskestrel suite tasks/
 ```
 
 Pass shared parameters to every task in a suite:
 
 ```bash
-./venv/bin/soc-agent suite tasks/ --param right=23
+./venv/bin/opskestrel suite tasks/ --param right=23
 ```
 
 Every task in a parameterized suite must declare each shared parameter. A task
@@ -258,7 +254,7 @@ that does not declare a supplied parameter fails with an unknown parameter
 error.
 
 Every task still writes its own report and artifacts. After the suite finishes,
-SOC Agent also writes a summary report under `reports/` named
+OpsKestrel also writes a summary report under `reports/` named
 `<timestamp>-<suite-name>.json` and prints its path:
 
 ```text
@@ -306,7 +302,7 @@ report.
 Run a data-driven task dataset:
 
 ```bash
-./venv/bin/soc-agent dataset datasets/calculator_cases.json
+./venv/bin/opskestrel dataset datasets/calculator_cases.json
 ```
 
 Each dataset case supplies its own parameters. Dataset commands therefore do
@@ -335,7 +331,7 @@ results. Retry configuration is optional:
 Datasets can also load one case per CSV row:
 
 ```bash
-./venv/bin/soc-agent dataset datasets/calculator_csv.json
+./venv/bin/opskestrel dataset datasets/calculator_csv.json
 ```
 
 The dataset maps CSV columns to task parameters:
@@ -378,7 +374,7 @@ Use either inline `cases` or `data_source`, not both.
 Run the safe multi-record TextEdit workflow:
 
 ```bash
-./venv/bin/soc-agent dataset datasets/textedit_csv.json
+./venv/bin/opskestrel dataset datasets/textedit_csv.json
 ```
 
 Each CSV row opens a new TextEdit document, writes a customer record, checks
@@ -389,7 +385,7 @@ document without saving. The source data is in
 Run an ordered multi-task workflow:
 
 ```bash
-./venv/bin/soc-agent workflow workflows/textedit_calculator.json \
+./venv/bin/opskestrel workflow workflows/textedit_calculator.json \
   --param customer_name=张三 \
   --param note=首次联系
 ```
@@ -405,7 +401,7 @@ execution stopped early.
 Run the same workflow once for every CSV row:
 
 ```bash
-./venv/bin/soc-agent dataset datasets/textedit_workflow_csv.json
+./venv/bin/opskestrel dataset datasets/textedit_workflow_csv.json
 ```
 
 This dataset uses the `workflow` target instead of `task`. Every CSV case runs
@@ -416,14 +412,14 @@ Package a reusable business scenario with a manifest, workflow, dataset, CSV
 data, and operator notes. Validate it without touching the desktop:
 
 ```bash
-./venv/bin/soc-agent scenario validate \
+./venv/bin/opskestrel scenario validate \
   scenarios/customer_followup/scenario.json
 ```
 
 Run the complete scenario through the normal permission and reporting pipeline:
 
 ```bash
-./venv/bin/soc-agent scenario run \
+./venv/bin/opskestrel scenario run \
   scenarios/customer_followup/scenario.json \
   --non-interactive
 ```
@@ -436,7 +432,7 @@ dataset reports.
 Run deterministic invoice reconciliation without a model or API key:
 
 ```bash
-./venv/bin/soc-agent reconcile \
+./venv/bin/opskestrel reconcile \
   scenarios/invoice_reconciliation/data/input_invoices.csv \
   scenarios/invoice_reconciliation/data/erp_invoices.json \
   --output reports/invoice-reconciliation.json
@@ -449,7 +445,7 @@ a configurable absolute tolerance. The expected input may be CSV or XLSX.
 Start the local Mock ERP browser fixture:
 
 ```bash
-./venv/bin/soc-agent mock-erp --port 8765
+./venv/bin/opskestrel mock-erp --port 8765
 ```
 
 Open `http://127.0.0.1:8765` and search an invoice such as `INV-1001`. The page
@@ -461,21 +457,21 @@ Start the enterprise-like fixture with login, pagination, failure injection,
 and CSV export:
 
 ```bash
-./venv/bin/soc-agent mock-erp \
+./venv/bin/opskestrel mock-erp \
   --enterprise \
   --port 8765 \
   --failure-config scenarios/invoice_reconciliation/failure-example.json
 ```
 
 The demo login is `demo` / `demo`. Browser commands can read production-like
-credentials from `SOC_ERP_USERNAME` and `SOC_ERP_PASSWORD`, avoiding secrets in
+credentials from `OPSKESTREL_ERP_USERNAME` and `OPSKESTREL_ERP_PASSWORD`, avoiding secrets in
 the command line. Explicit `--username` and `--password` options are available
 for local testing only.
 
 Collect an invoice through the browser UI without starting the server manually:
 
 ```bash
-./venv/bin/soc-agent erp-search INV-1001 \
+./venv/bin/opskestrel erp-search INV-1001 \
   --screenshot reports/erp-inv-1001.png
 ```
 
@@ -487,7 +483,7 @@ output or `--headed` to watch the browser.
 Run the complete CSV-to-ERP reconciliation batch:
 
 ```bash
-./venv/bin/soc-agent erp-reconcile \
+./venv/bin/opskestrel erp-reconcile \
   scenarios/invoice_reconciliation/data/input_invoices.csv \
   --screenshot-dir reports/invoice-reconciliation/evidence \
   --checkpoint reports/invoice-reconciliation/checkpoint.json \
@@ -515,10 +511,10 @@ Results, and Collection worksheets with screenshot hyperlinks.
 The packaged browser scenario can also be validated and run directly:
 
 ```bash
-./venv/bin/soc-agent scenario validate \
+./venv/bin/opskestrel scenario validate \
   scenarios/invoice_reconciliation/scenario.json
 
-./venv/bin/soc-agent scenario run \
+./venv/bin/opskestrel scenario run \
   scenarios/invoice_reconciliation/scenario.json \
   --checkpoint reports/invoice-reconciliation/checkpoint.json \
   --html reports/invoice-reconciliation.html \
@@ -528,7 +524,7 @@ The packaged browser scenario can also be validated and run directly:
 Manage the persistent execution queue:
 
 ```bash
-./venv/bin/soc-agent queue enqueue task \
+./venv/bin/opskestrel queue enqueue task \
   tasks/calculator_parameterized.json \
   --param right=23 \
   --priority 5 \
@@ -541,25 +537,25 @@ Manage the persistent execution queue:
   --require-label office-mac \
   --parallel-safe
 
-./venv/bin/soc-agent queue enqueue workflow \
+./venv/bin/opskestrel queue enqueue workflow \
   workflows/textedit_calculator.json \
   --param customer_name=张三 \
   --param note=首次联系
 
-./venv/bin/soc-agent queue list
-./venv/bin/soc-agent queue workers
-./venv/bin/soc-agent queue cancel <pending-job-id>
-./venv/bin/soc-agent queue retry <failed-job-id>
-./venv/bin/soc-agent queue run
-./venv/bin/soc-agent queue run --drain
-./venv/bin/soc-agent queue run --stale-after-seconds 3600 --max-attempts 3
-./venv/bin/soc-agent queue run --worker-id macbook-runner-1
-./venv/bin/soc-agent queue worker \
+./venv/bin/opskestrel queue list
+./venv/bin/opskestrel queue workers
+./venv/bin/opskestrel queue cancel <pending-job-id>
+./venv/bin/opskestrel queue retry <failed-job-id>
+./venv/bin/opskestrel queue run
+./venv/bin/opskestrel queue run --drain
+./venv/bin/opskestrel queue run --stale-after-seconds 3600 --max-attempts 3
+./venv/bin/opskestrel queue run --worker-id macbook-runner-1
+./venv/bin/opskestrel queue worker \
   --worker-id macbook-runner-1 \
   --label office-mac \
   --poll-interval 2
-./venv/bin/soc-agent queue run --label office-mac
-./venv/bin/soc-agent queue run --label office-mac --max-concurrency 2
+./venv/bin/opskestrel queue run --label office-mac
+./venv/bin/opskestrel queue run --label office-mac --max-concurrency 2
 ```
 
 The queue is stored in `reports/queue.db` by default. `queue run` processes one
@@ -581,8 +577,8 @@ SQLite and PostgreSQL through `--queue-db`.
 `--queue-db` accepts a filesystem path, `sqlite:///` URL, or PostgreSQL DSN:
 
 ```bash
-./venv/bin/soc-agent queue list \
-  --queue-db postgresql://user:pass@db.example.com/soc_agent
+./venv/bin/opskestrel queue list \
+  --queue-db postgresql://user:pass@db.example.com/opskestrel
 ```
 
 PostgreSQL mode requires the `psycopg` dependency from `requirements.txt`. It
@@ -605,10 +601,10 @@ It remains registered as idle, polls for new jobs, and shuts down gracefully on
 Run deployment diagnostics before starting unattended work:
 
 ```bash
-./venv/bin/soc-agent doctor \
+./venv/bin/opskestrel doctor \
   --worker-id macbook-runner-1
 
-./venv/bin/soc-agent doctor \
+./venv/bin/opskestrel doctor \
   --worker-id macbook-runner-1 \
   --json
 ```
@@ -625,13 +621,13 @@ LaunchAgent without installing it:
 ./venv/bin/python scripts/worker_launchd.py render \
   --worker-id macbook-runner-1 \
   --label office-mac \
-  --output /private/tmp/soc-agent-worker.plist
+  --output /private/tmp/opskestrel-worker.plist
 ```
 
 After granting the required Accessibility and Screen Recording permissions,
 install it with `install` instead of `render`. A per-user LaunchAgent starts
 the Worker in the graphical login session, restarts it after abnormal exits,
-and writes logs under `~/Library/Logs/SOCAgent/`. See
+and writes logs under `~/Library/Logs/OpsKestrel/`. See
 [docs/LAUNCHD.md](docs/LAUNCHD.md) for installation, status, restart, and
 uninstall commands.
 
@@ -652,14 +648,14 @@ desktop action runs.
 Stop immediately when a case does not pass:
 
 ```bash
-./venv/bin/soc-agent dataset datasets/calculator_cases.json \
+./venv/bin/opskestrel dataset datasets/calculator_cases.json \
   --stop-on-failure
 ```
 
 Failure diagnostics can be verified with the intentionally failing dataset:
 
 ```bash
-./venv/bin/soc-agent dataset datasets/calculator_failure_case.json
+./venv/bin/opskestrel dataset datasets/calculator_failure_case.json
 ```
 
 This command is expected to return exit code `1`. Each non-passed task writes a
@@ -670,25 +666,25 @@ counts, errors, task reports, and failure log paths.
 Run the safe cross-application activation example:
 
 ```bash
-./venv/bin/soc-agent run tasks/examples/multi_app_activate.json
+./venv/bin/opskestrel run tasks/examples/multi_app_activate.json
 ```
 
 Run the Accessibility-based click example:
 
 ```bash
-./venv/bin/soc-agent run tasks/examples/accessibility_click.json
+./venv/bin/opskestrel run tasks/examples/accessibility_click.json
 ```
 
 Run the Accessibility value-reading example:
 
 ```bash
-./venv/bin/soc-agent run tasks/examples/read_element.json
+./venv/bin/opskestrel run tasks/examples/read_element.json
 ```
 
 Run the cross-app runtime variable example:
 
 ```bash
-./venv/bin/soc-agent run tasks/examples/runtime_variable.json
+./venv/bin/opskestrel run tasks/examples/runtime_variable.json
 ```
 
 `open_app` starts or opens an application. `activate_app` explicitly brings an
@@ -699,7 +695,7 @@ Any regular step can include a vision `condition`. When the condition does not
 match, the step is recorded as `skipped` and the task continues:
 
 ```bash
-./venv/bin/soc-agent run tasks/examples/conditional_step_skip.json
+./venv/bin/opskestrel run tasks/examples/conditional_step_skip.json
 ```
 
 Condition diagnostics include the prompt, expected and actual values, condition
@@ -709,7 +705,7 @@ in terminal output and included in failure logs when condition evaluation fails.
 Deterministic steps can repeat without duplicating JSON:
 
 ```bash
-./venv/bin/soc-agent run tasks/examples/loop_write.json
+./venv/bin/opskestrel run tasks/examples/loop_write.json
 ```
 
 `loop.count` is the total execution count and `loop.delay_seconds` is the delay
@@ -718,7 +714,7 @@ between iterations. Conditions are evaluated once before entering a loop.
 Tasks can define `setup_steps` and `cleanup_steps` around the main `steps`:
 
 ```bash
-./venv/bin/soc-agent run tasks/examples/setup_cleanup.json
+./venv/bin/opskestrel run tasks/examples/setup_cleanup.json
 ```
 
 Setup runs before the main flow. Cleanup runs after success, failure, timeout, or
@@ -726,7 +722,7 @@ early completion. A cleanup failure changes a previously passed task to failed,
 but does not replace an existing main-flow failure.
 
 For local development without the installed command, use
-`./venv/bin/python -m soc_agent` with the same arguments.
+`./venv/bin/python -m opskestrel` with the same arguments.
 
 The package must be installed in editable mode after changing entry points:
 
@@ -751,7 +747,7 @@ developer desktop.
 
 Prepare the self-hosted runner:
 
-1. Register a repository-level macOS runner and add the custom `soc-gui` label.
+1. Register a repository-level macOS runner and add the custom `opskestrel-gui` label.
 2. Start the runner from Terminal while the same user is logged into an
    unlocked desktop session. Do not install it as a background-only service.
 3. Grant the runner host application Accessibility and Screen Recording
@@ -769,195 +765,14 @@ artifact is acceptable.
 The project keeps the original MIT license and remains a derivative of the
 OthersideAI Self-Operating Computer project.
 
-<div align="center">
-  <img src="https://github.com/OthersideAI/self-operating-computer/blob/main/readme/self-operating-computer.png" width="750"  style="margin: 10px;"/>
-</div>
 
-<!--
-:rotating_light: **OUTAGE NOTIFICATION: gpt-4o**
-**This model is currently experiencing an outage so the self-operating computer may not work as expected.**
--->
+## Upstream Compatibility
 
+OpsKestrel retains the `operate` command and the original OpenAI-compatible
+computer-use modules for compatibility with the upstream MIT project. They are
+not the primary OpsKestrel product interface.
 
-## Key Features
-- **Compatibility**: Designed for various multimodal models.
-- **Integration**: Includes OpenAI-compatible vision branches for **Qwen3-VL, DeepSeek-VL and GPT-4o**.
-- **Future Plans**: Support for additional models.
-
-## Demo
-https://github.com/OthersideAI/self-operating-computer/assets/42594239/9e8abc96-c76a-46fb-9b13-03678b3c67e0
-
-
-## Run `Self-Operating Computer`
-
-1. **Install the project**
-```
-pip install self-operating-computer
-```
-2. **Run the project**
-```
-operate
-```
-3. **Enter your OpenAI Key**: If you don't have one, you can obtain an OpenAI key [here](https://platform.openai.com/account/api-keys). If you need you change your key at a later point, run `vim .env` to open the `.env` and replace the old key. 
-
-<div align="center">
-  <img src="https://github.com/OthersideAI/self-operating-computer/blob/main/readme/key.png" width="300"  style="margin: 10px;"/>
-</div>
-
-4. **Give Terminal app the required permissions**: As a last step, the Terminal app will ask for permission for "Screen Recording" and "Accessibility" in the "Security & Privacy" page of Mac's "System Preferences".
-
-<div align="center">
-  <img src="https://github.com/OthersideAI/self-operating-computer/blob/main/readme/terminal-access-1.png" width="300"  style="margin: 10px;"/>
-  <img src="https://github.com/OthersideAI/self-operating-computer/blob/main/readme/terminal-access-2.png" width="300"  style="margin: 10px;"/>
-</div>
-
-## Using `operate` Modes
-
-#### OpenAI models
-
-The active model is read from `MODEL` in `.env`. If `MODEL` is not set, the command-line default is `gpt-4-with-ocr`.
-
-```
-operate -m o1-with-ocr
-```
-
-To experiment with OpenAI's latest `gpt-4.1` model, run:
-
-```
-operate -m gpt-4.1-with-ocr
-```
-
-
-### Multimodal Models  `-m`
-Try Google's `gemini-pro-vision` by following the instructions below. Start `operate` with the Gemini model
-```
-operate -m gemini-pro-vision
-```
-
-**Enter your Google AI Studio API key when terminal prompts you for it** If you don't have one, you can obtain a key [here](https://makersuite.google.com/app/apikey) after setting up your Google AI Studio account. You may also need [authorize credentials for a desktop application](https://ai.google.dev/palm_docs/oauth_quickstart). It took me a bit of time to get it working, if anyone knows a simpler way, please make a PR.
-
-#### Try Claude `-m claude-3`
-Use Claude 3 with Vision to see how it stacks up to GPT-4-Vision at operating a computer. Navigate to the [Claude dashboard](https://console.anthropic.com/dashboard) to get an API key and run the command below to try it. 
-
-```
-operate -m claude-3
-```
-
-#### Try Qwen3-VL with SiliconFlow
-
-Create an API key in the [SiliconFlow dashboard](https://cloud.siliconflow.cn/), then configure the project root `.env` file:
-
-```env
-MODEL=Qwen/Qwen3-VL-8B-Instruct
-OPENAI_API_KEY='your SiliconFlow API key'
-OPENAI_BASE_URL=https://api.siliconflow.cn/v1
-```
-
-`Qwen/Qwen3-VL-32B-Instruct` can be used instead of the 8B model when higher visual reasoning quality is more important than latency.
-When `MODEL` is set in `.env`, it takes precedence over the `-m` command-line argument.
-
-```bash
-./venv/bin/operate --verbose --prompt "打开备忘录"
-```
-
-#### Try LLaVa Hosted Through Ollama `-m llava`
-If you wish to experiment with the Self-Operating Computer Framework using LLaVA on your own machine, you can with Ollama!   
-*Note: Ollama currently only supports MacOS and Linux. Windows now in Preview*   
-
-First, install Ollama on your machine from https://ollama.ai/download.   
-
-Once Ollama is installed, pull the LLaVA model:
-```
-ollama pull llava
-```
-This will download the model on your machine which takes approximately 5 GB of storage.   
-
-When Ollama has finished pulling LLaVA, start the server:
-```
-ollama serve
-```
-
-That's it! Now start `operate` and select the LLaVA model:
-```
-operate -m llava
-```   
-**Important:** Error rates when using LLaVA are very high. This is simply intended to be a base to build off of as local multimodal models improve over time.
-
-Learn more about Ollama at its [GitHub Repository](https://www.github.com/ollama/ollama)
-
-### Voice Mode `--voice`
-The framework supports voice inputs for the objective. Try voice by following the instructions below. 
-**Clone the repo** to a directory on your computer:
-```
-git clone https://github.com/OthersideAI/self-operating-computer.git
-```
-**Cd into directory**:
-```
-cd self-operating-computer
-```
-Install the additional `requirements-audio.txt`
-```
-pip install -r requirements-audio.txt
-```
-**Install device requirements**
-For mac users:
-```
-brew install portaudio
-```
-For Linux users:
-```
-sudo apt install portaudio19-dev python3-pyaudio
-```
-Run with voice mode
-```
-operate --voice
-```
-
-### Optical Character Recognition Mode `-m gpt-4-with-ocr`
-The Self-Operating Computer Framework now integrates Optical Character Recognition (OCR) capabilities with the `gpt-4-with-ocr` mode. This mode gives GPT-4 a hash map of clickable elements by coordinates. GPT-4 can decide to `click` elements by text and then the code references the hash map to get the coordinates for that element GPT-4 wanted to click. 
-
-Based on recent tests, OCR performs better than `som` and vanilla GPT-4 so we made it the default for the project. To use the OCR mode you can simply write: 
-
- `operate` or `operate -m gpt-4-with-ocr` will also work. 
-
-### Set-of-Mark Prompting `-m gpt-4-with-som`
-The Self-Operating Computer Framework now supports Set-of-Mark (SoM) Prompting with the `gpt-4-with-som` command. This new visual prompting method enhances the visual grounding capabilities of large multimodal models.
-
-Learn more about SoM Prompting in the detailed arXiv paper: [here](https://arxiv.org/abs/2310.11441).
-
-For this initial version, a simple YOLOv8 model is trained for button detection, and the `best.pt` file is included under `model/weights/`. Users are encouraged to swap in their `best.pt` file to evaluate performance improvements. If your model outperforms the existing one, please contribute by creating a pull request (PR).
-
-Start `operate` with the SoM model
-
-```
-operate -m gpt-4-with-som
-```
-
-
-
-## Contributions are Welcomed!:
-
-If you want to contribute yourself, see [CONTRIBUTING.md](https://github.com/OthersideAI/self-operating-computer/blob/main/CONTRIBUTING.md).
-
-## Feedback
-
-For any input on improving this project, feel free to reach out to [Josh](https://twitter.com/josh_bickett) on Twitter. 
-
-## Join Our Discord Community
-
-For real-time discussions and community support, join our Discord server. 
-- If you're already a member, join the discussion in [#self-operating-computer](https://discord.com/channels/877638638001877052/1181241785834541157).
-- If you're new, first [join our Discord Server](https://discord.gg/YqaKtyBEzM) and then navigate to the [#self-operating-computer](https://discord.com/channels/877638638001877052/1181241785834541157).
-
-## Follow HyperWriteAI for More Updates
-
-Stay updated with the latest developments:
-- Follow HyperWriteAI on [Twitter](https://twitter.com/HyperWriteAI).
-- Follow HyperWriteAI on [LinkedIn](https://www.linkedin.com/company/othersideai/).
-
-## Compatibility
-- This project is compatible with Mac OS, Windows, and Linux (with X server installed).
-
-## OpenAI Rate Limiting Note
-The ```gpt-4o``` model is required. To unlock access to this model, your account needs to spend at least \$5 in API credits. Pre-paying for these credits will unlock access if you haven't already spent the minimum \$5.   
-Learn more **[here](https://platform.openai.com/docs/guides/rate-limits?context=tier-one)**
+OpsKestrel is an independent derivative and does not claim the
+Self-Operating Computer name, branding, or roadmap. The original copyright and
+MIT license are preserved in [LICENSE](LICENSE), and the upstream project is
+available at [OthersideAI/self-operating-computer](https://github.com/OthersideAI/self-operating-computer).

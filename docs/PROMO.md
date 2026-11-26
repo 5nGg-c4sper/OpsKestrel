@@ -1,4 +1,4 @@
-# SOC Agent Promotional Notes
+# OpsKestrel Promotional Notes
 
 ## One-Line Description
 
@@ -16,7 +16,7 @@ checkpoints, and JSON/HTML/XLSX reports.
 
 ## 30-Second Pitch
 
-> SOC Agent automates repetitive business workflows across desktop applications
+> OpsKestrel automates repetitive business workflows across desktop applications
 > and browser ERPs. Its invoice reconciliation product reads CSV, Excel, or PDF
 > inputs, checks ERP data through Playwright, and uses deterministic rules to
 > classify amount, currency, status, missing, duplicate, and invalid records.
@@ -61,9 +61,6 @@ checkpoints, and JSON/HTML/XLSX reports.
 
 ## Suggested Screenshots
 
-1. `docs/assets/reconciliation-report.png`
-2. XLSX Summary and Results sheets
-3. `docs/assets/erp-login.png`
-4. `docs/assets/console.png`
-5. Terminal result showing a 503 retry and successful completion
-6. Architecture diagram from `docs/assets/architecture.svg`
+Generate current 2.1 screenshots from the running OpsKestrel console, Mock ERP,
+HTML reconciliation report, and XLSX Summary/Results sheets. The architecture
+diagram is available at `docs/assets/architecture.svg`.

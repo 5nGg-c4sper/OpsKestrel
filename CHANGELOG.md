@@ -1,8 +1,21 @@
 # Changelog
 
+## 2.1.0 - 2026-11-26
+
+Product identity and namespace migration.
+
+- Renamed the product from SOC Agent to OpsKestrel
+- Renamed the Python package from `soc_agent` to `opskestrel`
+- Renamed the CLI command from `soc-agent` to `opskestrel`
+- Renamed environment variables from `SOC_*` to `OPSKESTREL_*`
+- Renamed console tokens, service labels, and temporary artifacts
+- Organized the standalone project under the `OpsKestrel` workspace folder
+- Positioned the product as evidence-first operations automation
+- Retained MIT attribution to the upstream Self-Operating Computer project
+
 ## 2.0.0 - 2026-11-26
 
-First interview-ready SOC Agent release.
+First interview-ready release under the former project codename.
 
 ### Added
 
@@ -25,5 +38,5 @@ First interview-ready SOC Agent release.
 - Client-supplied reviewer names are ignored
 - Review and closure tampering is detected
 - Excel formula injection is neutralized for review text
-- `.env` and `.soc-console-token` remain outside version control
+- `.env` and `.opskestrel-console-token` remain outside version control
 

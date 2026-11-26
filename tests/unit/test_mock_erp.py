@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
-from soc_agent.mock_erp import create_mock_erp_server
+from opskestrel.mock_erp import create_mock_erp_server
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

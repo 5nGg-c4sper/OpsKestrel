@@ -11,8 +11,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from soc_agent.actions.executor import ActionExecutor
-from soc_agent.cli import (
+from opskestrel.actions.executor import ActionExecutor
+from opskestrel.cli import (
     _resolve_erp_credentials,
     build_parser,
     exit_code_for_status,
@@ -27,10 +27,10 @@ from soc_agent.cli import (
     run_workflow,
     terminal_confirmation_handler,
 )
-from soc_agent.reporting.report import ReportWriter
-from soc_agent.queue_models import QueueState
-from soc_agent.queue_store import SQLiteQueueStore
-from soc_agent.task_models import (
+from opskestrel.reporting.report import ReportWriter
+from opskestrel.queue_models import QueueState
+from opskestrel.queue_store import SQLiteQueueStore
+from opskestrel.task_models import (
     ActionType,
     DatasetTargetType,
     ExecutionPermissions,
@@ -559,7 +559,7 @@ class CLITests(unittest.TestCase):
             json=True,
         )
         output = StringIO()
-        with patch("soc_agent.cli.urlopen") as mocked_urlopen:
+        with patch("opskestrel.cli.urlopen") as mocked_urlopen:
             mocked_urlopen.return_value.__enter__.return_value.read.return_value = (
                 b'{"status":"ok","version":"2.0.0","checks":{}}'
             )
@@ -613,8 +613,8 @@ class CLITests(unittest.TestCase):
         with patch.dict(
             os.environ,
             {
-                "SOC_ERP_USERNAME": "env-user",
-                "SOC_ERP_PASSWORD": "env-pass",
+                "OPSKESTREL_ERP_USERNAME": "env-user",
+                "OPSKESTREL_ERP_PASSWORD": "env-pass",
             },
             clear=False,
         ):
@@ -1002,7 +1002,7 @@ class CLITests(unittest.TestCase):
             return environment, executor, vision_provider, reporter
 
         with (
-            patch("soc_agent.cli.load_dotenv"),
+            patch("opskestrel.cli.load_dotenv"),
             patch.dict(
                 os.environ,
                 {"OPENAI_API_KEY": "test-key"},
@@ -1132,7 +1132,7 @@ class CLITests(unittest.TestCase):
 
         output = StringIO()
         with (
-            patch("soc_agent.cli.load_dotenv"),
+            patch("opskestrel.cli.load_dotenv"),
             patch.dict(
                 os.environ,
                 {"OPENAI_API_KEY": "test-key"},
@@ -1207,7 +1207,7 @@ class CLITests(unittest.TestCase):
         output = StringIO()
 
         with (
-            patch("soc_agent.cli.load_dotenv") as load_dotenv,
+            patch("opskestrel.cli.load_dotenv") as load_dotenv,
             redirect_stdout(output),
         ):
             enqueue_code = main(
@@ -1250,7 +1250,7 @@ class CLITests(unittest.TestCase):
         output = StringIO()
 
         with (
-            patch("soc_agent.cli.load_dotenv") as load_dotenv,
+            patch("opskestrel.cli.load_dotenv") as load_dotenv,
             redirect_stdout(output),
         ):
             exit_code = main(
@@ -1271,7 +1271,7 @@ class CLITests(unittest.TestCase):
         output = StringIO()
 
         with (
-            patch("soc_agent.cli.load_dotenv") as load_dotenv,
+            patch("opskestrel.cli.load_dotenv") as load_dotenv,
             redirect_stdout(output),
         ):
             exit_code = main(
@@ -1297,7 +1297,7 @@ class CLITests(unittest.TestCase):
         output = StringIO()
 
         with (
-            patch("soc_agent.cli.load_dotenv") as load_dotenv,
+            patch("opskestrel.cli.load_dotenv") as load_dotenv,
             redirect_stdout(output),
         ):
             exit_code = main(
@@ -1326,10 +1326,10 @@ class CLITests(unittest.TestCase):
         output = StringIO()
         with (
             patch(
-                "soc_agent.cli.run_erp_reconcile",
+                "opskestrel.cli.run_erp_reconcile",
                 return_value=0,
             ) as run_browser,
-            patch("soc_agent.cli.load_dotenv") as load_dotenv,
+            patch("opskestrel.cli.load_dotenv") as load_dotenv,
             redirect_stdout(output),
         ):
             exit_code = main(
@@ -1374,7 +1374,7 @@ class CLITests(unittest.TestCase):
         output = StringIO()
 
         with (
-            patch("soc_agent.cli.load_dotenv") as load_dotenv,
+            patch("opskestrel.cli.load_dotenv") as load_dotenv,
             redirect_stdout(output),
         ):
             exit_code = main(
@@ -1428,7 +1428,7 @@ class CLITests(unittest.TestCase):
         output = StringIO()
 
         with (
-            patch("soc_agent.cli.load_dotenv") as load_dotenv,
+            patch("opskestrel.cli.load_dotenv") as load_dotenv,
             redirect_stdout(output),
         ):
             cancel_code = main(
@@ -1495,7 +1495,7 @@ class CLITests(unittest.TestCase):
 
         output = StringIO()
         with (
-            patch("soc_agent.cli.load_dotenv"),
+            patch("opskestrel.cli.load_dotenv"),
             patch.dict(
                 os.environ,
                 {"OPENAI_API_KEY": "test-key"},
@@ -1542,7 +1542,7 @@ class CLITests(unittest.TestCase):
 
         output = StringIO()
         with (
-            patch("soc_agent.cli.load_dotenv"),
+            patch("opskestrel.cli.load_dotenv"),
             patch.dict(
                 os.environ,
                 {"OPENAI_API_KEY": "test-key"},
@@ -1609,7 +1609,7 @@ class CLITests(unittest.TestCase):
             )
 
         with (
-            patch("soc_agent.cli.load_dotenv"),
+            patch("opskestrel.cli.load_dotenv"),
             patch.dict(
                 os.environ,
                 {"OPENAI_API_KEY": "test-key"},
@@ -1674,7 +1674,7 @@ class CLITests(unittest.TestCase):
         first_output = StringIO()
         second_output = StringIO()
         with (
-            patch("soc_agent.cli.load_dotenv"),
+            patch("opskestrel.cli.load_dotenv"),
             patch.dict(
                 os.environ,
                 {"OPENAI_API_KEY": "test-key"},
@@ -1735,7 +1735,7 @@ class CLITests(unittest.TestCase):
 
         output = StringIO()
         with (
-            patch("soc_agent.cli.load_dotenv"),
+            patch("opskestrel.cli.load_dotenv"),
             patch.dict(
                 os.environ,
                 {"OPENAI_API_KEY": "test-key"},
@@ -1927,7 +1927,7 @@ class CLITests(unittest.TestCase):
 
         output = StringIO()
         with (
-            patch("soc_agent.cli.load_dotenv"),
+            patch("opskestrel.cli.load_dotenv"),
             patch.dict(
                 os.environ,
                 {"OPENAI_API_KEY": "test-key"},
@@ -1969,7 +1969,7 @@ class CLITests(unittest.TestCase):
 
         output = StringIO()
         with (
-            patch("soc_agent.cli.load_dotenv"),
+            patch("opskestrel.cli.load_dotenv"),
             patch.dict(
                 os.environ,
                 {"OPENAI_API_KEY": "test-key"},
