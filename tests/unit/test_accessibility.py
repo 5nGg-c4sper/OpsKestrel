@@ -1,10 +1,13 @@
 """Tests for accessibility element matching and normalization."""
 
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from soc_agent.accessibility import (
     AccessibilityLocator,
     AccessibilityLookupError,
+    PyObjCAccessibilityAdapter,
 )
 from soc_agent.task_models import UIElementLocator
 
@@ -118,6 +121,33 @@ class AccessibilityLocatorTests(unittest.TestCase):
                 "计算器",
                 UIElementLocator(role="AXButton", title="9"),
             )
+
+    def test_pyobjc_adapter_falls_back_to_application_windows(self):
+        adapter = PyObjCAccessibilityAdapter.__new__(
+            PyObjCAccessibilityAdapter
+        )
+        adapter._ax = SimpleNamespace(
+            kAXChildrenAttribute="children",
+            kAXWindowsAttribute="windows",
+            kAXMenuBarAttribute="menu_bar",
+        )
+        values = {
+            "children": [],
+            "windows": ["window"],
+            "menu_bar": "menu",
+        }
+        adapter._copy_attribute = lambda element, attribute: values.get(
+            attribute
+        )
+
+        with patch.object(
+            adapter,
+            "role",
+            return_value="AXApplication",
+        ):
+            children = adapter.children("root")
+
+        self.assertEqual(children, ["window", "menu"])
 
 
 if __name__ == "__main__":

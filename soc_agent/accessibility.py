@@ -87,7 +87,7 @@ class AccessibilityLocator:
             raise AccessibilityLookupError(
                 "accessibility element not found: "
                 f"app={app_name!r}, locator={locator.model_dump()}, "
-                f"matches={len(matches)}"
+                f"matches={len(matches)}, visited_nodes={visited}"
             )
         return matches[locator.match_index]
 
@@ -158,7 +158,22 @@ class PyObjCAccessibilityAdapter:
             element,
             self._ax.kAXChildrenAttribute,
         )
-        return list(value or [])
+        children = list(value or [])
+        if children or self.role(element) != "AXApplication":
+            return children
+
+        windows = self._copy_attribute(
+            element,
+            self._ax.kAXWindowsAttribute,
+        )
+        menu_bar = self._copy_attribute(
+            element,
+            self._ax.kAXMenuBarAttribute,
+        )
+        children.extend(windows or [])
+        if menu_bar is not None:
+            children.append(menu_bar)
+        return children
 
     def role(self, element) -> Optional[str]:
         return self._text_attribute(
