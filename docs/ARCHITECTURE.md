@@ -109,6 +109,8 @@ QueueWorker
 | `soc_agent/workflows.py` | 加载工作流、解析共享参数和子任务路径 |
 | `soc_agent/workflow_runner.py` | 预检参数、顺序执行子任务并汇总工作流结果 |
 | `soc_agent/queue_models.py` | 队列任务、生命周期状态和参数数据模型 |
+| `soc_agent/queue_backend.py` | QueueStore 抽象接口和后端工厂 |
+| `soc_agent/queue_migrations.py` | SQLite 版本化、幂等 schema 迁移 |
 | `soc_agent/queue_store.py` | SQLite 持久化、优先级、原子领取和 Worker 注册表 |
 | `soc_agent/queue_worker.py` | 领取队列任务、执行并持久化终态 |
 | `soc_agent/cli.py` | 参数解析、依赖装配和 queue CLI |
@@ -215,6 +217,11 @@ worker 所有权，旧 Worker 无法覆盖已经被恢复或重新领取的任�
 `queue_workers` 表记录 Worker 的主机名、PID、运行状态、当前 Job、启动时间、
 最后心跳和离线时间。`queue workers` 命令可按最近心跳窗口查询活跃 Worker，
 为后续多机器调度和运行监控提供基础。
+
+CLI、QueueWorker 只依赖 `QueueStore` 抽象接口，具体实例由
+`create_queue_store()` 根据路径或 URL 创建。SQLite schema 由
+`queue_schema_migrations` 记录版本并按顺序幂等执行，升级已有数据库无需删除。
+后续接入 PostgreSQL 时可实现同一接口，而无需修改 Worker 和 CLI 调度逻辑。
 
 QueueJob 的 `required_labels` 必须全部包含在 Worker `labels` 中才会被领取；
 标签比较大小写不敏感。无标签任务可由任意 Worker 执行，标签不匹配的高优先级

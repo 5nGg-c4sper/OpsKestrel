@@ -297,6 +297,10 @@ the worker initializes the desktop environment and vision provider. Running
 jobs whose claim lease expires are automatically returned to `pending` or
 failed after `--max-attempts`.
 
+`--queue-db` accepts a filesystem path or a `sqlite:///` URL. Other backend
+schemes are rejected with an explicit configuration error until a compatible
+network-backed implementation is added.
+
 Each Worker also receives a unique ID. While a job is executing, a background
 heartbeat renews `claimed_at`; heartbeats and completion are rejected unless
 the Worker still owns the job. `--worker-id` can provide a stable identity for

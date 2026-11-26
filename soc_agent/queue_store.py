@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
+from soc_agent.queue_backend import QueueStore, QueueStoreError
+from soc_agent.queue_migrations import apply_sqlite_migrations
 from soc_agent.queue_models import (
     TERMINAL_QUEUE_STATES,
     QueueJob,
@@ -21,11 +23,7 @@ from soc_agent.task_models import (
 )
 
 
-class QueueStoreError(RuntimeError):
-    """Raised when a queue operation cannot be completed."""
-
-
-class SQLiteQueueStore:
+class SQLiteQueueStore(QueueStore):
     """Persist and atomically claim queue jobs."""
 
     def __init__(
@@ -484,104 +482,10 @@ class SQLiteQueueStore:
 
     def _initialize(self) -> None:
         with self._connection() as connection:
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS queue_jobs (
-                    job_id TEXT PRIMARY KEY,
-                    target_type TEXT NOT NULL,
-                    target_path TEXT NOT NULL,
-                    parameters_json TEXT NOT NULL,
-                    permissions_json TEXT NOT NULL,
-                    required_labels_json TEXT NOT NULL DEFAULT '[]',
-                    parallel_safe INTEGER NOT NULL DEFAULT 0,
-                    state TEXT NOT NULL,
-                    priority INTEGER NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    started_at TEXT,
-                    claimed_at TEXT,
-                    worker_id TEXT,
-                    finished_at TEXT,
-                    attempts INTEGER NOT NULL DEFAULT 0,
-                    recovery_count INTEGER NOT NULL DEFAULT 0,
-                    report_path TEXT,
-                    error TEXT
-                )
-                """
+            apply_sqlite_migrations(
+                connection,
+                clock=self._clock,
             )
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS queue_workers (
-                    worker_id TEXT PRIMARY KEY,
-                    hostname TEXT NOT NULL,
-                    pid INTEGER NOT NULL,
-                    state TEXT NOT NULL,
-                    current_job_id TEXT,
-                    labels_json TEXT NOT NULL DEFAULT '[]',
-                    max_concurrency INTEGER NOT NULL DEFAULT 1,
-                    started_at TEXT NOT NULL,
-                    last_heartbeat TEXT NOT NULL,
-                    stopped_at TEXT
-                )
-                """
-            )
-            connection.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_queue_pending
-                ON queue_jobs (state, priority DESC, created_at, job_id)
-                """
-            )
-            columns = {
-                row["name"]
-                for row in connection.execute(
-                    "PRAGMA table_info(queue_jobs)"
-                ).fetchall()
-            }
-            migrations = {
-                "claimed_at": "ALTER TABLE queue_jobs ADD COLUMN claimed_at TEXT",
-                "permissions_json": (
-                    "ALTER TABLE queue_jobs ADD COLUMN "
-                    "permissions_json TEXT NOT NULL DEFAULT '{}'"
-                ),
-                "required_labels_json": (
-                    "ALTER TABLE queue_jobs ADD COLUMN "
-                    "required_labels_json TEXT NOT NULL DEFAULT '[]'"
-                ),
-                "parallel_safe": (
-                    "ALTER TABLE queue_jobs ADD COLUMN "
-                    "parallel_safe INTEGER NOT NULL DEFAULT 0"
-                ),
-                "worker_id": (
-                    "ALTER TABLE queue_jobs ADD COLUMN worker_id TEXT"
-                ),
-                "attempts": (
-                    "ALTER TABLE queue_jobs ADD COLUMN "
-                    "attempts INTEGER NOT NULL DEFAULT 0"
-                ),
-                "recovery_count": (
-                    "ALTER TABLE queue_jobs ADD COLUMN "
-                    "recovery_count INTEGER NOT NULL DEFAULT 0"
-                ),
-            }
-            for column, statement in migrations.items():
-                if column not in columns:
-                    connection.execute(statement)
-            worker_columns = {
-                row["name"]
-                for row in connection.execute(
-                    "PRAGMA table_info(queue_workers)"
-                ).fetchall()
-            }
-            if "labels_json" not in worker_columns:
-                connection.execute(
-                    "ALTER TABLE queue_workers ADD COLUMN "
-                    "labels_json TEXT NOT NULL DEFAULT '[]'"
-                )
-            if "max_concurrency" not in worker_columns:
-                connection.execute(
-                    "ALTER TABLE queue_workers ADD COLUMN "
-                    "max_concurrency INTEGER NOT NULL DEFAULT 1"
-                )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(

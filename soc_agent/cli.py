@@ -15,8 +15,8 @@ from soc_agent.datasets import load_dataset
 from soc_agent.environments.macos import MacOSEnvironment
 from soc_agent.providers.qwen import QwenVisionProvider
 from soc_agent.privacy import capture_screenshot
+from soc_agent.queue_backend import create_queue_store
 from soc_agent.queue_models import QueueJob, QueueState
-from soc_agent.queue_store import SQLiteQueueStore
 from soc_agent.queue_worker import QueueWorker
 from soc_agent.reporting.dataset_report import DatasetReportWriter
 from soc_agent.reporting.report import ReportWriter
@@ -563,7 +563,7 @@ def enqueue_queue_job(args, parameters: Dict[str, str]) -> int:
         return 1
 
     try:
-        store = SQLiteQueueStore(args.queue_db)
+        store = create_queue_store(args.queue_db)
         job = store.enqueue(
             DatasetTargetType(args.target_type),
             target_path,
@@ -592,7 +592,7 @@ def enqueue_queue_job(args, parameters: Dict[str, str]) -> int:
 
 def list_queue_jobs(args) -> int:
     try:
-        store = SQLiteQueueStore(args.queue_db)
+        store = create_queue_store(args.queue_db)
         state = QueueState(args.state) if args.state else None
         jobs = store.list_jobs(state)
     except Exception as error:
@@ -651,7 +651,7 @@ def run_queue(
     worker_labels: Optional[List[str]] = None,
     max_concurrency: int = 1,
 ) -> list:
-    store = SQLiteQueueStore(queue_db)
+    store = create_queue_store(queue_db)
 
     def execute_job(job: QueueJob):
         policy = SafetyPolicy(
@@ -693,7 +693,7 @@ def run_queue(
 
 def list_queue_workers(args) -> int:
     try:
-        store = SQLiteQueueStore(args.queue_db)
+        store = create_queue_store(args.queue_db)
         workers = store.list_workers(
             online_within_seconds=args.online_within_seconds
         )

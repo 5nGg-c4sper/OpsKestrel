@@ -11,8 +11,8 @@ from concurrent.futures import (
 )
 from typing import Callable, List, Optional, Union
 
+from soc_agent.queue_backend import QueueStore, QueueStoreError
 from soc_agent.queue_models import QueueJob, QueueState
-from soc_agent.queue_store import QueueStoreError, SQLiteQueueStore
 from soc_agent.task_models import TaskResult, TaskStatus, WorkflowResult
 
 
@@ -24,7 +24,7 @@ class QueueWorker:
 
     def __init__(
         self,
-        store: SQLiteQueueStore,
+        store: QueueStore,
         execute_job: Callable[[QueueJob], ExecutionResult],
         stale_after_seconds: float = 3600,
         max_attempts: int = 3,
