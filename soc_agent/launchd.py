@@ -97,7 +97,8 @@ def build_launch_agent_plist(config: WorkerLaunchConfig) -> Dict:
             "HOME": str(Path.home()),
             "PATH": (
                 f"{config.python_path.expanduser().resolve().parent}:"
-                "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+                "/opt/homebrew/bin:/usr/local/bin:"
+                "/usr/bin:/bin:/usr/sbin:/sbin"
             ),
         },
     }

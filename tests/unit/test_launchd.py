@@ -125,11 +125,12 @@ class WorkerLaunchConfigTests(unittest.TestCase):
             plist["StandardErrorPath"],
             str((self.log_dir / "worker.err.log").resolve()),
         )
+        launch_path = plist["EnvironmentVariables"]["PATH"]
         self.assertTrue(
-            plist["EnvironmentVariables"]["PATH"].startswith(
-                str(self.python_path.parent.resolve())
-            )
+            launch_path.startswith(str(self.python_path.parent.resolve()))
         )
+        self.assertIn("/usr/sbin", launch_path.split(":"))
+        self.assertIn("/sbin", launch_path.split(":"))
 
     def test_plist_does_not_embed_api_credentials(self):
         with patch.dict(
@@ -201,6 +202,13 @@ class WorkerLaunchConfigTests(unittest.TestCase):
 
         def fake_launchctl(*arguments):
             calls.append(arguments)
+            if arguments[0] == "print":
+                return subprocess.CompletedProcess(
+                    ["launchctl", *arguments],
+                    113,
+                    stdout="",
+                    stderr="service not found",
+                )
             return subprocess.CompletedProcess(
                 ["launchctl", *arguments],
                 0,
@@ -222,7 +230,8 @@ class WorkerLaunchConfigTests(unittest.TestCase):
         self.assertEqual(
             calls,
             [
-                ("bootout", "gui/501", "com.soc-agent.worker.office-mac-1"),
+                ("bootout", "gui/501/com.soc-agent.worker.office-mac-1"),
+                ("print", "gui/501/com.soc-agent.worker.office-mac-1"),
                 ("bootstrap", "gui/501", str(plist_path.resolve())),
                 ("enable", "gui/501/com.soc-agent.worker.office-mac-1"),
                 (
@@ -260,6 +269,37 @@ class WorkerLaunchConfigTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertFalse(plist_path.exists())
+
+    def test_script_install_stops_when_existing_service_does_not_unload(self):
+        script = load_worker_launchd_script()
+        plist_path = self.root / "LaunchAgents" / "worker.plist"
+
+        with patch.object(
+            script,
+            "launchctl",
+            return_value=subprocess.CompletedProcess(
+                ["launchctl"],
+                0,
+                stdout="service is still running",
+                stderr="",
+            ),
+        ), patch.object(
+            script,
+            "default_plist_path",
+            return_value=plist_path,
+        ), patch.object(
+            script,
+            "wait_until_unloaded",
+            return_value=False,
+        ), patch.object(
+            script,
+            "gui_domain",
+            return_value="gui/501",
+        ):
+            exit_code = script.install(self.config)
+
+        self.assertEqual(exit_code, 1)
+        self.assertTrue(plist_path.exists())
 
     def test_script_status_returns_launchctl_result(self):
         script = load_worker_launchd_script()

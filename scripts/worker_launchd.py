@@ -6,6 +6,7 @@ import os
 import plistlib
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -90,6 +91,21 @@ def gui_domain() -> str:
     return f"gui/{os.getuid()}"
 
 
+def service_target(label: str) -> str:
+    return f"{gui_domain()}/{label}"
+
+
+def wait_until_unloaded(target: str, timeout: float = 5.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while True:
+        result = launchctl("print", target)
+        if result.returncode != 0:
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.1)
+
+
 def install(config: WorkerLaunchConfig) -> int:
     plist_path = write_launch_agent_plist(
         default_plist_path(config),
@@ -97,7 +113,11 @@ def install(config: WorkerLaunchConfig) -> int:
         create_log_dir=True,
     )
     label = service_label(config.worker_id)
-    launchctl("bootout", gui_domain(), label)
+    target = service_target(label)
+    launchctl("bootout", target)
+    if not wait_until_unloaded(target):
+        print(f"Existing service did not unload: {label}")
+        return 1
     result = launchctl(
         "bootstrap",
         gui_domain(),
@@ -115,7 +135,7 @@ def install(config: WorkerLaunchConfig) -> int:
 
 def uninstall(config: WorkerLaunchConfig) -> int:
     label = service_label(config.worker_id)
-    result = launchctl("bootout", gui_domain(), label)
+    result = launchctl("bootout", service_target(label))
     plist_path = default_plist_path(config)
     if plist_path.exists():
         plist_path.unlink()

@@ -83,3 +83,37 @@ tail -f ~/Library/Logs/SOCAgent/worker.err.log
 The Worker runs inside the `Aqua` login session with `ProcessType=Interactive`.
 Normal exit is not restarted; abnormal exit is restarted after the launchd
 throttle interval.
+
+## Permissions
+
+macOS tracks privacy permissions per launching process. A successful foreground
+run from Terminal or VS Code does not guarantee that the launchd Worker has the
+same Screen Recording and Accessibility grants.
+
+Grant these permissions to the Python executable used by the LaunchAgent:
+
+```text
+<project>/venv/bin/python
+```
+
+Use `System Settings > Privacy & Security > Screen Recording` and
+`System Settings > Privacy & Security > Accessibility`. The configuration is
+stored on the target Mac and is never embedded in the plist.
+
+Common symptoms:
+
+- `[Errno 2] No such file or directory: 'screencapture'` means the Worker PATH
+  is missing `/usr/sbin`.
+- `screencapture ... returned non-zero exit status 1`, or
+  `could not create image from display`, usually means the launchd Python
+  process does not have Screen Recording permission.
+- Accessibility element lookup failures can mean the same launchd Python
+  process does not have Accessibility permission.
+
+After changing permission, restart the service:
+
+```bash
+./venv/bin/python scripts/worker_launchd.py restart \
+  --worker-id office-mac-1 \
+  --label office-mac
+```
