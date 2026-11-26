@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from soc_agent.cli import build_parser
 from soc_agent.launchd import (
     WorkerLaunchConfig,
     build_launch_agent_plist,
@@ -86,6 +87,17 @@ class WorkerLaunchConfigTests(unittest.TestCase):
             self.option_values(arguments, "--label"),
             ["office-mac", "high-memory"],
         )
+
+    def test_program_arguments_are_accepted_by_worker_cli(self):
+        arguments = build_program_arguments(self.config)
+
+        parsed = build_parser().parse_args(arguments[3:])
+
+        self.assertEqual(parsed.command, "queue")
+        self.assertEqual(parsed.queue_command, "worker")
+        self.assertEqual(parsed.poll_interval, 1.5)
+        self.assertEqual(parsed.stale_after_seconds, 1800.0)
+        self.assertEqual(parsed.max_concurrency, 2)
 
     def test_launch_agent_plist_uses_absolute_paths_and_aqua_session(self):
         plist = build_launch_agent_plist(self.config)

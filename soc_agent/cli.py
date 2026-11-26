@@ -218,8 +218,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     queue_run.add_argument(
         "--stale-after-seconds",
-        type=int,
-        default=3600,
+        type=float,
+        default=3600.0,
         help="Recover running jobs after this lease duration",
     )
     queue_run.add_argument(
@@ -267,8 +267,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     queue_worker.add_argument(
         "--stale-after-seconds",
-        type=int,
-        default=3600,
+        type=float,
+        default=3600.0,
         help="Recover running jobs after this lease duration",
     )
     queue_worker.add_argument(
