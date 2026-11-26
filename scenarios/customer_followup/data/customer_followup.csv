@@ -1,0 +1,4 @@
+case_id,customer_name,note,left,right,operator,expected_result
+zhang_san,张三,首次回访,12,11,*,132
+li_si,李四,确认续费,20,8,*,160
+wang_wu,王五,报价核对,15,6,*,90

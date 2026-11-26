@@ -1,0 +1,14 @@
+{
+  "name": "customer_followup_batch",
+  "description": "批量生成客户回访记录并核对关联金额",
+  "dataset": "dataset.json",
+  "required_apps": [
+    "文本编辑",
+    "计算器"
+  ],
+  "safety_notes": [
+    "示例数据全部为虚构客户",
+    "TextEdit 文稿关闭时不保存",
+    "每个 case 独立创建和清理文稿"
+  ]
+}

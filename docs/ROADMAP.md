@@ -73,6 +73,7 @@ SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优
 - M4 Queue 失败/超时自动重试、最终尝试上限和取消任务不重试
 - M4 只读运行诊断、权限探针、队列后端和 Worker 在线检查
 - M4 待执行任务取消、终态失败任务手动重试和自动重试预算重置
+- M5 场景包清单、路径校验、`scenario validate/run` 和客户回访示例
 - `soc-agent dataset` 数据集命令、失败停止/重试策略和诊断输出
 - 基础安全策略
 - GitHub Actions 单元测试配置
@@ -80,11 +81,12 @@ SOC Agent 是一个面向 macOS 桌面软件的可观测自动化工具。它优
 
 当前验证结果：
 
-- 380 个单元测试通过
+- 385 个单元测试通过
 - macOS LaunchAgent Worker 已完成真实队列领取、Accessibility 点击、
   键盘输入、截图视觉验证、跨应用 Workflow、报告写入和清理回归
 - LaunchAgent Worker 已验证失败任务连续自动重试 3 次并写回最终失败状态
 - LaunchAgent Worker 已验证 `SIGKILL` 后自动拉起、恢复过期租约并成功重跑任务
+- 客户回访场景包已完成 3 个 CSV case、6 个子任务的真实 macOS 批量回归
 - 计算器任务连续批量执行成功
 - 两组参数化计算器任务在真实 macOS 上验证成功
 - 双 case 数据集在真实 macOS 上连续执行成功

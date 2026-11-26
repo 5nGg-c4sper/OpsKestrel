@@ -1,0 +1,28 @@
+{
+  "name": "customer_followup_workflow",
+  "description": "记录客户回访摘要并核对关联金额",
+  "parameters": {
+    "customer_name": {
+      "description": "客户姓名"
+    },
+    "note": {
+      "description": "回访备注"
+    },
+    "left": {
+      "description": "金额计算的第一个操作数"
+    },
+    "right": {
+      "description": "金额计算的第二个操作数"
+    },
+    "operator": {
+      "default": "*"
+    },
+    "expected_result": {
+      "description": "应显示的金额结果"
+    }
+  },
+  "task_files": [
+    "../../tasks/textedit_parameterized.json",
+    "../../tasks/calculator_parameterized.json"
+  ]
+}

@@ -28,6 +28,7 @@ from soc_agent.reporting.suite_report import SuiteReportWriter
 from soc_agent.reporting.workflow_report import WorkflowReportWriter
 from soc_agent.runner import TaskRunner
 from soc_agent.safety.policy import SafetyPolicy
+from soc_agent.scenarios import load_scenario
 from soc_agent.suite import SuiteResult, SuiteRunner
 from soc_agent.task_models import (
     ActionType,
@@ -353,6 +354,34 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Render diagnostics as JSON",
     )
+
+    scenario_parser = subparsers.add_parser(
+        "scenario",
+        help="Validate or run a packaged business scenario",
+    )
+    scenario_commands = scenario_parser.add_subparsers(
+        dest="scenario_command",
+        required=True,
+    )
+    scenario_validate = scenario_commands.add_parser(
+        "validate",
+        help="Validate a scenario package",
+    )
+    scenario_validate.add_argument("scenario_path")
+    scenario_run = scenario_commands.add_parser(
+        "run",
+        help="Run the dataset contained in a scenario package",
+    )
+    scenario_run.add_argument("scenario_path")
+    add_execution_options(
+        scenario_run,
+        include_parameters=False,
+    )
+    scenario_run.add_argument(
+        "--stop-on-failure",
+        action="store_true",
+        help="Stop after the first unsuccessful case",
+    )
     return parser
 
 
@@ -564,6 +593,10 @@ def main(
         if args.queue_command == "workers":
             return list_queue_workers(args)
 
+    if args.command == "scenario":
+        if args.scenario_command == "validate":
+            return validate_scenario(args)
+
     load_dotenv()
     if args.command == "doctor":
         return run_doctor(args)
@@ -624,6 +657,19 @@ def main(
         elif args.command == "dataset":
             dataset_result = run_dataset(
                 args.dataset_path,
+                environment,
+                executor,
+                vision_provider,
+                reporter,
+                confirmation_handler=confirmation_handler,
+                stop_on_failure=args.stop_on_failure,
+            )
+            print_dataset_result(dataset_result)
+            return exit_code_for_status(dataset_result.status)
+        elif args.command == "scenario":
+            scenario = load_scenario(args.scenario_path)
+            dataset_result = run_dataset(
+                scenario.dataset.dataset_path,
                 environment,
                 executor,
                 vision_provider,
@@ -725,6 +771,25 @@ def run_doctor(args) -> int:
             f"{'PASSED' if report.healthy else 'FAILED'}"
         )
     return 0 if report.healthy else 1
+
+
+def validate_scenario(args) -> int:
+    try:
+        scenario = load_scenario(args.scenario_path)
+    except Exception as error:
+        print(f"Scenario validation failed: {error}")
+        return 1
+
+    definition = scenario.definition
+    print(f"Scenario: {definition.name}")
+    print(f"Description: {definition.description}")
+    print(f"Dataset: {scenario.dataset.dataset_path}")
+    print(f"Workflow: {scenario.dataset.workflow_path}")
+    print(f"Cases: {len(scenario.dataset.definition.cases)}")
+    if definition.required_apps:
+        print(f"Apps: {', '.join(definition.required_apps)}")
+    print("Validation: PASSED")
+    return 0
 
 
 def enqueue_queue_job(args, parameters: Dict[str, str]) -> int:

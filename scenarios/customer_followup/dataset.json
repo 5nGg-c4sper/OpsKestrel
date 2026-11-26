@@ -1,0 +1,19 @@
+{
+  "name": "customer_followup_regression",
+  "workflow": "workflow.json",
+  "data_source": {
+    "type": "csv",
+    "path": "data/customer_followup.csv",
+    "case_name_column": "case_id",
+    "parameters": {
+      "customer_name": "customer_name",
+      "note": "note",
+      "left": "left",
+      "right": "right",
+      "operator": "operator",
+      "expected_result": "expected_result"
+    },
+    "attempts": 2,
+    "retry_delay_seconds": 0.5
+  }
+}

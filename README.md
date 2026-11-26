@@ -338,6 +338,27 @@ This dataset uses the `workflow` target instead of `task`. Every CSV case runs
 the complete ordered workflow with its own parameters, workflow report, nested
 task reports, and final dataset summary entry.
 
+Package a reusable business scenario with a manifest, workflow, dataset, CSV
+data, and operator notes. Validate it without touching the desktop:
+
+```bash
+./venv/bin/soc-agent scenario validate \
+  scenarios/customer_followup/scenario.json
+```
+
+Run the complete scenario through the normal permission and reporting pipeline:
+
+```bash
+./venv/bin/soc-agent scenario run \
+  scenarios/customer_followup/scenario.json \
+  --non-interactive
+```
+
+The included customer follow-up package generates three synthetic customer
+records in TextEdit, verifies each record, checks an associated amount in
+Calculator, closes documents without saving, and writes nested workflow and
+dataset reports.
+
 Manage the persistent execution queue:
 
 ```bash

@@ -395,6 +395,29 @@ class CLITests(unittest.TestCase):
         self.assertEqual(args.online_within_seconds, 120)
         self.assertTrue(args.json)
 
+    def test_parser_supports_scenario_commands(self):
+        validate_args = build_parser().parse_args(
+            [
+                "scenario",
+                "validate",
+                "scenarios/customer_followup/scenario.json",
+            ]
+        )
+        run_args = build_parser().parse_args(
+            [
+                "scenario",
+                "run",
+                "scenarios/customer_followup/scenario.json",
+                "--non-interactive",
+                "--stop-on-failure",
+            ]
+        )
+
+        self.assertEqual(validate_args.scenario_command, "validate")
+        self.assertEqual(run_args.scenario_command, "run")
+        self.assertTrue(run_args.non_interactive)
+        self.assertTrue(run_args.stop_on_failure)
+
     def test_parser_supports_repeated_suite_parameters(self):
         args = build_parser().parse_args(
             [
@@ -985,6 +1008,32 @@ class CLITests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertIn("worker-visible idle test-mac:999", output.getvalue())
         self.assertIn("Labels: office-mac", output.getvalue())
+        load_dotenv.assert_not_called()
+
+    def test_main_validates_scenario_without_api_key(self):
+        output = StringIO()
+
+        with (
+            patch("soc_agent.cli.load_dotenv") as load_dotenv,
+            redirect_stdout(output),
+        ):
+            exit_code = main(
+                [
+                    "scenario",
+                    "validate",
+                    str(
+                        PROJECT_ROOT
+                        / "scenarios"
+                        / "customer_followup"
+                        / "scenario.json"
+                    ),
+                ]
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Scenario: customer_followup_batch", output.getvalue())
+        self.assertIn("Cases: 3", output.getvalue())
+        self.assertIn("Validation: PASSED", output.getvalue())
         load_dotenv.assert_not_called()
 
     def test_main_cancels_and_retries_jobs_without_api_key(self):

@@ -284,3 +284,14 @@ Worker `max_concurrency` 只提供并行槽位，不会绕过 GUI 全局串行�
 权限检查调用 macOS 的进程级 preflight API，不触发桌面操作。指定
 `--worker-id` 时，该 Worker 必须位于在线窗口内；未指定 Worker 时只产生警告。
 命令支持文本和 JSON 输出，只要存在失败项即返回退出码 `1`。
+
+## 业务场景包
+
+`scenarios/` 用目录封装可交付的完整业务场景。`scenario.json` 是严格校验的清单，
+引用同目录下的 dataset，并声明所需应用和安全说明。`scenario validate` 只解析
+清单、dataset、CSV 和 Workflow 路径，不访问桌面；`scenario run` 复用 DatasetRunner
+执行每条 CSV case，并生成 task、workflow、dataset 三级报告。
+
+场景 package 必须使用 workflow target，避免把缺少跨应用编排的单任务包装成完整
+业务场景。示例 `customer_followup` 使用虚构客户数据，执行 TextEdit 回访录入、
+视觉验证、无保存清理、Calculator 金额核对和批量汇总。
