@@ -453,6 +453,24 @@ class CLITests(unittest.TestCase):
         self.assertEqual(args.data, "erp.json")
         self.assertEqual(args.port, 9000)
 
+    def test_parser_supports_erp_search_command(self):
+        args = build_parser().parse_args(
+            [
+                "erp-search",
+                "INV-1001",
+                "--screenshot",
+                "reports/erp.png",
+                "--headed",
+                "--json",
+            ]
+        )
+
+        self.assertEqual(args.command, "erp-search")
+        self.assertEqual(args.invoice_id, "INV-1001")
+        self.assertEqual(args.screenshot, "reports/erp.png")
+        self.assertTrue(args.headed)
+        self.assertTrue(args.json)
+
     def test_parser_supports_repeated_suite_parameters(self):
         args = build_parser().parse_args(
             [

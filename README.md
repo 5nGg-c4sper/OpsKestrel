@@ -383,6 +383,18 @@ provides stable `data-testid` selectors and structured field attributes for the
 upcoming browser adapter. It uses only the synthetic JSON fixture and does not
 require credentials or external services.
 
+Collect an invoice through the browser UI without starting the server manually:
+
+```bash
+./venv/bin/soc-agent erp-search INV-1001 \
+  --screenshot reports/erp-inv-1001.png
+```
+
+The command starts the Mock ERP on an ephemeral port, opens Chrome through
+Playwright, fills the invoice search, reads structured DOM fields, handles
+missing and duplicate records, and closes the browser. Use `--json` for machine
+output or `--headed` to watch the browser.
+
 Manage the persistent execution queue:
 
 ```bash

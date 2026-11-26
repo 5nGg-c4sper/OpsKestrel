@@ -311,3 +311,8 @@ Worker `max_concurrency` 只提供并行槽位，不会绕过 GUI 全局串行�
 `data-testid` 和 `data-field` 暴露搜索框、记录容器和发票字段，并由后端 API 驱动
 重复记录、缺失记录等场景。它不依赖真实账号、外部网络或前端构建工具，可通过
 固定 JSON fixture 在测试和演示中重复启动。
+
+`soc_agent.browser` 提供 DOM 优先的 Browser Adapter。`MockERPAdapter` 通过
+Playwright 打开页面、填写搜索框、等待结果状态，并用 `data-field` 一次性读取
+所有结构化字段。缺失记录返回空结果，多条记录保留完整数组供重复检测；截图与
+结构化结果写入同一采集结果。当前使用本机 Chrome/Chromium，不依赖视觉模型。

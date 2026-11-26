@@ -45,5 +45,14 @@ Open `http://127.0.0.1:8765`. The page searches the synthetic ERP JSON and expos
 stable browser selectors for invoice ID, record count, and the `invoice_id`,
 `customer_id`, `currency`, `amount`, `status`, and `due_date` fields.
 
-The next implementation phase adds a browser adapter that collects these fields
-from the page and feeds the deterministic reconciliation core.
+The browser adapter collects these fields from the page and feeds the
+deterministic reconciliation core:
+
+```bash
+./venv/bin/soc-agent erp-search INV-1017 \
+  --screenshot reports/erp-inv-1017.png
+```
+
+This starts the fixture automatically, opens system Chrome through Playwright,
+searches by invoice ID, and reads all records through stable DOM selectors.
+`INV-1017` returns two records and is reported as a duplicate.

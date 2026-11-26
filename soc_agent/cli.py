@@ -12,6 +12,10 @@ from typing import Dict, List, Optional, Sequence
 from dotenv import load_dotenv
 
 from soc_agent.actions.executor import ActionExecutor
+from soc_agent.browser import (
+    MockERPAdapter,
+    PlaywrightBrowserSession,
+)
 from soc_agent.config import AgentConfig
 from soc_agent.dataset_runner import DatasetRunner
 from soc_agent.datasets import load_dataset
@@ -428,6 +432,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     mock_erp_parser.add_argument("--host", default="127.0.0.1")
     mock_erp_parser.add_argument("--port", type=int, default=8765)
+
+    erp_search_parser = subparsers.add_parser(
+        "erp-search",
+        help="Search an invoice through the Mock ERP browser UI",
+    )
+    erp_search_parser.add_argument("invoice_id")
+    erp_search_parser.add_argument(
+        "--base-url",
+        default=None,
+        help="Existing ERP URL; otherwise start the local fixture",
+    )
+    erp_search_parser.add_argument(
+        "--mock-erp-data",
+        default=(
+            "scenarios/invoice_reconciliation/data/erp_invoices.json"
+        ),
+    )
+    erp_search_parser.add_argument("--screenshot", default=None)
+    erp_search_parser.add_argument("--headed", action="store_true")
+    erp_search_parser.add_argument("--json", action="store_true")
     return parser
 
 
@@ -648,6 +672,9 @@ def main(
 
     if args.command == "mock-erp":
         return run_mock_erp(args)
+
+    if args.command == "erp-search":
+        return run_erp_search(args)
 
     load_dotenv()
     if args.command == "doctor":
@@ -915,6 +942,62 @@ def run_mock_erp(args) -> int:
     finally:
         server.server_close()
     return 0
+
+
+def run_erp_search(args) -> int:
+    server = None
+    thread = None
+    base_url = args.base_url
+    try:
+        if base_url is None:
+            server = create_mock_erp_server(
+                args.mock_erp_data,
+                host="127.0.0.1",
+                port=0,
+            )
+            thread = threading.Thread(
+                target=server.serve_forever,
+                daemon=True,
+            )
+            thread.start()
+            host, port = server.server_address[:2]
+            base_url = f"http://{host}:{port}"
+
+        with PlaywrightBrowserSession(
+            headless=not args.headed,
+        ) as session:
+            page = session.new_page()
+            adapter = MockERPAdapter(page, base_url)
+            result = adapter.search(
+                args.invoice_id,
+                screenshot_path=args.screenshot,
+            )
+            page.close()
+    except Exception as error:
+        print(f"ERP search failed: {error}")
+        return 1
+    finally:
+        if server is not None:
+            server.shutdown()
+            server.server_close()
+        if thread is not None:
+            thread.join(timeout=2)
+
+    payload = result.to_dict()
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(f"Invoice: {result.invoice_id}")
+        print(f"Found: {'yes' if result.found else 'no'}")
+        print(f"Records: {result.record_count}")
+        print(f"Duplicate: {'yes' if result.duplicate else 'no'}")
+        for index, record in enumerate(result.records, start=1):
+            print(f"Record {index}:")
+            for field_name, value in record.items():
+                print(f"  {field_name}: {value}")
+        if result.screenshot_path:
+            print(f"Screenshot: {result.screenshot_path}")
+    return 0 if result.found else 1
 
 
 def enqueue_queue_job(args, parameters: Dict[str, str]) -> int:
