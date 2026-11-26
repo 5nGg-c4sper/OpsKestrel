@@ -87,6 +87,17 @@ QueueWorker
   -> 校验 worker_id 后写回终态
 ```
 
+长驻 Worker：
+
+```text
+queue worker
+  -> 注册并持续在线
+  -> 有 Job 时 claim/execute
+  -> 空闲时 heartbeat IDLE + poll delay
+  -> SIGINT/SIGTERM 停止领取
+  -> 当前 Job 完成后标记 Worker offline
+```
+
 ## 模块职责
 
 | 模块 | 职责 |
@@ -234,6 +245,9 @@ worker 所有权，旧 Worker 无法覆盖已经被恢复或重新领取的任�
 `queue_workers` 表记录 Worker 的主机名、PID、运行状态、当前 Job、启动时间、
 最后心跳和离线时间。`queue workers` 命令可按最近心跳窗口查询活跃 Worker，
 为后续多机器调度和运行监控提供基础。
+
+`queue worker` 为长驻模式：队列为空时不退出，而是以 IDLE 状态持续心跳和轮询。
+收到 SIGINT/SIGTERM 后不再领取新任务，等待当前执行批次完成后注销退出。
 
 CLI、QueueWorker 只依赖 `QueueStore` 抽象接口，具体实例由
 `create_queue_store()` 根据路径或 URL 创建。SQLite schema 由

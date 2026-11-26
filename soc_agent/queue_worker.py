@@ -12,7 +12,7 @@ from concurrent.futures import (
 from typing import Callable, List, Optional, Union
 
 from soc_agent.queue_backend import QueueStore, QueueStoreError
-from soc_agent.queue_models import QueueJob, QueueState
+from soc_agent.queue_models import QueueJob, QueueState, WorkerState
 from soc_agent.task_models import TaskResult, TaskStatus, WorkflowResult
 
 
@@ -93,6 +93,7 @@ class QueueWorker:
         self,
         job: QueueJob,
         worker_id: str,
+        keep_worker_online: bool = False,
     ) -> QueueJob:
         self.store.heartbeat_worker(
             worker_id,
@@ -163,7 +164,13 @@ class QueueWorker:
                 ) from error
             raise
         finally:
-            self.store.mark_worker_offline(worker_id)
+            if keep_worker_online:
+                self.store.heartbeat_worker(
+                    worker_id,
+                    WorkerState.IDLE,
+                )
+            else:
+                self.store.mark_worker_offline(worker_id)
 
         return completed
 
@@ -182,6 +189,68 @@ class QueueWorker:
             if completed is None:
                 break
             completed_jobs.append(completed)
+        return completed_jobs
+
+    def run_forever(
+        self,
+        poll_interval_seconds: float = 2.0,
+        stop_event: Optional[threading.Event] = None,
+    ) -> List[QueueJob]:
+        if poll_interval_seconds <= 0:
+            raise ValueError(
+                "poll_interval_seconds must be greater than 0"
+            )
+        stop_event = stop_event or threading.Event()
+        completed_jobs = []
+        self.store.register_worker(
+            self.worker_id,
+            self.hostname,
+            self.pid,
+            labels=self.labels,
+            max_concurrency=self.max_concurrency,
+        )
+
+        try:
+            while not stop_event.is_set():
+                self.store.recover_stale_jobs(
+                    stale_after_seconds=self.stale_after_seconds,
+                    max_attempts=self.max_attempts,
+                )
+
+                if self.max_concurrency > 1:
+                    batch = self._run_until_empty_concurrent(
+                        max_jobs=self.max_concurrency
+                    )
+                    completed_jobs.extend(batch)
+                    had_jobs = bool(batch)
+                else:
+                    job = self.store.claim_next(
+                        self.worker_id,
+                        worker_labels=self.labels,
+                    )
+                    if job is not None:
+                        completed_jobs.append(
+                            self._execute_claimed(
+                                job,
+                                self.worker_id,
+                                keep_worker_online=True,
+                            )
+                        )
+                        had_jobs = True
+                    else:
+                        had_jobs = False
+
+                if stop_event.is_set():
+                    break
+                if not had_jobs:
+                    self.store.heartbeat_worker(
+                        self.worker_id,
+                        WorkerState.IDLE,
+                    )
+                    stop_event.wait(poll_interval_seconds)
+        finally:
+            self.store.mark_worker_offline(self.worker_id)
+
         return completed_jobs
 
     def _run_until_empty_concurrent(

@@ -1,8 +1,10 @@
 """Command-line interface for running task files."""
 
 import argparse
+import signal
 import sys
 import tempfile
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
@@ -245,6 +247,55 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_execution_options(
         queue_run,
+        include_parameters=False,
+    )
+
+    queue_worker = queue_commands.add_parser(
+        "worker",
+        help="Run a long-lived polling queue worker",
+    )
+    queue_worker.add_argument(
+        "--queue-db",
+        default="reports/queue.db",
+        help="Path to the queue SQLite database",
+    )
+    queue_worker.add_argument(
+        "--poll-interval",
+        type=float,
+        default=2.0,
+        help="Seconds to wait when the queue is empty",
+    )
+    queue_worker.add_argument(
+        "--stale-after-seconds",
+        type=int,
+        default=3600,
+        help="Recover running jobs after this lease duration",
+    )
+    queue_worker.add_argument(
+        "--max-attempts",
+        type=int,
+        default=3,
+        help="Fail stale jobs after this many attempts",
+    )
+    queue_worker.add_argument(
+        "--worker-id",
+        default=None,
+        help="Optional stable worker ID",
+    )
+    queue_worker.add_argument(
+        "--label",
+        action="append",
+        default=None,
+        help="Worker capability label; may be repeated",
+    )
+    queue_worker.add_argument(
+        "--max-concurrency",
+        type=int,
+        default=1,
+        help="Maximum parallel jobs; GUI jobs remain globally serialized",
+    )
+    add_execution_options(
+        queue_worker,
         include_parameters=False,
     )
     return parser
@@ -521,20 +572,36 @@ def main(
             print_dataset_result(dataset_result)
             return exit_code_for_status(dataset_result.status)
         elif args.command == "queue":
-            completed_jobs = run_queue(
-                args.queue_db,
-                environment,
-                executor,
-                vision_provider,
-                reporter,
-                confirmation_handler=confirmation_handler,
-                max_jobs=None if args.drain else args.max_jobs,
-                stale_after_seconds=args.stale_after_seconds,
-                max_attempts=args.max_attempts,
-                worker_id=args.worker_id,
-                worker_labels=args.label,
-                max_concurrency=args.max_concurrency,
-            )
+            if args.queue_command == "worker":
+                completed_jobs = run_queue_daemon(
+                    args.queue_db,
+                    environment,
+                    executor,
+                    vision_provider,
+                    reporter,
+                    confirmation_handler=confirmation_handler,
+                    poll_interval_seconds=args.poll_interval,
+                    stale_after_seconds=args.stale_after_seconds,
+                    max_attempts=args.max_attempts,
+                    worker_id=args.worker_id,
+                    worker_labels=args.label,
+                    max_concurrency=args.max_concurrency,
+                )
+            else:
+                completed_jobs = run_queue(
+                    args.queue_db,
+                    environment,
+                    executor,
+                    vision_provider,
+                    reporter,
+                    confirmation_handler=confirmation_handler,
+                    max_jobs=None if args.drain else args.max_jobs,
+                    stale_after_seconds=args.stale_after_seconds,
+                    max_attempts=args.max_attempts,
+                    worker_id=args.worker_id,
+                    worker_labels=args.label,
+                    max_concurrency=args.max_concurrency,
+                )
             print_queue_jobs(completed_jobs)
             return (
                 0
@@ -661,7 +728,88 @@ def run_queue(
     max_concurrency: int = 1,
 ) -> list:
     store = create_queue_store(queue_db)
+    execute_job = make_queue_job_executor(
+        environment,
+        executor,
+        vision_provider,
+        reporter,
+        confirmation_handler=confirmation_handler,
+    )
 
+    return QueueWorker(
+        store,
+        execute_job,
+        stale_after_seconds=stale_after_seconds,
+        max_attempts=max_attempts,
+        worker_id=worker_id,
+        labels=worker_labels,
+        max_concurrency=max_concurrency,
+    ).run_until_empty(max_jobs=max_jobs)
+
+
+def run_queue_daemon(
+    queue_db,
+    environment,
+    executor,
+    vision_provider,
+    reporter,
+    confirmation_handler=None,
+    poll_interval_seconds: float = 2.0,
+    stale_after_seconds: float = 3600,
+    max_attempts: int = 3,
+    worker_id: Optional[str] = None,
+    worker_labels: Optional[List[str]] = None,
+    max_concurrency: int = 1,
+    stop_event: Optional[threading.Event] = None,
+) -> list:
+    store = create_queue_store(queue_db)
+    execute_job = make_queue_job_executor(
+        environment,
+        executor,
+        vision_provider,
+        reporter,
+        confirmation_handler=confirmation_handler,
+    )
+    worker = QueueWorker(
+        store,
+        execute_job,
+        stale_after_seconds=stale_after_seconds,
+        max_attempts=max_attempts,
+        worker_id=worker_id,
+        labels=worker_labels,
+        max_concurrency=max_concurrency,
+    )
+
+    owns_stop_event = stop_event is None
+    stop_event = stop_event or threading.Event()
+    previous_handlers = {}
+    if owns_stop_event:
+        def request_stop(signum, frame):
+            stop_event.set()
+
+        for signal_number in (signal.SIGINT, signal.SIGTERM):
+            previous_handlers[signal_number] = signal.getsignal(
+                signal_number
+            )
+            signal.signal(signal_number, request_stop)
+
+    try:
+        return worker.run_forever(
+            poll_interval_seconds=poll_interval_seconds,
+            stop_event=stop_event,
+        )
+    finally:
+        for signal_number, handler in previous_handlers.items():
+            signal.signal(signal_number, handler)
+
+
+def make_queue_job_executor(
+    environment,
+    executor,
+    vision_provider,
+    reporter,
+    confirmation_handler=None,
+):
     def execute_job(job: QueueJob):
         policy = SafetyPolicy(
             allowed_apps=job.permissions.allowed_apps,
@@ -689,15 +837,7 @@ def run_queue(
             policy=policy,
         )
 
-    return QueueWorker(
-        store,
-        execute_job,
-        stale_after_seconds=stale_after_seconds,
-        max_attempts=max_attempts,
-        worker_id=worker_id,
-        labels=worker_labels,
-        max_concurrency=max_concurrency,
-    ).run_until_empty(max_jobs=max_jobs)
+    return execute_job
 
 
 def list_queue_workers(args) -> int:

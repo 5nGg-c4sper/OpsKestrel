@@ -365,6 +365,10 @@ Manage the persistent execution queue:
 ./venv/bin/soc-agent queue run --drain
 ./venv/bin/soc-agent queue run --stale-after-seconds 3600 --max-attempts 3
 ./venv/bin/soc-agent queue run --worker-id macbook-runner-1
+./venv/bin/soc-agent queue worker \
+  --worker-id macbook-runner-1 \
+  --label office-mac \
+  --poll-interval 2
 ./venv/bin/soc-agent queue run --label office-mac
 ./venv/bin/soc-agent queue run --label office-mac --max-concurrency 2
 ```
@@ -395,6 +399,10 @@ managed runners.
 `queue workers` shows recently active Worker IDs, hostnames, PIDs, current
 jobs, and last heartbeat times. Use `--online-within-seconds` to control the
 online window.
+
+`queue worker` runs continuously instead of exiting when the queue is empty.
+It remains registered as idle, polls for new jobs, and shuts down gracefully on
+`SIGINT` or `SIGTERM` after the current job completes.
 
 `--require-label` restricts a job to Workers advertising every required label.
 `queue run --label` advertises capabilities for the current Worker. Matching is

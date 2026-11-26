@@ -323,6 +323,20 @@ class CLITests(unittest.TestCase):
                 "60",
             ]
         )
+        worker_args = build_parser().parse_args(
+            [
+                "queue",
+                "worker",
+                "--worker-id",
+                "daemon-worker",
+                "--label",
+                "office-mac",
+                "--poll-interval",
+                "0.5",
+                "--max-concurrency",
+                "2",
+            ]
+        )
 
         self.assertEqual(enqueue_args.queue_command, "enqueue")
         self.assertEqual(enqueue_args.target_type, "task")
@@ -345,6 +359,11 @@ class CLITests(unittest.TestCase):
         self.assertTrue(run_args.non_interactive)
         self.assertEqual(workers_args.queue_command, "workers")
         self.assertEqual(workers_args.online_within_seconds, 60)
+        self.assertEqual(worker_args.queue_command, "worker")
+        self.assertEqual(worker_args.worker_id, "daemon-worker")
+        self.assertEqual(worker_args.label, ["office-mac"])
+        self.assertEqual(worker_args.poll_interval, 0.5)
+        self.assertEqual(worker_args.max_concurrency, 2)
 
     def test_parser_supports_repeated_suite_parameters(self):
         args = build_parser().parse_args(

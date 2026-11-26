@@ -7,7 +7,7 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from soc_agent.queue_models import QueueJob, QueueState
+from soc_agent.queue_models import QueueJob, QueueState, WorkerState
 from soc_agent.queue_store import SQLiteQueueStore
 from soc_agent.queue_worker import QueueWorker
 from soc_agent.task_models import (
@@ -254,6 +254,65 @@ class QueueWorkerTests(unittest.TestCase):
         self.assertEqual(completed.state, QueueState.PASSED)
         self.assertEqual(completed.recovery_count, 1)
         self.assertEqual(completed.attempts, 2)
+
+    def test_run_forever_processes_job_and_stops_gracefully(self):
+        self.store.enqueue(
+            DatasetTargetType.TASK,
+            "forever.json",
+            job_id="forever-job",
+        )
+        stop_event = threading.Event()
+
+        def execute_job(job):
+            stop_event.set()
+            return self.make_task_result()
+
+        completed = QueueWorker(
+            self.store,
+            execute_job,
+            worker_id="worker-forever",
+        ).run_forever(
+            poll_interval_seconds=0.01,
+            stop_event=stop_event,
+        )
+
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].state, QueueState.PASSED)
+        self.assertEqual(
+            self.store.get_worker("worker-forever").state,
+            WorkerState.OFFLINE,
+        )
+
+    def test_run_forever_stays_idle_online_until_stopped(self):
+        stop_event = threading.Event()
+        completed = []
+        worker = QueueWorker(
+            self.store,
+            lambda job: self.make_task_result(),
+            worker_id="idle-worker",
+        )
+        thread = threading.Thread(
+            target=lambda: completed.extend(
+                worker.run_forever(
+                    poll_interval_seconds=0.01,
+                    stop_event=stop_event,
+                )
+            )
+        )
+        thread.start()
+        time.sleep(0.05)
+
+        idle = self.store.get_worker("idle-worker")
+        self.assertEqual(idle.state, WorkerState.IDLE)
+
+        stop_event.set()
+        thread.join(timeout=2)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(completed, [])
+        self.assertEqual(
+            self.store.get_worker("idle-worker").state,
+            WorkerState.OFFLINE,
+        )
 
     def test_worker_auto_heartbeats_and_records_ownership(self):
         timestamp = self.timestamp
