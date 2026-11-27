@@ -34,6 +34,8 @@ the run's process group and records the result as `cancelled` while preserving
 logs and artifacts produced before cancellation. Completed runs can be packaged
 as one auditable ZIP with a SHA-256 file manifest:
 
+![OpsKestrel operations console](docs/assets/console.jpg)
+
 ```bash
 ./venv/bin/opskestrel console --port 8766
 ```
@@ -86,8 +88,12 @@ Roles are enforced server-side:
 The enterprise Mock ERP provides a real login page, session expiry, pagination,
 controlled failures, and CSV export without external services:
 
+![Enterprise Mock ERP login](docs/assets/erp-login.jpg)
+
 The invoice reconciliation report combines deterministic result classification,
 business filters, retry/cache state, and screenshot evidence:
+
+![Invoice reconciliation report](docs/assets/invoice-report.jpg)
 
 Configure the project root `.env` from [.env.example](.env.example).
 Python 3.9 through 3.12 is supported.

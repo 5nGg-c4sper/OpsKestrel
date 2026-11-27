@@ -5,7 +5,7 @@ include SECURITY.md
 include requirements.txt
 include requirements-dev.txt
 include requirements-integration.txt
-recursive-include docs *.md *.svg *.png
+recursive-include docs *.md *.svg *.png *.jpg *.jpeg
 recursive-include scenarios *
 recursive-include scripts *.sh *.py
 recursive-include tasks *.json

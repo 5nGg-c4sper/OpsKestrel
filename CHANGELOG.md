@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.1 - 2026-11-27
+
+Documentation and release presentation.
+
+- Added real screenshots for the console, enterprise Mock ERP, and reconciliation report
+- Updated the roadmap test count to the current 471 tests
+- Replaced completed milestones with the current delivery boundary
+
 ## 2.1.0 - 2026-11-26
 
 Product identity and namespace migration.
