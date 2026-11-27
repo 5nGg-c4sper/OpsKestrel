@@ -6,8 +6,8 @@
 
 <p align="center">
   OpsKestrel combines deterministic desktop actions, browser DOM adapters,
-  business rules, human review, and auditable evidence. Version 2.1 introduces
-  the OpsKestrel product identity after the 2.0 reference implementation.
+  business rules, human review, and auditable evidence. Version 2.2 adds a
+  responsive React operations console for runs, evidence, workers, and reviews.
 </p>
 
 OpsKestrel executes versioned JSON tasks through deterministic desktop actions
@@ -34,10 +34,30 @@ the run's process group and records the result as `cancelled` while preserving
 logs and artifacts produced before cancellation. Completed runs can be packaged
 as one auditable ZIP with a SHA-256 file manifest:
 
-![OpsKestrel operations console](docs/assets/console.jpg)
+![OpsKestrel operations console](docs/assets/console-2.jpg)
 
 ```bash
 ./venv/bin/opskestrel console --port 8766
+```
+
+The Console 2.0 frontend includes:
+
+- an operations overview with live worker and execution state
+- a dedicated invoice-demo and CSV/XLSX/PDF launch flow
+- run logs, reconciliation summaries, and evidence artifacts
+- authenticated difference review with batch decisions and audit history
+
+![Run monitor with logs, artifacts, and reconciliation results](docs/assets/run-monitor-2.jpg)
+
+![Authenticated reconciliation review queue](docs/assets/reviews-2.jpg)
+
+The built frontend is included in the Python package, so operators do not need
+Node.js. To rebuild it from source:
+
+```bash
+cd web/console
+pnpm install
+pnpm build
 ```
 
 For the interview-ready setup, use the one-command launcher. It creates a local

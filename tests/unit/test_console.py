@@ -197,15 +197,41 @@ class ConsoleTests(unittest.TestCase):
 
         self.assertEqual(response.status, 200)
         self.assertIn("OpsKestrel Console", html)
-        self.assertIn('join("\\n")', html)
-        self.assertIn('id="cancel-run"', html)
-        self.assertIn('id="bundle-run"', html)
-        self.assertIn('id="operator-token"', html)
-        self.assertIn('id="batch-review"', html)
-        self.assertIn('id="close-review"', html)
+        self.assertIn('<div id="root"></div>', html)
+        self.assertIn("/assets/", html)
         self.assertEqual(status, 200)
         self.assertEqual(payload["reports"][0]["status"], "passed")
         self.assertEqual(len(payload["workers"]), 1)
+
+    def test_console_assets_are_served_without_path_traversal(self):
+        asset_dir = (
+            Path(__file__).resolve().parents[2]
+            / "opskestrel"
+            / "console_static"
+            / "assets"
+        )
+        script = next(asset_dir.glob("index-*.js"))
+        with urlopen(
+            self.base_url + f"/assets/{script.name}",
+            timeout=2,
+        ) as response:
+            content = response.read()
+        self.assertEqual(response.status, 200)
+        self.assertIn(
+            "javascript",
+            response.headers.get("Content-Type", ""),
+        )
+        self.assertGreater(len(content), 1000)
+
+        request = Request(
+            self.base_url + "/assets/../console.py",
+            method="GET",
+        )
+        with self.assertRaises(HTTPError) as context:
+            urlopen(request, timeout=2)
+        error = context.exception
+        self.assertEqual(error.code, 404)
+        error.close()
 
     def test_health_endpoint_reports_runtime_checks(self):
         status, payload = self.get_json("/healthz")
@@ -217,6 +243,15 @@ class ConsoleTests(unittest.TestCase):
         self.assertTrue(
             payload["checks"]["operator_authentication_configured"]
         )
+
+    def test_idle_demo_status_has_complete_frontend_shape(self):
+        status, payload = self.get_json("/api/demo/status")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["state"], "idle")
+        self.assertEqual(payload["log_tail"], [])
+        self.assertEqual(payload["artifacts"], [])
+        self.assertIn("history", payload)
 
     def test_report_file_is_served_and_traversal_is_rejected(self):
         with urlopen(
