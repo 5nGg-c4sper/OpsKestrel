@@ -6,6 +6,8 @@ include requirements.txt
 include requirements-dev.txt
 include requirements-integration.txt
 recursive-include docs *.md *.svg *.png *.jpg *.jpeg
+recursive-include opskestrel/console_static *
+recursive-include web/console *.json *.ts *.tsx *.html *.css *.md
 recursive-include scenarios *
 recursive-include scripts *.sh *.py
 recursive-include tasks *.json

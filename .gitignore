@@ -122,6 +122,9 @@ celerybeat.pid
 # Environments
 .env
 .opskestrel-console-token
+web/console/node_modules/
+!web/console/src/lib/
+!web/console/src/lib/**
 .venv
 env/
 venv/

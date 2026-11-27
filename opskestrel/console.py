@@ -33,6 +33,8 @@ from opskestrel.review_workflow import (
 from opskestrel.reviews import ReviewAuditError, ReviewError
 from opskestrel import __version__
 
+CONSOLE_STATIC_DIR = Path(__file__).resolve().parent / "console_static"
+
 
 class ConsoleState:
     def __init__(
@@ -468,7 +470,18 @@ class ConsoleState:
 
     def demo_status(self):
         if self._process is None:
-            return {"state": "idle", "history": self.history()}
+            return {
+                "state": "idle",
+                "exit_code": None,
+                "started_at": None,
+                "elapsed_seconds": None,
+                "output_dir": None,
+                "kind": None,
+                "source_name": None,
+                "log_tail": [],
+                "artifacts": [],
+                "history": self.history(),
+            }
         exit_code = self._process.poll()
         if exit_code is not None:
             self._close_log_file()
@@ -698,6 +711,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/":
+            if self._send_console_app():
+                return
             self._send_html(_console_html())
             return
         if parsed.path in {"/healthz", "/readyz"}:
@@ -788,6 +803,16 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             if path is None:
                 self._send_json(
                     {"error": "file not found"},
+                    status=HTTPStatus.NOT_FOUND,
+                )
+                return
+            self._send_file(path)
+            return
+        if parsed.path.startswith("/assets/"):
+            path = self._resolve_console_asset(parsed.path)
+            if path is None:
+                self._send_json(
+                    {"error": "asset not found"},
                     status=HTTPStatus.NOT_FOUND,
                 )
                 return
@@ -918,11 +943,31 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             status=HTTPStatus.NOT_FOUND,
         )
 
-    def _send_file(self, path: Path):
+    def _send_console_app(self):
+        index_path = CONSOLE_STATIC_DIR / "index.html"
+        if not index_path.is_file():
+            return False
+        self._send_file(index_path, cache_control="no-cache")
+        return True
+
+    def _resolve_console_asset(self, route_path: str):
+        relative = unquote(route_path).lstrip("/")
+        candidate = (CONSOLE_STATIC_DIR / relative).resolve()
+        try:
+            candidate.relative_to(CONSOLE_STATIC_DIR)
+        except ValueError:
+            return None
+        return candidate if candidate.is_file() else None
+
+    def _send_file(self, path: Path, cache_control="public, max-age=3600"):
         content = path.read_bytes()
         content_type = {
             ".html": "text/html; charset=utf-8",
             ".json": "application/json; charset=utf-8",
+            ".js": "text/javascript; charset=utf-8",
+            ".css": "text/css; charset=utf-8",
+            ".svg": "image/svg+xml",
+            ".woff2": "font/woff2",
             ".xlsx": (
                 "application/vnd.openxmlformats-officedocument."
                 "spreadsheetml.sheet"
@@ -933,6 +978,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(content)))
+        self.send_header("Cache-Control", cache_control)
         self.end_headers()
         self.wfile.write(content)
 

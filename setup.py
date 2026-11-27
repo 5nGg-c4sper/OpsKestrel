@@ -15,7 +15,7 @@ setup(
     version=__version__,
     packages=find_packages(),
     python_requires=">=3.9,<3.13",
-    include_package_data=True,
+    include_package_data=False,
     install_requires=required,  # Add dependencies here
     entry_points={
         "console_scripts": [
@@ -26,6 +26,10 @@ setup(
     package_data={
         # Include the file in the operate.models.weights package
         "operate.models.weights": ["best.pt"],
+        "opskestrel": [
+            "console_static/*",
+            "console_static/assets/*",
+        ],
     },
     long_description=long_description,  # Add project description here
     long_description_content_type="text/markdown",  # Specify Markdown format

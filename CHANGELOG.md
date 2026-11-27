@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.2.0 - 2026-11-27
+
+Web Console 2.0.
+
+- Added a responsive React, TypeScript, and Vite operations console
+- Rebuilt the overview around live workers, current execution, reviews, runs, and evidence
+- Added dedicated new-run, run-monitor, and authenticated review workflows
+- Added reusable status, surface, table, dialog, and notification components
+- Bundled built frontend assets in the Python package with legacy HTML fallback
+- Added static asset path validation and Console API shape coverage
+- Added frontend build documentation and CI
+
 ## 2.1.1 - 2026-11-27
 
 Documentation and release presentation.

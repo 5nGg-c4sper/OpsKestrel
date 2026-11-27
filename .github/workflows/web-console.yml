@@ -1,0 +1,49 @@
+name: Web Console Build
+
+on:
+  push:
+    paths:
+      - "web/console/**"
+      - "opskestrel/console_static/**"
+      - ".github/workflows/web-console.yml"
+  pull_request:
+    paths:
+      - "web/console/**"
+      - "opskestrel/console_static/**"
+      - ".github/workflows/web-console.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  web-console:
+    name: Web Console
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "11.25.0"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: web/console/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: web/console
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check and build frontend
+        working-directory: web/console
+        run: pnpm build
+
+      - name: Verify committed production assets
+        run: git diff --exit-code -- opskestrel/console_static
